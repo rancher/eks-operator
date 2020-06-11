@@ -1,0 +1,8 @@
+apiVersion: ke.cattle.io/v1
+kind: EKSClusterConfig
+metadata:
+  name: my-import-cluster
+spec:
+  displayName: my-import-cluster
+  cloudCredential: "cc-zzzz"
+  imported: true

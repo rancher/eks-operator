@@ -1,0 +1,84 @@
+---
+kind: pipeline
+name: linux-amd64
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: briandowns/rancher-build-base:v0.1.1
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  - echo $DOCKER_USERNAME
+  - echo $DOCKER_PASSWORD
+  - sleep 20
+  - ls /var/run
+  - ls /var/run/utmp
+  - ls /var/run/lock
+  - sudo TAG=${DRONE_TAG} make
+  environment:
+    DOCKER_USERNAME:
+      from_secret: docker_username
+    DOCKER_PASSWORD:
+      from_secret: docker_password
+  when:
+    event:
+    - tag
+
+- name: push
+  image: briandowns/rancher-build-base:v0.1.1
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  - echo $DOCKER_USERNAME
+  - echo $DOCKER_PASSWORD
+  - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+  - TAG=${DRONE_TAG} make image-push
+  environment:
+    DOCKER_USERNAME:
+      from_secret: docker_username
+    DOCKER_PASSWORD:
+      from_secret: docker_password
+  when:
+    event:
+    - tag
+
+- name: scan
+  image: briandowns/rancher-build-base:v0.1.1
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  - TAG=${DRONE_TAG} make image-scan
+  when:
+    event:
+    - tag
+
+- name: manifest
+  image: briandowns/rancher-build-base:v0.1.1
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  - TAG=${DRONE_TAG} make image-manifest
+  when:
+    event:
+    - tag
+
+services:
+- name: docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run
+    temp: {}

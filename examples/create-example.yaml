@@ -1,0 +1,12 @@
+apiVersion: ke.cattle.io/v1
+kind: EKSClusterConfig
+metadata:
+  name: my-cluster
+spec:
+  kubernetesVersion: "1.15"
+  publicAccess: true
+  privateAccess: true
+  cloudCredential: "cc-zzzz"
+  displayName: "my-cluster"
+  region: "us-east-2"
+  loggingTypes: ["audit"]
