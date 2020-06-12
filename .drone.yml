@@ -12,8 +12,6 @@ steps:
   - name: dockersock
     path: /var/run
   commands:
-  - echo $DOCKER_USERNAME
-  - echo $DOCKER_PASSWORD
   - sleep 20
   - ls /var/run
   - ls /var/run/utmp
@@ -34,8 +32,6 @@ steps:
   - name: dockersock
     path: /var/run
   commands:
-  - echo $DOCKER_USERNAME
-  - echo $DOCKER_PASSWORD
   - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
   - TAG=${DRONE_TAG} make image-push
   environment:
