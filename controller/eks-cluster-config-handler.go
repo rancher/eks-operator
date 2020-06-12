@@ -171,7 +171,7 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 }
 
 func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
-	state, err := eksService.DescribeCluster(
+	clusterState, err := eksService.DescribeCluster(
 		&eks.DescribeClusterInput{
 			Name: aws.String(config.Spec.DisplayName),
 		})
@@ -179,7 +179,7 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 		return config, err
 	}
 
-	if aws.StringValue(state.Cluster.Status) == eks.ClusterStatusUpdating {
+	if aws.StringValue(clusterState.Cluster.Status) == eks.ClusterStatusUpdating {
 		// upstream cluster is already updating
 		logrus.Infof("waiting for cluster [%s] to finish updating", config.Name)
 		config.Status.Phase = eksConfigUpdatingPhase
@@ -195,6 +195,7 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 		&eks.ListNodegroupsInput{
 			ClusterName: aws.String(config.Spec.DisplayName),
 		})
+	var nodeGroupStates []*eks.DescribeNodegroupOutput
 	for _, ngName := range ngs.Nodegroups {
 		ng, err := eksService.DescribeNodegroup(
 			&eks.DescribeNodegroupInput{
@@ -210,13 +211,15 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 				config.Status.Phase = eksConfigUpdatingPhase
 				return h.eksCC.UpdateStatus(config)
 			}
-			logrus.Infof("waiting for cluster [%s] to delete nodegroup [%s]", config.Name, aws.StringValue(ngName))
+			logrus.Infof("waiting for cluster [%s] to update nodegroups [%s]", config.Name, aws.StringValue(ngName))
 			h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
 			return config, nil
 		}
+
+		nodeGroupStates = append(nodeGroupStates, ng)
 	}
 
-	upstreamSpec, clusterARN, err := h.getUpstreamClusterState(config.Spec.DisplayName, aws.StringValueSlice(ngs.Nodegroups), eksService)
+	upstreamSpec, clusterARN, err := h.buildUpstreamClusterState(config.Spec.DisplayName, clusterState, nodeGroupStates, eksService)
 	if err != nil {
 		return config, err
 	}
@@ -379,14 +382,6 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		return config, fmt.Errorf("error creating cluster: %v", err)
 	}
 
-	/*
-		for _, ng := range config.Spec.NodeGroups {
-			err := createNodeGroup(config, ng, eksService, svc)
-			if err != nil {
-				return config, err
-			}
-		}*/
-
 	config.Status.Phase = eksConfigCreatingPhase
 	return h.eksCC.UpdateStatus(config)
 }
@@ -454,50 +449,41 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 	return config, nil
 }
 
-func (h *Handler) getUpstreamClusterState(name string, ngNames []string, eksService *eks.EKS) (*v13.EKSClusterConfigSpec, string, error) {
+func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, eksService *eks.EKS) (*v13.EKSClusterConfigSpec, string, error) {
 	upstreamSpec := &v13.EKSClusterConfigSpec{}
-
-	// get cluster state from eks
-	state, err := eksService.DescribeCluster(
-		&eks.DescribeClusterInput{
-			Name: aws.String(name),
-		})
-	if err != nil {
-		return nil, "", err
-	}
 
 	upstreamSpec.Imported = aws.Bool(true)
 
 	// set kubernetes version
-	upstreamVersion := aws.StringValue(state.Cluster.Version)
+	upstreamVersion := aws.StringValue(clusterState.Cluster.Version)
 	if upstreamVersion == "" {
 		return nil, "", fmt.Errorf("cannot detect cluster [%s] upstream kubernetes version", name)
 	}
 	upstreamSpec.KubernetesVersion = upstreamVersion
 
 	// set  tags
-	if len(state.Cluster.Tags) != 0 {
-		upstreamSpec.Tags = aws.StringValueMap(state.Cluster.Tags)
+	if len(clusterState.Cluster.Tags) != 0 {
+		upstreamSpec.Tags = aws.StringValueMap(clusterState.Cluster.Tags)
 	}
 
 	// set public access
-	if hasPublicAccess := state.Cluster.ResourcesVpcConfig.EndpointPublicAccess; hasPublicAccess == nil || *hasPublicAccess {
+	if hasPublicAccess := clusterState.Cluster.ResourcesVpcConfig.EndpointPublicAccess; hasPublicAccess == nil || *hasPublicAccess {
 		upstreamSpec.PublicAccess = true
 	}
 
 	// set private access
-	if hasPrivateAccess := state.Cluster.ResourcesVpcConfig.EndpointPrivateAccess; hasPrivateAccess != nil && *hasPrivateAccess {
+	if hasPrivateAccess := clusterState.Cluster.ResourcesVpcConfig.EndpointPrivateAccess; hasPrivateAccess != nil && *hasPrivateAccess {
 		upstreamSpec.PrivateAccess = true
 	}
 
 	// set public access sources
-	if publicAccessSources := aws.StringValueSlice(state.Cluster.ResourcesVpcConfig.PublicAccessCidrs); publicAccessSources[0] != allOpen {
+	if publicAccessSources := aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.PublicAccessCidrs); publicAccessSources[0] != allOpen {
 		upstreamSpec.PublicAccessSources = publicAccessSources
 	}
 
 	// set logging
-	if state.Cluster.Logging != nil {
-		if clusterLogging := state.Cluster.Logging.ClusterLogging; len(clusterLogging) > 0 {
+	if clusterState.Cluster.Logging != nil {
+		if clusterLogging := clusterState.Cluster.Logging.ClusterLogging; len(clusterLogging) > 0 {
 			setup := clusterLogging[0]
 			if aws.BoolValue(setup.Enabled) {
 				upstreamSpec.LoggingTypes = aws.StringValueSlice(setup.Types)
@@ -509,15 +495,7 @@ func (h *Handler) getUpstreamClusterState(name string, ngNames []string, eksServ
 		upstreamSpec.LoggingTypes = make([]string, 0)
 	}
 
-	for _, ngName := range ngNames {
-		ng, err := eksService.DescribeNodegroup(
-			&eks.DescribeNodegroupInput{
-				ClusterName:   aws.String(name),
-				NodegroupName: aws.String(ngName),
-			})
-		if err != nil {
-			return nil, "", err
-		}
+	for _, ng := range nodeGroupStates {
 		fmt.Println(ng)
 		ngToAdd := v13.NodeGroup{
 			NodegroupName: aws.StringValue(ng.Nodegroup.NodegroupName),
@@ -538,13 +516,13 @@ func (h *Handler) getUpstreamClusterState(name string, ngNames []string, eksServ
 	}
 
 	// set virtual network
-	upstreamSpec.VirtualNetwork = aws.StringValue(state.Cluster.ResourcesVpcConfig.VpcId)
+	upstreamSpec.VirtualNetwork = aws.StringValue(clusterState.Cluster.ResourcesVpcConfig.VpcId)
 	// set subnets
-	upstreamSpec.Subnets = aws.StringValueSlice(state.Cluster.ResourcesVpcConfig.SubnetIds)
+	upstreamSpec.Subnets = aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.SubnetIds)
 	// set security groups
-	upstreamSpec.SecurityGroups = aws.StringValueSlice(state.Cluster.ResourcesVpcConfig.SecurityGroupIds)
+	upstreamSpec.SecurityGroups = aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.SecurityGroupIds)
 
-	return upstreamSpec, aws.StringValue(state.Cluster.Arn), nil
+	return upstreamSpec, aws.StringValue(clusterState.Cluster.Arn), nil
 }
 
 func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigSpec, config *v13.EKSClusterConfig, clusterARN string, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
@@ -705,6 +683,39 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
+
+	desiredNgVersions := make(map[string]string)
+	for _, ng := range config.Spec.NodeGroups {
+		desiredVersion := aws.StringValue(ng.Version)
+		if desiredVersion == "" {
+			desiredVersion = config.Spec.KubernetesVersion
+		}
+		desiredNgVersions[ng.NodegroupName] = desiredVersion
+	}
+
+	var upgradingNodegroups bool
+	for _, ng := range upstreamSpec.NodeGroups {
+		if aws.StringValue(ng.Version) == desiredNgVersions[ng.NodegroupName] {
+			continue
+		}
+		_, err := eksService.UpdateNodegroupVersion(
+			&eks.UpdateNodegroupVersionInput{
+				NodegroupName: aws.String(ng.NodegroupName),
+				ClusterName: aws.String(config.Spec.DisplayName),
+				Version: aws.String(config.Spec.KubernetesVersion),
+			},
+		)
+		if err != nil {
+			return config, err
+		}
+		upgradingNodegroups = true
+	}
+
+	if upgradingNodegroups {
+		config.Status.Phase = eksConfigUpdatingPhase
+		return h.eksCC.UpdateStatus(config)
+	}
+
 	// check for node groups updates here
 	return config, nil
 }
@@ -716,15 +727,35 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 		return config, err
 	}
 
-	ngs, err := eksService.ListNodegroups(
+	clusterState, err := eksService.DescribeCluster(
+		&eks.DescribeClusterInput{
+			Name: aws.String(config.Spec.DisplayName),
+		})
+	if err != nil {
+		return config, err
+	}
+
+	ngList, err := eksService.ListNodegroups(
 		&eks.ListNodegroupsInput{
 			ClusterName: aws.String(config.Spec.DisplayName),
 		})
 	if err != nil {
 		return config, err
 	}
+	var nodeGroupStates []*eks.DescribeNodegroupOutput
+	for _, ngName := range ngList.Nodegroups {
+		ng, err := eksService.DescribeNodegroup(
+			&eks.DescribeNodegroupInput{
+				ClusterName:   aws.String(config.Spec.DisplayName),
+				NodegroupName: ngName,
+			})
+		if err != nil {
+			return config, err
+		}
+		nodeGroupStates = append(nodeGroupStates, ng)
+	}
 
-	upstreamSpec, _, err := h.getUpstreamClusterState(config.Spec.DisplayName, aws.StringValueSlice(ngs.Nodegroups), eksService)
+	upstreamSpec, _, err := h.buildUpstreamClusterState(config.Spec.DisplayName, clusterState, nodeGroupStates, eksService)
 	if err != nil {
 		return nil, err
 	}
