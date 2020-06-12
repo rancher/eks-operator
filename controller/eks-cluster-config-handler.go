@@ -378,6 +378,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		Logging: getLogging(config.Spec.LoggingTypes),
 		Version: aws.String(config.Spec.KubernetesVersion),
 	})
+
 	if err != nil && !isClusterConflict(err) {
 		return config, fmt.Errorf("error creating cluster: %v", err)
 	}
@@ -387,24 +388,31 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 }
 
 func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Session, *eks.EKS, error) {
-	secret, err := h.secretsCache.Get("cattle-global-data", config.Spec.CloudCredential)
-	if err != nil {
-		return nil, nil, err
+	awsConfig := &aws.Config{}
+
+
+	if region := config.Spec.Region; region != "" {
+		awsConfig.Region = aws.String(region)
+	}
+	if cloudCredential := config.Spec.CloudCredential; cloudCredential != "" {
+		secret, err := h.secretsCache.Get("cattle-global-data", config.Spec.CloudCredential)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		accessKeyBytes, _ := secret.Data["amazonec2credentialConfig-accessKey"]
+		secretKeyBytes, _ := secret.Data["amazonec2credentialConfig-secretKey"]
+		if accessKeyBytes == nil || secretKeyBytes == nil {
+			return nil, nil, fmt.Errorf("Invalid aws cloud credential")
+		}
+
+		accessKey := string(accessKeyBytes)
+		secretKey := string(secretKeyBytes)
+
+		awsConfig.Credentials = credentials.NewStaticCredentials(accessKey, secretKey, "")
 	}
 
-	accessKeyBytes, _ := secret.Data["amazonec2credentialConfig-accessKey"]
-	secretKeyBytes, _ := secret.Data["amazonec2credentialConfig-secretKey"]
-	if accessKeyBytes == nil || secretKeyBytes == nil {
-		return nil, nil, fmt.Errorf("Invalid aws cloud credential")
-	}
-
-	accessKey := string(accessKeyBytes)
-	secretKey := string(secretKeyBytes)
-
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-2"),
-		Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
-	})
+	sess, err := session.NewSession(awsConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error getting new aws session: %v", err)
 	}
