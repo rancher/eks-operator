@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"k8s.io/api/core/v1"
+	v15 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
 
@@ -39,6 +41,7 @@ type Handler struct {
 	eksCC           v12.EKSClusterConfigClient
 	eksCCCache      v12.EKSClusterConfigCache
 	eksEnqueueAfter func(namespace, name string, duration time.Duration)
+	secrets         v14.SecretClient
 	secretsCache    v14.SecretCache
 }
 
@@ -446,6 +449,9 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 	}
 
 	if status == eks.ClusterStatusActive {
+		if err := h.createCASecret(config.Name, config.Namespace, state); err != nil {
+			return config, err
+		}
 		logrus.Infof("cluster [%s] created successfully", config.Name)
 		config.Status.Phase = eksConfigActivePhase
 		return h.eksCC.UpdateStatus(config)
@@ -778,8 +784,30 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 		return nil, err
 	}
 
+	if err := h.createCASecret(config.Name, config.Namespace, clusterState); err != nil {
+		return config, err
+	}
+
 	config.Status.Phase = eksConfigActivePhase
 	return h.eksCC.UpdateStatus(config)
+}
+
+func (h *Handler) createCASecret(name, namespace string, clusterState *eks.DescribeClusterOutput) error {
+	endpoint := aws.StringValue(clusterState.Cluster.Endpoint)
+	ca := aws.StringValue(clusterState.Cluster.CertificateAuthority.Data)
+
+	_, err := h.secrets.Create(
+		&v1.Secret{
+			ObjectMeta: v15.ObjectMeta{
+				Name: name,
+				Namespace: namespace,
+			},
+			Data: map[string][]byte{
+				"endpoint": []byte(endpoint),
+				"ca": []byte(ca),
+			},
+		})
+	return err
 }
 
 func getVPCStackName(name string) string {
