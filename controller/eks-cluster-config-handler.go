@@ -56,6 +56,7 @@ func Register(
 		eksCCCache:      eks.Cache(),
 		eksEnqueueAfter: eks.EnqueueAfter,
 		secretsCache:    secrets.Cache(),
+		secrets:         secrets,
 	}
 
 	// Register handlers
