@@ -329,7 +329,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		config.Spec.Subnets = strings.Split(subnetIdsString, ",")
 		subnetIds = aws.StringSlice(config.Spec.Subnets)
 
-		config, err := h.eksCC.Update(config)
+		config, err = h.eksCC.Update(config)
 		if err != nil {
 			return config, err
 		}
