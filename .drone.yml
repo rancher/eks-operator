@@ -13,9 +13,6 @@ steps:
     path: /var/run
   commands:
   - sleep 20
-  - ls /var/run
-  - ls /var/run/utmp
-  - ls /var/run/lock
   - sudo TAG=${DRONE_TAG} make
   environment:
     DOCKER_USERNAME:
