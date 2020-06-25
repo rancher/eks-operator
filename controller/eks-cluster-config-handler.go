@@ -3,8 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"k8s.io/api/core/v1"
-	v15 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
 
@@ -23,6 +21,8 @@ import (
 	"github.com/rancher/eks-controller/templates"
 	"github.com/rancher/eks-controller/utils"
 	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	v15 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -305,7 +305,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 
 	var subnetIds []*string
 	var securityGroups []*string
-	if config.Spec.VirtualNetwork == "" {
+	if config.Spec.VirtualNetwork == "" && config.Status.GeneratedVirtualNetwork == "" {
 		logrus.Infof("Bringing up vpc")
 
 		stack, err := createStack(svc, getVPCStackName(config.Spec.DisplayName), displayName, templates.VpcTemplate, []string{},
@@ -314,6 +314,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 			return config, fmt.Errorf("error creating stack with VPC template: %v", err)
 		}
 
+		virtualNetworkString := getParameterValueFromOutput("VpcId", stack.Stacks[0].Outputs)
 		securityGroupsString := getParameterValueFromOutput("SecurityGroups", stack.Stacks[0].Outputs)
 		subnetIdsString := getParameterValueFromOutput("SubnetIds", stack.Stacks[0].Outputs)
 
@@ -321,19 +322,21 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 			return config, fmt.Errorf("no security groups or subnet ids were returned")
 		}
 
+		// set created vpc to config
+		config.Status.GeneratedVirtualNetwork = virtualNetworkString
 		// set created security groups to config
-		config.Spec.SecurityGroups = strings.Split(securityGroupsString, ",")
-		securityGroups = aws.StringSlice(config.Spec.SecurityGroups)
+		config.Status.GeneratedSecurityGroups = strings.Split(securityGroupsString, ",")
+		securityGroups = aws.StringSlice(config.Status.GeneratedSecurityGroups)
 
 		// set created subnets to config
-		config.Spec.Subnets = strings.Split(subnetIdsString, ",")
-		subnetIds = aws.StringSlice(config.Spec.Subnets)
+		config.Status.GeneratedSubnets = strings.Split(subnetIdsString, ",")
+		subnetIds = aws.StringSlice(config.Status.GeneratedSubnets)
 
-		config, err = h.eksCC.Update(config)
+		config, err = h.eksCC.UpdateStatus(config)
 		if err != nil {
 			return config, err
 		}
-	} else {
+	} else if config.Spec.VirtualNetwork != "" {
 		logrus.Infof("VPC info provided, skipping create")
 
 		// vpcid = config.Spec.VirtualNetwork
@@ -393,7 +396,6 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 
 func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Session, *eks.EKS, error) {
 	awsConfig := &aws.Config{}
-
 
 	if region := config.Spec.Region; region != "" {
 		awsConfig.Region = aws.String(region)
@@ -716,8 +718,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		_, err := eksService.UpdateNodegroupVersion(
 			&eks.UpdateNodegroupVersionInput{
 				NodegroupName: aws.String(ng.NodegroupName),
-				ClusterName: aws.String(config.Spec.DisplayName),
-				Version: aws.String(config.Spec.KubernetesVersion),
+				ClusterName:   aws.String(config.Spec.DisplayName),
+				Version:       aws.String(config.Spec.KubernetesVersion),
 			},
 		)
 		if err != nil {
@@ -800,12 +802,12 @@ func (h *Handler) createCASecret(name, namespace string, clusterState *eks.Descr
 	_, err := h.secrets.Create(
 		&v1.Secret{
 			ObjectMeta: v15.ObjectMeta{
-				Name: name,
+				Name:      name,
 				Namespace: namespace,
 			},
 			Data: map[string][]byte{
 				"endpoint": []byte(endpoint),
-				"ca": []byte(ca),
+				"ca":       []byte(ca),
 			},
 		})
 	return err
@@ -1003,7 +1005,6 @@ func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksSe
 			MaxSize:     group.MaxSize,
 			MinSize:     group.MinSize,
 		},
-		Subnets: aws.StringSlice(group.Subnets),
 	}
 
 	if sshKey := group.Ec2SshKey; sshKey != nil {
@@ -1013,12 +1014,16 @@ func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksSe
 		}
 	}
 
-	if len(nodeGroupCreateInput.Subnets) == 0 {
+	if len(group.Subnets) != 0 {
+		nodeGroupCreateInput.Subnets = aws.StringSlice(group.Subnets)
+	} else if len(eksConfig.Spec.Subnets) != 0 {
 		nodeGroupCreateInput.Subnets = aws.StringSlice(eksConfig.Spec.Subnets)
+	} else {
+		nodeGroupCreateInput.Subnets = aws.StringSlice(eksConfig.Status.GeneratedSubnets)
 	}
 
-	finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint("us-east-2"))
-	output, err := createStack(svc, "nodeInstanceRole", "nodeInstanceRole", finalTemplate, []string{cloudformation.CapabilityCapabilityIam}, []*cloudformation.Parameter{})
+	finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(eksConfig.Spec.Region))
+	output, err := createStack(svc, fmt.Sprintf("%s-node-instance-role", eksConfig.Spec.DisplayName), eksConfig.Spec.DisplayName, finalTemplate, []string{cloudformation.CapabilityCapabilityIam}, []*cloudformation.Parameter{})
 	if err != nil {
 		return err
 	}
