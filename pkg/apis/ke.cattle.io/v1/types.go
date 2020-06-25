@@ -53,21 +53,25 @@ type EKSClusterConfigSpec struct {
 }
 
 type EKSClusterConfigStatus struct {
-	Phase string `json:"phase"`
+	Phase                   string   `json:"phase"`
+	GeneratedVirtualNetwork string   `json:"generatedVirtualNetwork"`
+	GeneratedSubnets        []string `json:"generatedSubnets"`
+	GeneratedSecurityGroups []string `json:"generatedSecurityGroups"`
+	GeneratedServiceRole    string   `json:"generatedServiceRole"`
 }
 
 type NodeGroup struct {
-	Gpu bool `json:"gpu"`
-	NodegroupName string `json:"nodegroupName"`
-	DiskSize *int64 `json:"diskSize"`
-	InstanceType *string `json:"instanceType"`
-	Labels map[string]*string `json:"labels"`
-	Ec2SshKey *string `json:"ec2SshKey"`
-	SourceSecurityGroups []*string `json:"sourceSecurityGroups"`
-	DesiredSize *int64 `json:"desiredSize"`
-	MaxSize *int64 `json:"maxSize"`
-	MinSize *int64 `json:"minSize"`
-	Subnets []string `json:"subnets"`
-	Tags map[string]*string `json:"tags"`
-	Version *string `json:"version"`
+	Gpu                  bool               `json:"gpu"`
+	NodegroupName        string             `json:"nodegroupName"`
+	DiskSize             *int64             `json:"diskSize"`
+	InstanceType         *string            `json:"instanceType"`
+	Labels               map[string]*string `json:"labels"`
+	Ec2SshKey            *string            `json:"ec2SshKey"`
+	SourceSecurityGroups []*string          `json:"sourceSecurityGroups"`
+	DesiredSize          *int64             `json:"desiredSize"`
+	MaxSize              *int64             `json:"maxSize"`
+	MinSize              *int64             `json:"minSize"`
+	Subnets              []string           `json:"subnets"`
+	Tags                 map[string]*string `json:"tags"`
+	Version              *string            `json:"version"`
 }
