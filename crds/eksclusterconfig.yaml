@@ -131,6 +131,20 @@ spec:
           type: object
         status:
           properties:
+            generatedSecurityGroups:
+              items:
+                type: string
+              nullable: true
+              type: array
+            generatedServiceRole:
+              type: string
+            generatedSubnets:
+              items:
+                type: string
+              nullable: true
+              type: array
+            generatedVirtualNetwork:
+              type: string
             phase:
               type: string
           type: object
