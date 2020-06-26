@@ -82,7 +82,7 @@ func (h *Handler) OnEksConfigChanged(key string, config *v13.EKSClusterConfig) (
 
 	switch config.Status.Phase {
 	case eksConfigImportingPhase:
-		return config, nil
+		return h.importCluster(config, eksService)
 	case eksConfigNotCreatedPhase:
 		return h.create(config, sess, eksService)
 	case eksConfigCreatingPhase:
@@ -166,7 +166,7 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 		return config, fmt.Errorf("error deleting vpc stack: %v", err)
 	}
 
-	err = deleteStack(svc, "nodeInstanceRole", "")
+	err = deleteStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName))
 	if err != nil {
 		return config, fmt.Errorf("error deleting worker node stack: %v", err)
 	}
@@ -296,7 +296,8 @@ func createStack(svc *cloudformation.CloudFormation, name string, displayName st
 
 func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*v13.EKSClusterConfig, error) {
 	if aws.BoolValue(config.Spec.Imported) {
-		return h.importCluster(config, eksService)
+		config.Status.Phase = eksConfigImportingPhase
+		return h.eksCC.UpdateStatus(config)
 	}
 
 	svc := cloudformation.New(sess)
@@ -738,12 +739,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 }
 
 func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EKS) (*v13.EKSClusterConfig, error) {
-	config.Status.Phase = eksConfigImportingPhase
-	config, err := h.eksCC.UpdateStatus(config)
-	if err != nil {
-		return config, err
-	}
-
 	clusterState, err := eksService.DescribeCluster(
 		&eks.DescribeClusterInput{
 			Name: aws.String(config.Spec.DisplayName),
@@ -779,6 +774,7 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 
 	upstreamSpec.DisplayName = config.Spec.DisplayName
 	upstreamSpec.CloudCredential = config.Spec.CloudCredential
+	upstreamSpec.Region = config.Spec.Region
 
 	config.Spec = *upstreamSpec
 
