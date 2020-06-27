@@ -653,12 +653,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	if config.Status.Phase != eksConfigActivePhase {
-		logrus.Infof("cluster [%s] finished updating", config.Name)
-		config.Status.Phase = eksConfigActivePhase
-		return h.eksCC.UpdateStatus(config)
-	}
-
 	upstreamHasNg := make(map[string]bool)
 	hasNg := make(map[string]bool)
 
@@ -731,6 +725,12 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 
 	if upgradingNodegroups {
 		config.Status.Phase = eksConfigUpdatingPhase
+		return h.eksCC.UpdateStatus(config)
+	}
+
+	if config.Status.Phase != eksConfigActivePhase {
+		logrus.Infof("cluster [%s] finished updating", config.Name)
+		config.Status.Phase = eksConfigActivePhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
