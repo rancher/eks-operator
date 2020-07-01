@@ -33,22 +33,22 @@ type EKSClusterConfig struct {
 
 // EKSClusterConfigSpec is the spec for a EKSClusterConfig resource
 type EKSClusterConfigSpec struct {
-	KubernetesVersion   string            `json:"kubernetesVersion"`
+	KubernetesVersion   string            `json:"kubernetesVersion" norman:"required"`
 	Tags                map[string]string `json:"tags"`
 	SecretsEncryption   bool              `json:"secretsEncryption"`
 	KmsKey              string            `json:"kmsKey"`
-	PublicAccess        bool              `json:"publicAccess"`
-	PrivateAccess       bool              `json:"privateAccess"`
+	PublicAccess        bool              `json:"publicAccess" norman:"required"`
+	PrivateAccess       bool              `json:"privateAccess" norman:"required"`
 	PublicAccessSources []string          `json:"publicAccessSources"`
 	LoggingTypes        []string          `json:"loggingTypes"`
-	CloudCredential     string            `json:"cloudCredential"`
+	CloudCredential     string            `json:"cloudCredential" norman:"required"`
 	VirtualNetwork      string            `json:"virtualNetwork"`
-	DisplayName         string            `json:"displayName"`
+	DisplayName         string            `json:"displayName" norman:"required,noupdate"`
 	Subnets             []string          `json:"subnets"`
 	SecurityGroups      []string          `json:"securityGroups"`
 	ServiceRole         string            `json:"serviceRole"`
-	Region              string            `json:"region"`
-	Imported            *bool             `json:"imported,omitempty"`
+	Region              string            `json:"region" norman:"required,noupdate"`
+	Imported            *bool             `json:"imported,omitempty" norman:"noupdate"`
 	NodeGroups          []NodeGroup       `json:"nodeGroups"`
 }
 
@@ -62,9 +62,9 @@ type EKSClusterConfigStatus struct {
 
 type NodeGroup struct {
 	Gpu                  bool               `json:"gpu"`
-	NodegroupName        string             `json:"nodegroupName"`
+	NodegroupName        string             `json:"nodegroupName" norman:"required"`
 	DiskSize             *int64             `json:"diskSize"`
-	InstanceType         *string            `json:"instanceType"`
+	InstanceType         *string            `json:"instanceType" norman:"required"`
 	Labels               map[string]*string `json:"labels"`
 	Ec2SshKey            *string            `json:"ec2SshKey"`
 	SourceSecurityGroups []*string          `json:"sourceSecurityGroups"`
