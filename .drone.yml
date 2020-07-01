@@ -14,11 +14,6 @@ steps:
   commands:
   - sleep 20
   - sudo TAG=${DRONE_TAG} make
-  environment:
-    DOCKER_USERNAME:
-      from_secret: docker_username
-    DOCKER_PASSWORD:
-      from_secret: docker_password
   when:
     event:
     - tag
