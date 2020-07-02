@@ -94,8 +94,8 @@ spec:
                     nullable: true
                     type: string
                 required:
-                - instanceType
                 - nodegroupName
+                - instanceType
                 type: object
               nullable: true
               type: array
@@ -132,12 +132,12 @@ spec:
             virtualNetwork:
               type: string
           required:
-          - publicAccess
-          - privateAccess
-          - region
           - kubernetesVersion
-          - cloudCredential
           - displayName
+          - privateAccess
+          - publicAccess
+          - cloudCredential
+          - region
           type: object
         status:
           properties:
