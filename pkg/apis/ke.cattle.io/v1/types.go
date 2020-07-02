@@ -35,18 +35,18 @@ type EKSClusterConfig struct {
 type EKSClusterConfigSpec struct {
 	KubernetesVersion   string            `json:"kubernetesVersion" norman:"required"`
 	Tags                map[string]string `json:"tags"`
-	SecretsEncryption   bool              `json:"secretsEncryption"`
-	KmsKey              string            `json:"kmsKey"`
+	SecretsEncryption   bool              `json:"secretsEncryption" norman:"noupdate"`
+	KmsKey              string            `json:"kmsKey" norman:"noupdate"`
 	PublicAccess        bool              `json:"publicAccess" norman:"required"`
 	PrivateAccess       bool              `json:"privateAccess" norman:"required"`
 	PublicAccessSources []string          `json:"publicAccessSources"`
 	LoggingTypes        []string          `json:"loggingTypes"`
 	CloudCredential     string            `json:"cloudCredential" norman:"required"`
-	VirtualNetwork      string            `json:"virtualNetwork"`
+	VirtualNetwork      string            `json:"virtualNetwork" norman:"noupdate"`
 	DisplayName         string            `json:"displayName" norman:"required,noupdate"`
-	Subnets             []string          `json:"subnets"`
-	SecurityGroups      []string          `json:"securityGroups"`
-	ServiceRole         string            `json:"serviceRole"`
+	Subnets             []string          `json:"subnets" norman:"noupdate"`
+	SecurityGroups      []string          `json:"securityGroups" norman:"noupdate"`
+	ServiceRole         string            `json:"serviceRole" norman:"noupdate"`
 	Region              string            `json:"region" norman:"required,noupdate"`
 	Imported            *bool             `json:"imported,omitempty" norman:"noupdate"`
 	NodeGroups          []NodeGroup       `json:"nodeGroups"`
