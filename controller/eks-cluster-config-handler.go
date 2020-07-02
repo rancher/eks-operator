@@ -60,7 +60,7 @@ func Register(
 	}
 
 	// Register handlers
-	eks.OnChange(ctx, controllerName, controller.OnEksConfigChanged)
+	eks.OnChange(ctx, controllerName, controller.recordError(controller.OnEksConfigChanged))
 	eks.OnRemove(ctx, controllerRemoveName, controller.OnEksConfigRemoved)
 }
 
@@ -94,6 +94,37 @@ func (h *Handler) OnEksConfigChanged(key string, config *v13.EKSClusterConfig) (
 	}
 
 	return config, nil
+}
+
+func (h *Handler) recordError(onChange func (key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error)) func (key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+	return func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+		var err error
+		config, err = onChange(key, config)
+		if err != nil {
+			if config.Status.FailureMessage == err.Error() {
+				return config, err
+			}
+			configCopy := config.DeepCopy()
+			configCopy.Status.FailureMessage = err.Error()
+			var recordErr error
+			config, recordErr = h.eksCC.UpdateStatus(configCopy)
+			if recordErr != nil {
+				logrus.Error("Error recording ekscc [%s] failure message: %s", config.Name, recordErr.Error())
+			}
+			return config, err
+		}
+
+		if config.Status.FailureMessage != "" {
+			configCopy := config.DeepCopy()
+			configCopy.Status.FailureMessage = ""
+			var recordErr error
+			config, recordErr = h.eksCC.UpdateStatus(configCopy)
+			if recordErr != nil {
+				logrus.Error("Error clearing ekscc [%s] failure message: %s", config.Name, recordErr.Error())
+			}
+		}
+		return config, err
+	}
 }
 
 func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
