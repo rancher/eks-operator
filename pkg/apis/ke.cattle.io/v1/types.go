@@ -58,6 +58,7 @@ type EKSClusterConfigStatus struct {
 	GeneratedSubnets        []string `json:"generatedSubnets"`
 	GeneratedSecurityGroups []string `json:"generatedSecurityGroups"`
 	GeneratedServiceRole    string   `json:"generatedServiceRole"`
+	FailureMessage          string   `json:"failureMessage"`
 }
 
 type NodeGroup struct {
