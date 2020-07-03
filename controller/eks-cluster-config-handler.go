@@ -22,6 +22,7 @@ import (
 	"github.com/rancher/eks-controller/utils"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	v15 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -96,7 +97,7 @@ func (h *Handler) OnEksConfigChanged(key string, config *v13.EKSClusterConfig) (
 	return config, nil
 }
 
-func (h *Handler) recordError(onChange func (key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error)) func (key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error)) func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
 	return func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
 		var err error
 		config, err = onChange(key, config)
@@ -132,6 +133,10 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 
 	sess, eksService, err := h.startAWSSessions(config)
 	if err != nil {
+		if errors.IsNotFound(err) {
+			logrus.Infof("cloudCredential [%s] not found for EKS Config [%s], AWS cleanup skipped", config.Spec.CloudCredential, config.Name)
+			return config, nil
+		}
 		return config, err
 	}
 
