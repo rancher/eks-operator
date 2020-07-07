@@ -115,6 +115,11 @@ func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterCo
 			return config, err
 		}
 
+		// EKS config is likely deleting
+		if config == nil {
+			return config, err
+		}
+
 		if config.Status.FailureMessage != "" {
 			configCopy := config.DeepCopy()
 			configCopy.Status.FailureMessage = ""
