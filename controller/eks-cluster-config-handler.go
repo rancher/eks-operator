@@ -347,7 +347,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 
 	var subnetIds []*string
 	var securityGroups []*string
-	if config.Spec.VirtualNetwork == "" && config.Status.GeneratedVirtualNetwork == "" {
+	if len(config.Spec.Subnets) == 0 && config.Status.GeneratedVirtualNetwork == "" {
 		logrus.Infof("Bringing up vpc")
 
 		stack, err := createStack(svc, getVPCStackName(config.Spec.DisplayName), displayName, templates.VpcTemplate, []string{},
@@ -378,10 +378,9 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		if err != nil {
 			return config, err
 		}
-	} else if config.Spec.VirtualNetwork != "" {
+	} else if len(config.Spec.Subnets) == 0 {
 		logrus.Infof("VPC info provided, skipping create")
 
-		// vpcid = config.Spec.VirtualNetwork
 		subnetIds = aws.StringSlice(config.Spec.Subnets)
 		securityGroups = aws.StringSlice(config.Spec.SecurityGroups)
 	}
@@ -574,8 +573,6 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 		upstreamSpec.NodeGroups = append(upstreamSpec.NodeGroups, ngToAdd)
 	}
 
-	// set virtual network
-	upstreamSpec.VirtualNetwork = aws.StringValue(clusterState.Cluster.ResourcesVpcConfig.VpcId)
 	// set subnets
 	upstreamSpec.Subnets = aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.SubnetIds)
 	// set security groups

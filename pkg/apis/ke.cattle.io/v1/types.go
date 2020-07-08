@@ -42,7 +42,6 @@ type EKSClusterConfigSpec struct {
 	PublicAccessSources []string          `json:"publicAccessSources"`
 	LoggingTypes        []string          `json:"loggingTypes"`
 	CloudCredential     string            `json:"cloudCredential" norman:"required"`
-	VirtualNetwork      string            `json:"virtualNetwork" norman:"noupdate"`
 	DisplayName         string            `json:"displayName" norman:"required,noupdate"`
 	Subnets             []string          `json:"subnets" norman:"noupdate"`
 	SecurityGroups      []string          `json:"securityGroups" norman:"noupdate"`
@@ -57,7 +56,6 @@ type EKSClusterConfigStatus struct {
 	GeneratedVirtualNetwork string   `json:"generatedVirtualNetwork"`
 	GeneratedSubnets        []string `json:"generatedSubnets"`
 	GeneratedSecurityGroups []string `json:"generatedSecurityGroups"`
-	GeneratedServiceRole    string   `json:"generatedServiceRole"`
 	FailureMessage          string   `json:"failureMessage"`
 }
 
