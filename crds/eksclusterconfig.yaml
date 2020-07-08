@@ -129,13 +129,11 @@ spec:
                 type: string
               nullable: true
               type: object
-            virtualNetwork:
-              type: string
           required:
-          - privateAccess
-          - displayName
           - publicAccess
           - cloudCredential
+          - privateAccess
+          - displayName
           - region
           - kubernetesVersion
           type: object
@@ -148,8 +146,6 @@ spec:
                 type: string
               nullable: true
               type: array
-            generatedServiceRole:
-              type: string
             generatedSubnets:
               items:
                 type: string
