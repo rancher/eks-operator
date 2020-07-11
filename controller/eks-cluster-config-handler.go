@@ -97,6 +97,8 @@ func (h *Handler) OnEksConfigChanged(key string, config *v13.EKSClusterConfig) (
 	return config, nil
 }
 
+// recordError writes the error return by onChange to the failureMessage field on status. If there is no error, then
+// empty string will be written to status
 func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error)) func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
 	return func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
 		var err error
@@ -105,10 +107,10 @@ func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterCo
 			if config.Status.FailureMessage == err.Error() {
 				return config, err
 			}
-			configCopy := config.DeepCopy()
-			configCopy.Status.FailureMessage = err.Error()
+			config = config.DeepCopy()
+			config.Status.FailureMessage = err.Error()
 			var recordErr error
-			config, recordErr = h.eksCC.UpdateStatus(configCopy)
+			config, recordErr = h.eksCC.UpdateStatus(config)
 			if recordErr != nil {
 				logrus.Error("Error recording ekscc [%s] failure message: %s", config.Name, recordErr.Error())
 			}
@@ -121,10 +123,10 @@ func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterCo
 		}
 
 		if config.Status.FailureMessage != "" {
-			configCopy := config.DeepCopy()
-			configCopy.Status.FailureMessage = ""
+			config = config.DeepCopy()
+			config.Status.FailureMessage = ""
 			var recordErr error
-			config, recordErr = h.eksCC.UpdateStatus(configCopy)
+			config, recordErr = h.eksCC.UpdateStatus(config)
 			if recordErr != nil {
 				logrus.Error("Error clearing ekscc [%s] failure message: %s", config.Name, recordErr.Error())
 			}
@@ -139,6 +141,7 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 	sess, eksService, err := h.startAWSSessions(config)
 	if err != nil {
 		if errors.IsNotFound(err) {
+			// if cloudCredential cannot be used then skip cleanup
 			logrus.Infof("cloudCredential [%s] not found for EKS Config [%s], AWS cleanup skipped", config.Spec.CloudCredential, config.Name)
 			return config, nil
 		}
@@ -150,38 +153,17 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 		return config, fmt.Errorf("error getting new aws session: %v", err)
 	}
 
-	var waitingForNodegroupDeletion bool
-	for _, ng := range config.Spec.NodeGroups {
-		ngState, err := eksService.DescribeNodegroup(
-			&eks.DescribeNodegroupInput{
-				ClusterName:   aws.String(config.Spec.DisplayName),
-				NodegroupName: aws.String(ng.NodegroupName),
-			})
+	logrus.Infof("starting node group deletion for config [%s]", config.Spec.DisplayName)
+	waitingForNodegroupDeletion := true
+	for waitingForNodegroupDeletion {
+		waitingForNodegroupDeletion, err = deleteNodeGroups(config.Spec.DisplayName, eksService, config.Spec.NodeGroups)
 		if err != nil {
-			if notFound(err) {
-				continue
-			}
-			return config, err
+			return config, fmt.Errorf("error deleting nodegroups for config [%s]", config.Spec.DisplayName)
 		}
-
-		if aws.StringValue(ngState.Nodegroup.Status) == eks.NodegroupStatusDeleting {
-			waitingForNodegroupDeletion = true
-			continue
-		}
-
-		_, err = eksService.DeleteNodegroup(
-			&eks.DeleteNodegroupInput{
-				ClusterName:   aws.String(config.Spec.DisplayName),
-				NodegroupName: aws.String(ng.NodegroupName),
-			})
-		if err != nil {
-			return config, err
-		}
+		logrus.Infof("waiting for config [%s] node groups to delete", config.Name)
 	}
 
-	if waitingForNodegroupDeletion {
-		return config, fmt.Errorf("waiting for nodegroups to delete before removing cluster [%s]", config.Spec.DisplayName)
-	}
+	logrus.Infof("starting control plane deletion for config [%s]", config.Name)
 	_, err = eksService.DeleteCluster(&eks.DeleteClusterInput{
 		Name: aws.String(config.Spec.DisplayName),
 	})
@@ -197,22 +179,62 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 		}
 	}
 
-	err = deleteStack(svc, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName))
-	if err != nil {
-		return config, fmt.Errorf("error deleting service role stack: %v", err)
+	if config.Spec.ServiceRole == "" {
+		logrus.Infof("deleting service role for config [%s]", config.Name)
+		err = deleteStack(svc, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName))
+		if err != nil {
+			return config, fmt.Errorf("error deleting service role stack: %v", err)
+		}
 	}
 
-	err = deleteStack(svc, getVPCStackName(config.Spec.DisplayName), getVPCStackName(config.Spec.DisplayName))
-	if err != nil {
-		return config, fmt.Errorf("error deleting vpc stack: %v", err)
+	if len(config.Spec.Subnets) == 0 {
+		logrus.Infof("deleting vpc, subnets, and security groups for config [%s]", config.Name)
+		err = deleteStack(svc, getVPCStackName(config.Spec.DisplayName), getVPCStackName(config.Spec.DisplayName))
+		if err != nil {
+			return config, fmt.Errorf("error deleting vpc stack: %v", err)
+		}
 	}
 
+	logrus.Infof("deleting node instance role for config [%s]", config.Name)
 	err = deleteStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName))
 	if err != nil {
 		return config, fmt.Errorf("error deleting worker node stack: %v", err)
 	}
 
 	return config, err
+}
+
+func deleteNodeGroups(clusterName string, eksService *eks.EKS, nodeGroups []v13.NodeGroup) (bool, error) {
+	var waitingForNodegroupDeletion bool
+	for _, ng := range nodeGroups {
+		ngState, err := eksService.DescribeNodegroup(
+			&eks.DescribeNodegroupInput{
+				ClusterName:   aws.String(clusterName),
+				NodegroupName: aws.String(ng.NodegroupName),
+			})
+		if err != nil {
+			if notFound(err) {
+				continue
+			}
+			return false, err
+		}
+
+		waitingForNodegroupDeletion = true
+
+		if aws.StringValue(ngState.Nodegroup.Status) == eks.NodegroupStatusDeleting {
+			continue
+		}
+
+		_, err = eksService.DeleteNodegroup(
+			&eks.DeleteNodegroupInput{
+				ClusterName:   aws.String(clusterName),
+				NodegroupName: aws.String(ng.NodegroupName),
+			})
+		if err != nil {
+			return false, err
+		}
+	}
+	return waitingForNodegroupDeletion, nil
 }
 
 func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
@@ -225,10 +247,11 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 	}
 
 	if aws.StringValue(clusterState.Cluster.Status) == eks.ClusterStatusUpdating {
-		// upstream cluster is already updating
+		// upstream cluster is already updating, must wait until sending next update
 		logrus.Infof("waiting for cluster [%s] to finish updating", config.Name)
 		config.Status.Phase = eksConfigUpdatingPhase
 		if config.Status.Phase != eksConfigUpdatingPhase {
+			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
 			return h.eksCC.UpdateStatus(config)
 		}
@@ -240,6 +263,8 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 		&eks.ListNodegroupsInput{
 			ClusterName: aws.String(config.Spec.DisplayName),
 		})
+
+	// gather upstream node groups states
 	var nodeGroupStates []*eks.DescribeNodegroupOutput
 	for _, ngName := range ngs.Nodegroups {
 		ng, err := eksService.DescribeNodegroup(
@@ -253,8 +278,12 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 		if status := aws.StringValue(ng.Nodegroup.Status); status == eks.NodegroupStatusUpdating || status == eks.NodegroupStatusDeleting ||
 			status == eks.NodegroupStatusCreating {
 			if config.Status.Phase != eksConfigUpdatingPhase {
+				config = config.DeepCopy()
 				config.Status.Phase = eksConfigUpdatingPhase
-				return h.eksCC.UpdateStatus(config)
+				config, err = h.eksCC.UpdateStatus(config)
+				if err != nil {
+					return config, err
+				}
 			}
 			logrus.Infof("waiting for cluster [%s] to update nodegroups [%s]", config.Name, aws.StringValue(ngName))
 			h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
@@ -337,6 +366,7 @@ func createStack(svc *cloudformation.CloudFormation, name string, displayName st
 
 func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*v13.EKSClusterConfig, error) {
 	if aws.BoolValue(config.Spec.Imported) {
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigImportingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
@@ -363,6 +393,8 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		if securityGroupsString == "" || subnetIdsString == "" {
 			return config, fmt.Errorf("no security groups or subnet ids were returned")
 		}
+
+		config = config.DeepCopy()
 
 		// set created vpc to config
 		config.Status.GeneratedVirtualNetwork = virtualNetworkString
@@ -431,6 +463,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		return config, fmt.Errorf("error creating cluster: %v", err)
 	}
 
+	config = config.DeepCopy()
 	config.Status.Phase = eksConfigCreatingPhase
 	return h.eksCC.UpdateStatus(config)
 }
@@ -441,8 +474,10 @@ func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Sessi
 	if region := config.Spec.Region; region != "" {
 		awsConfig.Region = aws.String(region)
 	}
+
+	id, ns := utils.Parse(config.Spec.CloudCredential)
 	if cloudCredential := config.Spec.CloudCredential; cloudCredential != "" {
-		secret, err := h.secretsCache.Get("cattle-global-data", config.Spec.CloudCredential)
+		secret, err := h.secretsCache.Get(ns, id)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -497,6 +532,7 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 			return config, err
 		}
 		logrus.Infof("cluster [%s] created successfully", config.Name)
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigActivePhase
 		return h.eksCC.UpdateStatus(config)
 	}
@@ -507,6 +543,7 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 	return config, nil
 }
 
+// buildUpstreamClusterState
 func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, eksService *eks.EKS) (*v13.EKSClusterConfigSpec, string, error) {
 	upstreamSpec := &v13.EKSClusterConfigSpec{}
 
@@ -553,8 +590,8 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 		upstreamSpec.LoggingTypes = make([]string, 0)
 	}
 
+	// set node groups
 	for _, ng := range nodeGroupStates {
-		fmt.Println(ng)
 		ngToAdd := v13.NodeGroup{
 			NodegroupName: aws.StringValue(ng.Nodegroup.NodegroupName),
 			DiskSize:      ng.Nodegroup.DiskSize,
@@ -581,8 +618,11 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 	return upstreamSpec, aws.StringValue(clusterState.Cluster.Arn), nil
 }
 
+// updateUpstreamClusterState compares the upstream spec with the config spec, then updates the upstream EKS cluster to
+// match the config spec. Function often returns after a single update because once the cluster is in updating phase in EKS,
+// no more updates will be accepted until the current update is finished.
 func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigSpec, config *v13.EKSClusterConfig, clusterARN string, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
-	// check if kubernetes version needs to be updated
+	// check kubernetes version for update
 	if upstreamSpec.KubernetesVersion != config.Spec.KubernetesVersion {
 		logrus.Infof("updating kubernetes version for cluster [%s]", config.Name)
 		_, err := eksService.UpdateClusterVersion(&eks.UpdateClusterVersionInput{
@@ -593,10 +633,12 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			return config, err
 		}
 
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
+	// check tags for update
 	if updateTags := getUpdateTags(config.Spec.Tags, upstreamSpec.Tags); updateTags != nil {
 		_, err := eksService.TagResource(
 			&eks.TagResourceInput{
@@ -607,6 +649,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			return config, err
 		}
 
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
@@ -621,10 +664,13 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			return config, err
 		}
 
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 
 	}
+
+	// check logging for update
 	if loggingTypesUpdate := getLoggingTypesUpdate(config.Spec.LoggingTypes, upstreamSpec.LoggingTypes); loggingTypesUpdate != nil {
 		_, err := eksService.UpdateClusterConfig(
 			&eks.UpdateClusterConfigInput{
@@ -635,10 +681,13 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if err != nil {
 			return config, err
 		}
+
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
+	// check public access for update
 	if upstreamSpec.PublicAccess != config.Spec.PublicAccess {
 		_, err := eksService.UpdateClusterConfig(
 			&eks.UpdateClusterConfigInput{
@@ -651,10 +700,13 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if err != nil {
 			return config, err
 		}
+
+		config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
+	// check private access for update
 	if upstreamSpec.PrivateAccess != config.Spec.PrivateAccess {
 		_, err := eksService.UpdateClusterConfig(
 			&eks.UpdateClusterConfigInput{
@@ -667,10 +719,13 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if err != nil {
 			return config, err
 		}
+
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
+	// check public access CIDRs for update (public access sources)
 	filteredPublicAccessSources := config.Spec.PublicAccessSources
 	if len(filteredPublicAccessSources) == 1 && filteredPublicAccessSources[0] == allOpen {
 		filteredPublicAccessSources = nil
@@ -687,10 +742,13 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if err != nil {
 			return config, err
 		}
+
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
+	// check if node groups need to be added or deleted
 	upstreamHasNg := make(map[string]bool)
 	hasNg := make(map[string]bool)
 
@@ -730,10 +788,12 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	}
 
 	if updatingNodegroups {
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
+	// check node groups for kubernetes version updates
 	desiredNgVersions := make(map[string]string)
 	for _, ng := range config.Spec.NodeGroups {
 		desiredVersion := aws.StringValue(ng.Version)
@@ -762,12 +822,15 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	}
 
 	if upgradingNodegroups {
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
+	// no new updates, set to active
 	if config.Status.Phase != eksConfigActivePhase {
 		logrus.Infof("cluster [%s] finished updating", config.Name)
+		config.DeepCopy()
 		config.Status.Phase = eksConfigActivePhase
 		return h.eksCC.UpdateStatus(config)
 	}
@@ -776,6 +839,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	return config, nil
 }
 
+// importCluster cluster returns a spec representing the upstream state of the cluster matching to the
+// given config's displayName and region.
 func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EKS) (*v13.EKSClusterConfig, error) {
 	clusterState, err := eksService.DescribeCluster(
 		&eks.DescribeClusterInput{
@@ -814,6 +879,7 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 	upstreamSpec.CloudCredential = config.Spec.CloudCredential
 	upstreamSpec.Region = config.Spec.Region
 
+	config = config.DeepCopy()
 	config.Spec = *upstreamSpec
 
 	config, err = h.eksCC.Update(config)
@@ -829,6 +895,8 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 	return h.eksCC.UpdateStatus(config)
 }
 
+// createCASecret creates a secret containing ca and endpoint. These can be used to create a kubeconfig via
+// the go sdk
 func (h *Handler) createCASecret(name, namespace string, clusterState *eks.DescribeClusterOutput) error {
 	endpoint := aws.StringValue(clusterState.Cluster.Endpoint)
 	ca := aws.StringValue(clusterState.Cluster.CertificateAuthority.Data)
