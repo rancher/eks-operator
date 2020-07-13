@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
-	v13 "github.com/rancher/eks-controller/pkg/apis/ke.cattle.io/v1"
+	v13 "github.com/rancher/eks-controller/pkg/apis/eks.cattle.io/v1"
 	v14 "github.com/rancher/eks-controller/pkg/generated/controllers/core/v1"
 	v12 "github.com/rancher/eks-controller/pkg/generated/controllers/ke.cattle.io/v1"
 	"github.com/rancher/eks-controller/templates"

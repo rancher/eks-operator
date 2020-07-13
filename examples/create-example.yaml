@@ -1,4 +1,4 @@
-apiVersion: ke.cattle.io/v1
+apiVersion: eks.cattle.io/v1
 kind: EKSClusterConfig
 metadata:
   name: my-cluster

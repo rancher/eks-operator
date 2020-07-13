@@ -6,7 +6,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"os"
 
-	v12 "github.com/rancher/eks-controller/pkg/apis/ke.cattle.io/v1"
+	v12 "github.com/rancher/eks-controller/pkg/apis/eks.cattle.io/v1"
 	_ "github.com/rancher/wrangler-api/pkg/generated/controllers/apiextensions.k8s.io"
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
@@ -21,7 +21,7 @@ func main() {
 		OutputPackage: "github.com/rancher/eks-controller/pkg/generated",
 		Boilerplate:   "hack/boilerplate.go.txt",
 		Groups: map[string]args.Group{
-			"ke.cattle.io": {
+			"eks.cattle.io": {
 				Types: []interface{}{
 					v12.EKSClusterConfig{},
 				},
@@ -134,7 +134,7 @@ func setOpenAPIAnyOf(properties map[string]v1beta1.JSONSchemaProps, props []v1be
 func newCRD(obj interface{}, customize func(crd.CRD) crd.CRD) crd.CRD {
 	crd := crd.CRD{
 		GVK: schema.GroupVersionKind{
-			Group:   "ke.cattle.io",
+			Group:   "eks.cattle.io",
 			Version: "v1",
 		},
 		Status:       true,
