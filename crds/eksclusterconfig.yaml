@@ -16,24 +16,12 @@ spec:
     openAPIV3Schema:
       properties:
         spec:
-          anyOf:
-          - required:
-            - imported
-            - cloudCredential
-            - displayName
-          - required:
-            - publicAccess
-            - privateAccess
-            - cloudCredential
-            - displayName
           properties:
             amazonCredentialSecret:
               type: string
             displayName:
               type: string
             imported:
-              enum:
-              - true
               nullable: true
               type: boolean
             kmsKey:
@@ -131,11 +119,10 @@ spec:
               type: object
           required:
           - privateAccess
-          - displayName
-          - kubernetesVersion
-          - region
-          - publicAccess
           - amazonCredentialSecret
+          - displayName
+          - publicAccess
+          - region
           type: object
         status:
           properties:
