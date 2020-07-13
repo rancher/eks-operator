@@ -33,7 +33,7 @@ type EKSClusterConfig struct {
 
 // EKSClusterConfigSpec is the spec for a EKSClusterConfig resource
 type EKSClusterConfigSpec struct {
-	KubernetesVersion      string            `json:"kubernetesVersion" norman:"required"`
+	KubernetesVersion      string            `json:"kubernetesVersion"`
 	Tags                   map[string]string `json:"tags"`
 	SecretsEncryption      bool              `json:"secretsEncryption" norman:"noupdate"`
 	KmsKey                 string            `json:"kmsKey" norman:"noupdate"`
