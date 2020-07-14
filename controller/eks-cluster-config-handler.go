@@ -475,7 +475,7 @@ func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Sessi
 		awsConfig.Region = aws.String(region)
 	}
 
-	id, ns := utils.Parse(config.Spec.AmazonCredentialSecret)
+	ns, id := utils.Parse(config.Spec.AmazonCredentialSecret)
 	if amazonCredentialSecret := config.Spec.AmazonCredentialSecret; amazonCredentialSecret != "" {
 		secret, err := h.secretsCache.Get(ns, id)
 		if err != nil {
