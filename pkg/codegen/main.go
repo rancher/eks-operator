@@ -63,10 +63,10 @@ func main() {
 	setOpenAPIEnum(obj.Spec.Validation.OpenAPIV3Schema.Properties, []interface{}{true}, "spec", "imported")
 	setOpenAPIAnyOf(obj.Spec.Validation.OpenAPIV3Schema.Properties, []v1beta1.JSONSchemaProps{
 		{
-			Required: []string{"imported", "cloudCredential", "displayName"},
+			Required: []string{"imported", "amazonCredentialSecr", "displayName"},
 		},
 		{
-			Required: []string{"publicAccess", "privateAccess", "cloudCredential", "displayName"},
+			Required: []string{"publicAccess", "privateAccess", "amazonCredentialSecr", "displayName"},
 		},
 	}, "spec")*/
 

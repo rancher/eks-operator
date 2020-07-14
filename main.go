@@ -8,7 +8,7 @@ import (
 	"flag"
 	"github.com/rancher/eks-controller/controller"
 	core2 "github.com/rancher/eks-controller/pkg/generated/controllers/core"
-	"github.com/rancher/eks-controller/pkg/generated/controllers/eks.cattle.io"
+	eksv1 "github.com/rancher/eks-controller/pkg/generated/controllers/eks.cattle.io"
 
 	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
@@ -47,7 +47,7 @@ func main() {
 	}
 
 	// Generated sample controller
-	eks, err := ke.NewFactoryFromConfig(cfg)
+	eks, err := eksv1.NewFactoryFromConfig(cfg)
 	if err != nil {
 		logrus.Fatalf("Error building eks factory: %s", err.Error())
 	}
@@ -57,7 +57,7 @@ func main() {
 	// don't pass in something like kubeClient, apps, or sample
 	controller.Register(ctx,
 		core.Core().V1().Secret(),
-		eks.Ke().V1().EKSClusterConfig())
+		eks.Eks().V1().EKSClusterConfig())
 
 	// Start all the controllers
 	if err := start.All(ctx, 3, apps, eks, core); err != nil {

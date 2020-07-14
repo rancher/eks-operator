@@ -6,7 +6,7 @@ spec:
   kubernetesVersion: "1.15"
   publicAccess: true
   privateAccess: true
-  cloudCredential: "cc-zzzz"
+  amazonCredentialSecr: "cc-zzzz"
   displayName: "my-cluster"
   region: "us-east-2"
   loggingTypes: ["audit"]

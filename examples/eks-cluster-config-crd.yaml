@@ -21,7 +21,7 @@ spec:
               type: boolean
             privateAccess:
               type: boolean
-            cloudCredential:
+            amazonCredentialSecr:
               type: string
             virtualNetwork:
               type: string

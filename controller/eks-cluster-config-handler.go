@@ -141,8 +141,8 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 	sess, eksService, err := h.startAWSSessions(config)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// if cloudCredential cannot be used then skip cleanup
-			logrus.Infof("cloudCredential [%s] not found for EKS Config [%s], AWS cleanup skipped", config.Spec.CloudCredential, config.Name)
+			// if AmazonCredentialSecret cannot be used then skip cleanup
+			logrus.Infof("AmazonCredentialSecret [%s] not found for EKS Config [%s], AWS cleanup skipped", config.Spec.AmazonCredentialSecret, config.Name)
 			return config, nil
 		}
 		return config, err
@@ -475,8 +475,8 @@ func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Sessi
 		awsConfig.Region = aws.String(region)
 	}
 
-	id, ns := utils.Parse(config.Spec.CloudCredential)
-	if cloudCredential := config.Spec.CloudCredential; cloudCredential != "" {
+	id, ns := utils.Parse(config.Spec.AmazonCredentialSecret)
+	if amazonCredentialSecret := config.Spec.AmazonCredentialSecret; amazonCredentialSecret != "" {
 		secret, err := h.secretsCache.Get(ns, id)
 		if err != nil {
 			return nil, nil, err
@@ -876,7 +876,7 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 	}
 
 	upstreamSpec.DisplayName = config.Spec.DisplayName
-	upstreamSpec.CloudCredential = config.Spec.CloudCredential
+	upstreamSpec.AmazonCredentialSecret = config.Spec.AmazonCredentialSecret
 	upstreamSpec.Region = config.Spec.Region
 
 	config = config.DeepCopy()
