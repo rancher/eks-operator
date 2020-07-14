@@ -8,7 +8,7 @@ import (
 	"flag"
 	"github.com/rancher/eks-controller/controller"
 	core2 "github.com/rancher/eks-controller/pkg/generated/controllers/core"
-	"github.com/rancher/eks-controller/pkg/generated/controllers/ke.cattle.io"
+	"github.com/rancher/eks-controller/pkg/generated/controllers/eks.cattle.io"
 
 	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
