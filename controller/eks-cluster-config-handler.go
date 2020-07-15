@@ -160,6 +160,7 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 		if err != nil {
 			return config, fmt.Errorf("error deleting nodegroups for config [%s]", config.Spec.DisplayName)
 		}
+		time.Sleep(10 * time.Second)
 		logrus.Infof("waiting for config [%s] node groups to delete", config.Name)
 	}
 
@@ -410,7 +411,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		if err != nil {
 			return config, err
 		}
-	} else if len(config.Spec.Subnets) == 0 {
+	} else if len(config.Spec.Subnets) != 0 {
 		logrus.Infof("VPC info provided, skipping create")
 
 		subnetIds = aws.StringSlice(config.Spec.Subnets)
@@ -803,11 +804,25 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		desiredNgVersions[ng.NodegroupName] = desiredVersion
 	}
 
-	var upgradingNodegroups bool
+	var attemptUpgradingNodegroups bool
 	for _, ng := range upstreamSpec.NodeGroups {
 		if aws.StringValue(ng.Version) == desiredNgVersions[ng.NodegroupName] {
 			continue
 		}
+
+		if desiredNgVersions[ng.NodegroupName] != config.Spec.KubernetesVersion {
+			config = config.DeepCopy()
+			config.Status.Phase = eksConfigUpdatingPhase
+			var err error
+			config, err = h.eksCC.UpdateStatus(config)
+			if err != nil {
+				return config, err
+			}
+			return config, fmt.Errorf("nodegroup [%s] in cluster [%s] failed upgrade from %s to %s",
+				ng.NodegroupName, config.Spec.DisplayName, aws.StringValue(ng.Version), desiredNgVersions[ng.NodegroupName])
+		}
+
+		attemptUpgradingNodegroups = true
 		_, err := eksService.UpdateNodegroupVersion(
 			&eks.UpdateNodegroupVersionInput{
 				NodegroupName: aws.String(ng.NodegroupName),
@@ -818,10 +833,9 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if err != nil {
 			return config, err
 		}
-		upgradingNodegroups = true
 	}
 
-	if upgradingNodegroups {
+	if attemptUpgradingNodegroups {
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
@@ -830,7 +844,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	// no new updates, set to active
 	if config.Status.Phase != eksConfigActivePhase {
 		logrus.Infof("cluster [%s] finished updating", config.Name)
-		config.DeepCopy()
+		config = config.DeepCopy()
 		config.Status.Phase = eksConfigActivePhase
 		return h.eksCC.UpdateStatus(config)
 	}
