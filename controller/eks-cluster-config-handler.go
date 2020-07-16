@@ -104,6 +104,10 @@ func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterCo
 		var err error
 		config, err = onChange(key, config)
 		if err != nil {
+			if config == nil {
+				return config, err
+			}
+
 			if config.Status.FailureMessage == err.Error() {
 				return config, err
 			}
@@ -523,7 +527,7 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 
 	status := *state.Cluster.Status
 	if status == eks.ClusterStatusFailed {
-		return nil, fmt.Errorf("creation failed for cluster named %q with ARN %q",
+		return config, fmt.Errorf("creation failed for cluster named %q with ARN %q",
 			aws.StringValue(state.Cluster.Name),
 			aws.StringValue(state.Cluster.Arn))
 	}
@@ -633,7 +637,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if err != nil {
 			return config, err
 		}
-
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigUpdatingPhase
 		return h.eksCC.UpdateStatus(config)
@@ -886,7 +889,7 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 
 	upstreamSpec, _, err := h.buildUpstreamClusterState(config.Spec.DisplayName, clusterState, nodeGroupStates, eksService)
 	if err != nil {
-		return nil, err
+		return config, err
 	}
 
 	upstreamSpec.DisplayName = config.Spec.DisplayName
@@ -898,7 +901,7 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 
 	config, err = h.eksCC.Update(config)
 	if err != nil {
-		return nil, err
+		return config, err
 	}
 
 	if err := h.createCASecret(config.Name, config.Namespace, clusterState); err != nil {
@@ -1145,7 +1148,6 @@ func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksSe
 	}
 
 	nodeGroupCreateInput.NodeRole = aws.String(getParameterValueFromOutput("NodeInstanceRole", output.Stacks[0].Outputs))
-	fmt.Println(output)
 	_, err = eksService.CreateNodegroup(nodeGroupCreateInput)
 	return err
 }
