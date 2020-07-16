@@ -769,6 +769,15 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if upstreamHasNg[ng.NodegroupName] {
 			continue
 		}
+		if config.Status.Phase != eksConfigUpdatingPhase {
+			config = config.DeepCopy()
+			config.Status.Phase = eksConfigUpdatingPhase
+			var err error
+			config, err = h.eksCC.UpdateStatus(config)
+			if err != nil {
+				return config, err
+			}
+		}
 		err := createNodeGroup(config, ng, eksService, svc)
 		if err != nil {
 			return config, err
