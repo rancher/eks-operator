@@ -1,4 +1,4 @@
-module github.com/rancher/eks-controller
+module github.com/rancher/eks-operator
 
 go 1.13
 

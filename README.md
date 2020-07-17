@@ -1,4 +1,4 @@
-# rancher/eks-controller
+# rancher/eks-operator
 
 ## Build
 

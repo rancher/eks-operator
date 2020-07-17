@@ -8,8 +8,8 @@ ARG TAG=""
 RUN apt update     && \ 
     apt upgrade -y && \ 
     apt install -y ca-certificates git
-RUN git clone --depth=1 http://github.com/rancher/eks-controller
-RUN cd eks-controller && \
+RUN git clone --depth=1 http://github.com/rancher/eks-operator
+RUN cd eks-operator && \
     git fetch --all --tags --prune     && \
     go build
 RUN echo $(pwd) && ls
@@ -18,6 +18,6 @@ FROM ubi
 RUN microdnf update -y && \ 
     rm -rf /var/cache/yum
 ENV KUBECONFIG /root/.kube/config
-COPY --from=builder /go/eks-controller/eks-controller /usr/local/bin
+COPY --from=builder /go/eks-operator/eks-operator /usr/local/bin
 
-ENTRYPOINT ["eks-controller"]
+ENTRYPOINT ["eks-operator"]

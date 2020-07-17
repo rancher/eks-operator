@@ -6,9 +6,9 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/rancher/eks-controller/controller"
-	core2 "github.com/rancher/eks-controller/pkg/generated/controllers/core"
-	eksv1 "github.com/rancher/eks-controller/pkg/generated/controllers/eks.cattle.io"
+	"github.com/rancher/eks-operator/controller"
+	core2 "github.com/rancher/eks-operator/pkg/generated/controllers/core"
+	eksv1 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io"
 
 	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
 	"github.com/rancher/wrangler/pkg/kubeconfig"

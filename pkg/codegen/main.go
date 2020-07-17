@@ -6,7 +6,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"os"
 
-	v12 "github.com/rancher/eks-controller/pkg/apis/eks.cattle.io/v1"
+	v12 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	_ "github.com/rancher/wrangler-api/pkg/generated/controllers/apiextensions.k8s.io"
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
@@ -18,7 +18,7 @@ import (
 
 func main() {
 	controllergen.Run(args.Options{
-		OutputPackage: "github.com/rancher/eks-controller/pkg/generated",
+		OutputPackage: "github.com/rancher/eks-operator/pkg/generated",
 		Boilerplate:   "hack/boilerplate.go.txt",
 		Groups: map[string]args.Group{
 			"eks.cattle.io": {
