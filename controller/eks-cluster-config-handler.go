@@ -40,7 +40,6 @@ const (
 // Handler is the controller implementation for Foo resources
 type Handler struct {
 	eksCC           v12.EKSClusterConfigClient
-	eksCCCache      v12.EKSClusterConfigCache
 	eksEnqueueAfter func(namespace, name string, duration time.Duration)
 	secrets         v14.SecretClient
 	secretsCache    v14.SecretCache
@@ -54,7 +53,6 @@ func Register(
 
 	controller := &Handler{
 		eksCC:           eks,
-		eksCCCache:      eks.Cache(),
 		eksEnqueueAfter: eks.EnqueueAfter,
 		secretsCache:    secrets.Cache(),
 		secrets:         secrets,
@@ -116,7 +114,7 @@ func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterCo
 			var recordErr error
 			config, recordErr = h.eksCC.UpdateStatus(config)
 			if recordErr != nil {
-				logrus.Error("Error recording ekscc [%s] failure message: %s", config.Name, recordErr.Error())
+				logrus.Errorf("Error recording ekscc [%s] failure message: %s", config.Name, recordErr.Error())
 			}
 			return config, err
 		}
