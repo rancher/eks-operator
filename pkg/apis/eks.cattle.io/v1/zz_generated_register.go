@@ -21,7 +21,7 @@ limitations under the License.
 package v1
 
 import (
-	eks "github.com/rancher/eks-controller/pkg/apis/eks.cattle.io"
+	eks "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"

@@ -22,7 +22,7 @@ import (
 	"context"
 	"time"
 
-	v1 "github.com/rancher/eks-controller/pkg/apis/eks.cattle.io/v1"
+	v1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"

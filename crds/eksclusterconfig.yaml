@@ -82,8 +82,8 @@ spec:
                     nullable: true
                     type: string
                 required:
-                - instanceType
                 - nodegroupName
+                - instanceType
                 type: object
               nullable: true
               type: array
@@ -118,11 +118,11 @@ spec:
               nullable: true
               type: object
           required:
+          - region
+          - displayName
           - privateAccess
           - amazonCredentialSecret
-          - displayName
           - publicAccess
-          - region
           type: object
         status:
           properties:

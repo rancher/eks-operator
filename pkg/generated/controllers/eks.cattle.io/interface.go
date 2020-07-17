@@ -19,7 +19,7 @@ limitations under the License.
 package eks
 
 import (
-	v1 "github.com/rancher/eks-controller/pkg/generated/controllers/eks.cattle.io/v1"
+	v1 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/controller"
 )
 
