@@ -4,5 +4,5 @@ metadata:
   name: my-import-cluster
 spec:
   displayName: my-import-cluster
-  amazonCredentialSecret: "cc-zzzz"
+  amazonCredentialSecret: "cattle-global-data:cc-zzzz"
   imported: true

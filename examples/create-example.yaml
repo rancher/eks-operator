@@ -6,7 +6,13 @@ spec:
   kubernetesVersion: "1.15"
   publicAccess: true
   privateAccess: true
-  amazonCredentialSecr: "cc-zzzz"
+  amazonCredentialSecr: "cattle-global-data:cc-zzzz"
   displayName: "my-cluster"
   region: "us-east-2"
   loggingTypes: ["audit"]
+  nodeGroups:
+  - nodegroupName: "mycluster-ng1"
+    instanceType: "t3.medium"
+    desiredSize: 1
+    maxSize: 2
+    minSize: 1
