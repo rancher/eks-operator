@@ -115,11 +115,6 @@ func (in *EKSClusterConfigSpec) DeepCopyInto(out *EKSClusterConfigSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.Imported != nil {
-		in, out := &in.Imported, &out.Imported
-		*out = new(bool)
-		**out = **in
-	}
 	if in.NodeGroups != nil {
 		in, out := &in.NodeGroups, &out.NodeGroups
 		*out = make([]NodeGroup, len(*in))
