@@ -37,7 +37,6 @@ const (
 	allOpen                  = "0.0.0.0/0"
 )
 
-// Handler is the controller implementation for Foo resources
 type Handler struct {
 	eksCC           v12.EKSClusterConfigClient
 	eksEnqueueAfter func(namespace, name string, duration time.Duration)
@@ -45,7 +44,6 @@ type Handler struct {
 	secretsCache    v14.SecretCache
 }
 
-// NewController returns a new sample controller
 func Register(
 	ctx context.Context,
 	secrets v14.SecretController,
@@ -368,7 +366,7 @@ func createStack(svc *cloudformation.CloudFormation, name string, displayName st
 }
 
 func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*v13.EKSClusterConfig, error) {
-	if aws.BoolValue(config.Spec.Imported) {
+	if config.Spec.Imported {
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigImportingPhase
 		return h.eksCC.UpdateStatus(config)
@@ -550,7 +548,7 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, eksService *eks.EKS) (*v13.EKSClusterConfigSpec, string, error) {
 	upstreamSpec := &v13.EKSClusterConfigSpec{}
 
-	upstreamSpec.Imported = aws.Bool(true)
+	upstreamSpec.Imported = true
 
 	// set kubernetes version
 	upstreamVersion := aws.StringValue(clusterState.Cluster.Version)
