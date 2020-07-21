@@ -37,7 +37,6 @@ const (
 	allOpen                  = "0.0.0.0/0"
 )
 
-// Handler is the controller implementation for Foo resources
 type Handler struct {
 	eksCC           v12.EKSClusterConfigClient
 	eksEnqueueAfter func(namespace, name string, duration time.Duration)
@@ -45,7 +44,6 @@ type Handler struct {
 	secretsCache    v14.SecretCache
 }
 
-// NewController returns a new sample controller
 func Register(
 	ctx context.Context,
 	secrets v14.SecretController,

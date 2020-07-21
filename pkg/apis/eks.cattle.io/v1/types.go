@@ -47,7 +47,7 @@ type EKSClusterConfigSpec struct {
 	SecurityGroups         []string          `json:"securityGroups" norman:"noupdate"`
 	ServiceRole            string            `json:"serviceRole" norman:"noupdate"`
 	Region                 string            `json:"region" norman:"required,noupdate"`
-	Imported               *bool             `json:"imported,omitempty" norman:"noupdate"`
+	Imported               bool             `json:"imported,omitempty" norman:"noupdate"`
 	NodeGroups             []NodeGroup       `json:"nodeGroups"`
 }
 
