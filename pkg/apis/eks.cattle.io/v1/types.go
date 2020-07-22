@@ -47,16 +47,18 @@ type EKSClusterConfigSpec struct {
 	SecurityGroups         []string          `json:"securityGroups" norman:"noupdate"`
 	ServiceRole            string            `json:"serviceRole" norman:"noupdate"`
 	Region                 string            `json:"region" norman:"required,noupdate"`
-	Imported               bool             `json:"imported,omitempty" norman:"noupdate"`
+	Imported               bool              `json:"imported,omitempty" norman:"noupdate"`
 	NodeGroups             []NodeGroup       `json:"nodeGroups"`
 }
 
 type EKSClusterConfigStatus struct {
-	Phase                   string   `json:"phase"`
-	GeneratedVirtualNetwork string   `json:"generatedVirtualNetwork"`
-	GeneratedSubnets        []string `json:"generatedSubnets"`
-	GeneratedSecurityGroups []string `json:"generatedSecurityGroups"`
-	FailureMessage          string   `json:"failureMessage"`
+	Phase          string   `json:"phase"`
+	VirtualNetwork string   `json:"virtualNetwork"`
+	Subnets        []string `json:"subnets"`
+	SecurityGroups []string `json:"securityGroups"`
+	// describes how the above network fields were provided. Valid values are provided and generated
+	NetworkFieldsSource string `json:"networkFieldsSource"`
+	FailureMessage      string `json:"failureMessage"`
 }
 
 type NodeGroup struct {
