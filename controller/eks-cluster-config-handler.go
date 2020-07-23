@@ -136,6 +136,11 @@ func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterCo
 }
 
 func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+	if config.Spec.Imported {
+		logrus.Infof("cluster [%s] is imported, will not delete EKS cluster", config.Name)
+		return config, nil
+	}
+
 	logrus.Infof("deleting cluster [%s]", config.Name)
 
 	sess, eksService, err := h.startAWSSessions(config)
