@@ -1159,7 +1159,6 @@ func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksSe
 	if sshKey := group.Ec2SshKey; sshKey != nil {
 		nodeGroupCreateInput.RemoteAccess = &eks.RemoteAccessConfig{
 			Ec2SshKey:            sshKey,
-			SourceSecurityGroups: group.SourceSecurityGroups,
 		}
 	}
 
