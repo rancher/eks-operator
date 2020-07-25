@@ -457,7 +457,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		roleARN = *role.Role.Arn
 	}
 
-	_, err := eksService.CreateCluster(&eks.CreateClusterInput{
+	createClusterInput := &eks.CreateClusterInput{
 		Name:    aws.String(config.Spec.DisplayName),
 		RoleArn: aws.String(roleARN),
 		ResourcesVpcConfig: &eks.VpcConfigRequest{
@@ -470,10 +470,23 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		Tags:    getTags(config.Spec.Tags),
 		Logging: getLogging(config.Spec.LoggingTypes),
 		Version: aws.String(config.Spec.KubernetesVersion),
-	})
+	}
 
-	if err != nil && !isClusterConflict(err) {
-		return config, fmt.Errorf("error creating cluster: %v", err)
+	if config.Spec.SecretsEncryption {
+		createClusterInput.EncryptionConfig = []*eks.EncryptionConfig{
+			{
+				Provider: &eks.Provider{
+					KeyArn: aws.String(config.Spec.KmsKey),
+				},
+				Resources: aws.StringSlice([]string{"secrets"}),
+			},
+		}
+	}
+
+	if _, err := eksService.CreateCluster(createClusterInput); err != nil {
+		if !isClusterConflict(err) {
+			return config, fmt.Errorf("error creating cluster: %v", err)
+		}
 	}
 
 	config = config.DeepCopy()
