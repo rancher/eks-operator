@@ -383,7 +383,22 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 
 	var subnetIds []*string
 	var securityGroups []*string
-	if config.Status.VirtualNetwork == "" {
+	if len(config.Spec.Subnets) != 0 {
+		logrus.Infof("VPC info provided, skipping vpc/subnet/securitygroup creation")
+		config = config.DeepCopy()
+		// copy networking fields to status
+		config.Status.Subnets = config.Spec.Subnets
+		config.Status.SecurityGroups = config.Spec.SecurityGroups
+		config.Status.NetworkFieldsSource = "provided"
+		var err error
+		config, err = h.eksCC.UpdateStatus(config)
+		if err != nil {
+			return config, err
+		}
+
+		subnetIds = aws.StringSlice(config.Spec.Subnets)
+		securityGroups = aws.StringSlice(config.Spec.SecurityGroups)
+	} else if config.Status.VirtualNetwork == "" {
 		logrus.Infof("Bringing up vpc")
 
 		stack, err := createStack(svc, getVPCStackName(config.Spec.DisplayName), displayName, templates.VpcTemplate, []string{},
@@ -413,21 +428,6 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 
 		securityGroups = aws.StringSlice(config.Status.SecurityGroups)
 		subnetIds = aws.StringSlice(config.Status.Subnets)
-	} else if len(config.Spec.Subnets) != 0 {
-		logrus.Infof("VPC info provided, skipping create")
-		config = config.DeepCopy()
-		// copy networking fields to status
-		config.Status.Subnets = config.Spec.Subnets
-		config.Status.SecurityGroups = config.Spec.SecurityGroups
-		config.Status.NetworkFieldsSource = "provided"
-		var err error
-		config, err = h.eksCC.UpdateStatus(config)
-		if err != nil {
-			return config, err
-		}
-
-		subnetIds = aws.StringSlice(config.Spec.Subnets)
-		securityGroups = aws.StringSlice(config.Spec.SecurityGroups)
 	}
 
 	var roleARN string
@@ -1164,8 +1164,6 @@ func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksSe
 
 	if len(group.Subnets) != 0 {
 		nodeGroupCreateInput.Subnets = aws.StringSlice(group.Subnets)
-	} else if len(eksConfig.Spec.Subnets) != 0 {
-		nodeGroupCreateInput.Subnets = aws.StringSlice(eksConfig.Spec.Subnets)
 	} else {
 		nodeGroupCreateInput.Subnets = aws.StringSlice(eksConfig.Status.Subnets)
 	}
