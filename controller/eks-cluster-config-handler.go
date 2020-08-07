@@ -934,6 +934,14 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 		return config, err
 	}
 
+	config.Status.SecurityGroups = config.Spec.SecurityGroups
+	config.Status.Subnets = config.Spec.Subnets
+
+	config, err = h.eksCC.UpdateStatus(config)
+	if err != nil {
+		return config, err
+	}
+
 	if err := h.createCASecret(config.Name, config.Namespace, clusterState); err != nil {
 		return config, err
 	}
