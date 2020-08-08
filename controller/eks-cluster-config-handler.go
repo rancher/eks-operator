@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/blang/semver"
 	v13 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	v14 "github.com/rancher/eks-operator/pkg/generated/controllers/core/v1"
 	v12 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
@@ -111,6 +112,10 @@ func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterCo
 			}
 			config = config.DeepCopy()
 			config.Status.FailureMessage = err.Error()
+			if config.Status.Phase == eksConfigActivePhase {
+				// can assume an update is failing
+				config.Status.Phase = eksConfigUpdatingPhase
+			}
 			var recordErr error
 			config, recordErr = h.eksCC.UpdateStatus(config)
 			if recordErr != nil {
@@ -246,6 +251,18 @@ func deleteNodeGroups(clusterName string, eksService *eks.EKS, nodeGroups []v13.
 }
 
 func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
+	if err := validateUpdate(config); err != nil {
+		// validation failed, will be considered a failing update until resolved
+		config = config.DeepCopy()
+		config.Status.Phase = eksConfigUpdatingPhase
+		var updateErr error
+		config, updateErr = h.eksCC.UpdateStatus(config)
+		if updateErr != nil {
+			return config, updateErr
+		}
+		return config, err
+	}
+
 	clusterState, err := eksService.DescribeCluster(
 		&eks.DescribeClusterInput{
 			Name: aws.String(config.Spec.DisplayName),
@@ -371,7 +388,40 @@ func createStack(svc *cloudformation.CloudFormation, name string, displayName st
 	return stack, nil
 }
 
+func validateUpdate(config *v13.EKSClusterConfig) error {
+	clusterVersion, err := semver.New(fmt.Sprintf("%s.0", config.Spec.KubernetesVersion))
+	if err != nil {
+		return fmt.Errorf("improper version format for cluster [%s]: %s", config.Name, config.Spec.KubernetesVersion)
+	}
+
+	var errors []string
+	// validate nodegroup versions
+	for _, ng := range config.Spec.NodeGroups {
+		version, err := semver.New(fmt.Sprintf("%s.0", aws.StringValue(ng.Version)))
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("improper version format for nodegroup [%s]: %s", ng.NodegroupName, aws.StringValue(ng.Version)))
+			continue
+		}
+		if clusterVersion.EQ(*version) {
+			continue
+		}
+		if clusterVersion.Minor-version.Minor == 1 {
+			continue
+		}
+		errors = append(errors, fmt.Sprintf("versions for cluster [%s] and nodegroup [%s] not compatible: all nodegroup kubernetes versions"+
+			"must be equal to or one minor version lower than the cluster kubernetes version", config.Spec.KubernetesVersion, aws.StringValue(ng.Version)))
+	}
+	if len(errors) != 0 {
+		return fmt.Errorf(strings.Join(errors, ";"))
+	}
+	return nil
+}
+
 func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*v13.EKSClusterConfig, error) {
+	if err := validateCreate(config); err != nil {
+		return config, err
+	}
+
 	if config.Spec.Imported {
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigImportingPhase
@@ -493,6 +543,16 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 	config = config.DeepCopy()
 	config.Status.Phase = eksConfigCreatingPhase
 	return h.eksCC.UpdateStatus(config)
+}
+
+func validateCreate(config *v13.EKSClusterConfig) error {
+	// validate nodegroup version
+	for _, ng := range config.Spec.NodeGroups {
+		if aws.StringValue(ng.Version) != config.Spec.KubernetesVersion {
+			return fmt.Errorf("nodegroup [%s] version must match cluster [%s] version on create", ng.NodegroupName, config.Name)
+		}
+	}
+	return nil
 }
 
 func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Session, *eks.EKS, error) {
@@ -829,24 +889,12 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			continue
 		}
 
-		if desiredNgVersions[ng.NodegroupName] != config.Spec.KubernetesVersion {
-			config = config.DeepCopy()
-			config.Status.Phase = eksConfigUpdatingPhase
-			var err error
-			config, err = h.eksCC.UpdateStatus(config)
-			if err != nil {
-				return config, err
-			}
-			return config, fmt.Errorf("nodegroup [%s] in cluster [%s] failed upgrade from %s to %s",
-				ng.NodegroupName, config.Spec.DisplayName, aws.StringValue(ng.Version), desiredNgVersions[ng.NodegroupName])
-		}
-
 		attemptUpgradingNodegroups = true
 		_, err := eksService.UpdateNodegroupVersion(
 			&eks.UpdateNodegroupVersionInput{
 				NodegroupName: aws.String(ng.NodegroupName),
 				ClusterName:   aws.String(config.Spec.DisplayName),
-				Version:       aws.String(config.Spec.KubernetesVersion),
+				Version:       aws.String(desiredNgVersions[ng.NodegroupName]),
 			},
 		)
 		if err != nil {
@@ -957,7 +1005,7 @@ func (h *Handler) createCASecret(name, namespace string, clusterState *eks.Descr
 // enqueueUpdate enqueues the config if it is already in the updating phase. Otherwise, the
 // phase is updated to "updating". This is important because the object needs to reenter the
 // onChange handler to start waiting on the update.
-func (h *Handler) enqueueUpdate(config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error){
+func (h *Handler) enqueueUpdate(config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
 	if config.Status.Phase == eksConfigUpdatingPhase {
 		h.eksEnqueue(config.Namespace, config.Name)
 		return config, nil
@@ -1163,7 +1211,7 @@ func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksSe
 
 	if sshKey := group.Ec2SshKey; sshKey != nil {
 		nodeGroupCreateInput.RemoteAccess = &eks.RemoteAccessConfig{
-			Ec2SshKey:            sshKey,
+			Ec2SshKey: sshKey,
 		}
 	}
 
