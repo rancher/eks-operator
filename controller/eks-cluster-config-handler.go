@@ -40,6 +40,7 @@ const (
 type Handler struct {
 	eksCC           v12.EKSClusterConfigClient
 	eksEnqueueAfter func(namespace, name string, duration time.Duration)
+	eksEnqueue      func(namespace, name string)
 	secrets         v14.SecretClient
 	secretsCache    v14.SecretCache
 }
@@ -51,6 +52,7 @@ func Register(
 
 	controller := &Handler{
 		eksCC:           eks,
+		eksEnqueue:      eks.Enqueue,
 		eksEnqueueAfter: eks.EnqueueAfter,
 		secretsCache:    secrets.Cache(),
 		secrets:         secrets,
@@ -255,7 +257,6 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 	if aws.StringValue(clusterState.Cluster.Status) == eks.ClusterStatusUpdating {
 		// upstream cluster is already updating, must wait until sending next update
 		logrus.Infof("waiting for cluster [%s] to finish updating", config.Name)
-		config.Status.Phase = eksConfigUpdatingPhase
 		if config.Status.Phase != eksConfigUpdatingPhase {
 			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
@@ -658,9 +659,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if err != nil {
 			return config, err
 		}
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 	}
 
 	// check tags for update
@@ -673,10 +672,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if err != nil {
 			return config, err
 		}
-
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 	}
 
 	if updateUntags := getUpdateUntags(config.Spec.Tags, upstreamSpec.Tags); updateUntags != nil {
@@ -689,9 +685,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			return config, err
 		}
 
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 
 	}
 
@@ -707,9 +701,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			return config, err
 		}
 
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 	}
 
 	// check public access for update
@@ -726,9 +718,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			return config, err
 		}
 
-		config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 	}
 
 	// check private access for update
@@ -745,9 +735,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			return config, err
 		}
 
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 	}
 
 	// check public access CIDRs for update (public access sources)
@@ -768,9 +756,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			return config, err
 		}
 
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 	}
 
 	// check if node groups need to be added or deleted
@@ -790,6 +776,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		if upstreamHasNg[ng.NodegroupName] {
 			continue
 		}
+		// in this case update is set right away because creating the
+		// nodegroup may not be immediate
 		if config.Status.Phase != eksConfigUpdatingPhase {
 			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
@@ -822,9 +810,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	}
 
 	if updatingNodegroups {
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 	}
 
 	// check node groups for kubernetes version updates
@@ -869,9 +855,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	}
 
 	if attemptUpgradingNodegroups {
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigUpdatingPhase
-		return h.eksCC.UpdateStatus(config)
+		return h.enqueueUpdate(config)
 	}
 
 	// no new updates, set to active
@@ -968,6 +952,19 @@ func (h *Handler) createCASecret(name, namespace string, clusterState *eks.Descr
 			},
 		})
 	return err
+}
+
+// enqueueUpdate enqueues the config if it is already in the updating phase. Otherwise, the
+// phase is updated to "updating". This is important because the object needs to reenter the
+// onChange handler to start waiting on the update.
+func (h *Handler) enqueueUpdate(config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error){
+	if config.Status.Phase == eksConfigUpdatingPhase {
+		h.eksEnqueue(config.Namespace, config.Name)
+		return config, nil
+	}
+	config = config.DeepCopy()
+	config.Status.Phase = eksConfigUpdatingPhase
+	return h.eksCC.UpdateStatus(config)
 }
 
 func getVPCStackName(name string) string {
@@ -1078,7 +1075,7 @@ func getUpdateUntags(tags map[string]string, upstreamTags map[string]string) []*
 
 func getPublicAccessCidrs(publicAccessCidrs []string) []*string {
 	if len(publicAccessCidrs) == 0 {
-		return nil
+		return aws.StringSlice([]string{"0.0.0.0/0"})
 	}
 
 	return aws.StringSlice(publicAccessCidrs)
