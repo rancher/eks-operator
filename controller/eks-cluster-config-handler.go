@@ -289,6 +289,7 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 
 	// gather upstream node groups states
 	var nodeGroupStates []*eks.DescribeNodegroupOutput
+	nodegroupARNs := make(map[string]string)
 	for _, ngName := range ngs.Nodegroups {
 		ng, err := eksService.DescribeNodegroup(
 			&eks.DescribeNodegroupInput{
@@ -314,6 +315,7 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 		}
 
 		nodeGroupStates = append(nodeGroupStates, ng)
+		nodegroupARNs[aws.StringValue(ngName)] = aws.StringValue(ng.Nodegroup.NodegroupArn)
 	}
 
 	upstreamSpec, clusterARN, err := h.buildUpstreamClusterState(config.Spec.DisplayName, clusterState, nodeGroupStates, eksService)
@@ -321,7 +323,7 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 		return config, err
 	}
 
-	return h.updateUpstreamClusterState(upstreamSpec, config, clusterARN, eksService, svc)
+	return h.updateUpstreamClusterState(upstreamSpec, config, clusterARN, nodegroupARNs, eksService, svc)
 }
 
 func createStack(svc *cloudformation.CloudFormation, name string, displayName string,
@@ -708,7 +710,7 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 // updateUpstreamClusterState compares the upstream spec with the config spec, then updates the upstream EKS cluster to
 // match the config spec. Function often returns after a single update because once the cluster is in updating phase in EKS,
 // no more updates will be accepted until the current update is finished.
-func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigSpec, config *v13.EKSClusterConfig, clusterARN string, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
+func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigSpec, config *v13.EKSClusterConfig, clusterARN string, ngARNs map[string]string, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
 	// check kubernetes version for update
 	if upstreamSpec.KubernetesVersion != config.Spec.KubernetesVersion {
 		logrus.Infof("updating kubernetes version for cluster [%s]", config.Name)
@@ -723,7 +725,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	}
 
 	// check tags for update
-	if updateTags := getUpdateTags(config.Spec.Tags, upstreamSpec.Tags); updateTags != nil {
+	if updateTags := utils.GetKeyValuesToUpdate(config.Spec.Tags, upstreamSpec.Tags); updateTags != nil {
 		_, err := eksService.TagResource(
 			&eks.TagResourceInput{
 				ResourceArn: aws.String(clusterARN),
@@ -735,7 +737,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		return h.enqueueUpdate(config)
 	}
 
-	if updateUntags := getUpdateUntags(config.Spec.Tags, upstreamSpec.Tags); updateUntags != nil {
+	if updateUntags := utils.GetKeysToDelete(config.Spec.Tags, upstreamSpec.Tags); updateUntags != nil {
 		_, err := eksService.UntagResource(
 			&eks.UntagResourceInput{
 				ResourceArn: aws.String(clusterARN),
@@ -820,20 +822,20 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	}
 
 	// check if node groups need to be added or deleted
-	upstreamHasNg := make(map[string]bool)
-	hasNg := make(map[string]bool)
+	upstreamNgs := make(map[string]v13.NodeGroup)
+	ngs := make(map[string]v13.NodeGroup)
 
 	for _, ng := range upstreamSpec.NodeGroups {
-		upstreamHasNg[ng.NodegroupName] = true
+		upstreamNgs[ng.NodegroupName] = ng
 	}
 
 	for _, ng := range config.Spec.NodeGroups {
-		hasNg[ng.NodegroupName] = true
+		ngs[ng.NodegroupName] = ng
 	}
 
 	var updatingNodegroups bool
 	for _, ng := range config.Spec.NodeGroups {
-		if upstreamHasNg[ng.NodegroupName] {
+		if _, ok := upstreamNgs[ng.NodegroupName]; ok {
 			continue
 		}
 		// in this case update is set right away because creating the
@@ -855,7 +857,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	}
 
 	for _, ng := range upstreamSpec.NodeGroups {
-		if hasNg[ng.NodegroupName] {
+		if _, ok := ngs[ng.NodegroupName]; ok {
 			continue
 		}
 		_, err := eksService.DeleteNodegroup(
@@ -883,26 +885,101 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		desiredNgVersions[ng.NodegroupName] = desiredVersion
 	}
 
-	var attemptUpgradingNodegroups bool
-	for _, ng := range upstreamSpec.NodeGroups {
-		if aws.StringValue(ng.Version) == desiredNgVersions[ng.NodegroupName] {
+	var attemptUpdatingNodegroups bool
+	for _, upstreamNg := range upstreamSpec.NodeGroups {
+		// if continue is used after an update, it means that update
+		// must finish before others for that nodegroup can take place.
+		// Some updates such as minSize, maxSize, and desiredSize can
+		// happen together
+
+		ng := ngs[upstreamNg.NodegroupName]
+		if aws.StringValue(upstreamNg.Version) != desiredNgVersions[ng.NodegroupName] {
+			attemptUpdatingNodegroups = true
+			_, err := eksService.UpdateNodegroupVersion(
+				&eks.UpdateNodegroupVersionInput{
+					NodegroupName: aws.String(ng.NodegroupName),
+					ClusterName:   aws.String(config.Spec.DisplayName),
+					Version:       aws.String(desiredNgVersions[ng.NodegroupName]),
+				},
+			)
+			if err != nil {
+				return config, err
+			}
 			continue
 		}
 
-		attemptUpgradingNodegroups = true
-		_, err := eksService.UpdateNodegroupVersion(
-			&eks.UpdateNodegroupVersionInput{
-				NodegroupName: aws.String(ng.NodegroupName),
-				ClusterName:   aws.String(config.Spec.DisplayName),
-				Version:       aws.String(desiredNgVersions[ng.NodegroupName]),
-			},
-		)
-		if err != nil {
-			return config, err
+		updateNodegroupConfig := &eks.UpdateNodegroupConfigInput{
+			ClusterName:   aws.String(config.Spec.DisplayName),
+			NodegroupName: aws.String(ng.NodegroupName),
+		}
+		updateNodegroupConfig.ScalingConfig = &eks.NodegroupScalingConfig{}
+		var sendUpdateNodegroupConfig bool
+
+		if unlabels := utils.GetKeysToDelete(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); unlabels != nil {
+			updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
+				RemoveLabels: unlabels,
+			}
+			sendUpdateNodegroupConfig = true
+		}
+
+		if labels := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); labels != nil {
+			updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
+				AddOrUpdateLabels: labels,
+			}
+			sendUpdateNodegroupConfig = true
+		}
+
+		if aws.Int64Value(upstreamNg.DesiredSize) != aws.Int64Value(ng.DesiredSize) {
+			updateNodegroupConfig.ScalingConfig.DesiredSize = ng.DesiredSize
+			sendUpdateNodegroupConfig = true
+		}
+
+		if aws.Int64Value(upstreamNg.MinSize) != aws.Int64Value(ng.MinSize) {
+			updateNodegroupConfig.ScalingConfig.MinSize = ng.MinSize
+			sendUpdateNodegroupConfig = true
+		}
+
+		if aws.Int64Value(upstreamNg.MaxSize) != aws.Int64Value(ng.MaxSize) {
+			updateNodegroupConfig.ScalingConfig.MaxSize = ng.MaxSize
+			sendUpdateNodegroupConfig = true
+		}
+
+		if sendUpdateNodegroupConfig {
+			attemptUpdatingNodegroups = true
+			_, err := eksService.UpdateNodegroupConfig(updateNodegroupConfig)
+			if err != nil {
+				return config, err
+			}
+			continue
+		}
+
+		if untags := utils.GetKeysToDelete(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); untags != nil {
+			_, err := eksService.UntagResource(&eks.UntagResourceInput{
+				ResourceArn: aws.String(ngARNs[ng.NodegroupName]),
+				TagKeys:     untags,
+			})
+			if err != nil {
+				return config, err
+			}
+			attemptUpdatingNodegroups = true
+		}
+
+		if tags := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); tags != nil {
+			_, err := eksService.TagResource(&eks.TagResourceInput{
+				ResourceArn: aws.String(ngARNs[ng.NodegroupName]),
+				Tags:        tags,
+			})
+			if err != nil {
+				return config, err
+			}
+			attemptUpdatingNodegroups = true
 		}
 	}
 
-	if attemptUpgradingNodegroups {
+	if attemptUpdatingNodegroups {
+		// if any updates are taking place on nodegroups, the config's phase needs
+		// to be set to "updating" and the controller will wait for the updates to
+		// finish before proceeding
 		return h.enqueueUpdate(config)
 	}
 
@@ -1079,46 +1156,6 @@ func getTags(tags map[string]string) map[string]*string {
 	}
 
 	return aws.StringMap(tags)
-}
-
-func getUpdateTags(tags map[string]string, upstreamTags map[string]string) map[string]*string {
-	if len(tags) == 0 {
-		return nil
-	}
-
-	if len(upstreamTags) == 0 {
-		return aws.StringMap(tags)
-	}
-
-	updateTags := make(map[string]*string)
-	for key, val := range tags {
-		if upstreamTags[key] != val {
-			updateTags[key] = aws.String(val)
-		}
-	}
-
-	if len(updateTags) == 0 {
-		return nil
-	}
-	return updateTags
-}
-
-func getUpdateUntags(tags map[string]string, upstreamTags map[string]string) []*string {
-	if len(upstreamTags) == 0 {
-		return nil
-	}
-
-	var updateUntags []*string
-	for key, val := range upstreamTags {
-		if len(tags) == 0 || tags[key] != val {
-			updateUntags = append(updateUntags, aws.String(key))
-		}
-	}
-
-	if len(updateUntags) == 0 {
-		return nil
-	}
-	return updateUntags
 }
 
 func getPublicAccessCidrs(publicAccessCidrs []string) []*string {
