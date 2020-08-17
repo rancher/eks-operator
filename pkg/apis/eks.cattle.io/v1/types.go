@@ -33,21 +33,21 @@ type EKSClusterConfig struct {
 
 // EKSClusterConfigSpec is the spec for a EKSClusterConfig resource
 type EKSClusterConfigSpec struct {
-	KubernetesVersion      string            `json:"kubernetesVersion"`
+	AmazonCredentialSecret string            `json:"amazonCredentialSecret"`
+	DisplayName            string            `json:"displayName" norman:"noupdate"`
+	Region                 string            `json:"region" norman:"noupdate"`
+	Imported               bool              `json:"imported" norman:"noupdate"`
+	KubernetesVersion      *string           `json:"kubernetesVersion"`
 	Tags                   map[string]string `json:"tags"`
-	SecretsEncryption      bool              `json:"secretsEncryption" norman:"noupdate"`
-	KmsKey                 string            `json:"kmsKey" norman:"noupdate"`
-	PublicAccess           bool              `json:"publicAccess" norman:"required"`
-	PrivateAccess          bool              `json:"privateAccess" norman:"required"`
+	SecretsEncryption      *bool             `json:"secretsEncryption" norman:"noupdate"`
+	KmsKey                 *string           `json:"kmsKey" norman:"noupdate"`
+	PublicAccess           *bool             `json:"publicAccess"`
+	PrivateAccess          *bool             `json:"privateAccess"`
 	PublicAccessSources    []string          `json:"publicAccessSources"`
 	LoggingTypes           []string          `json:"loggingTypes"`
-	AmazonCredentialSecret string            `json:"amazonCredentialSecret" norman:"required"`
-	DisplayName            string            `json:"displayName" norman:"required,noupdate"`
 	Subnets                []string          `json:"subnets" norman:"noupdate"`
 	SecurityGroups         []string          `json:"securityGroups" norman:"noupdate"`
-	ServiceRole            string            `json:"serviceRole" norman:"noupdate"`
-	Region                 string            `json:"region" norman:"required,noupdate"`
-	Imported               bool              `json:"imported,omitempty" norman:"noupdate"`
+	ServiceRole            *string           `json:"serviceRole" norman:"noupdate"`
 	NodeGroups             []NodeGroup       `json:"nodeGroups"`
 }
 
@@ -62,16 +62,16 @@ type EKSClusterConfigStatus struct {
 }
 
 type NodeGroup struct {
-	Gpu                  bool               `json:"gpu"`
-	NodegroupName        string             `json:"nodegroupName" norman:"required"`
-	DiskSize             *int64             `json:"diskSize"`
-	InstanceType         *string            `json:"instanceType" norman:"required"`
-	Labels               map[string]*string `json:"labels"`
-	Ec2SshKey            *string            `json:"ec2SshKey"`
-	DesiredSize          *int64             `json:"desiredSize"`
-	MaxSize              *int64             `json:"maxSize"`
-	MinSize              *int64             `json:"minSize"`
-	Subnets              []string           `json:"subnets"`
-	Tags                 map[string]*string `json:"tags"`
-	Version              *string            `json:"version"`
+	Gpu           *bool               `json:"gpu"`
+	NodegroupName *string             `json:"nodegroupName" norman:"required"`
+	DiskSize      *int64              `json:"diskSize"`
+	InstanceType  *string             `json:"instanceType" norman:"required"`
+	Labels        map[string]*string `json:"labels"`
+	Ec2SshKey     *string             `json:"ec2SshKey"`
+	DesiredSize   *int64              `json:"desiredSize"`
+	MaxSize       *int64              `json:"maxSize"`
+	MinSize       *int64              `json:"minSize"`
+	Subnets       []string           `json:"subnets"`
+	Tags          map[string]*string `json:"tags"`
+	Version       *string             `json:"version"`
 }
