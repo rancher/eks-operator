@@ -53,23 +53,6 @@ func main() {
 		panic(err)
 	}
 
-	// set additional validation
-	// removed anyOf for now, may be useful in future for api level validation
-	/*
-	// Openapi does not have a way of changing validation based of value directly. This approach instead
-	// requires the import field's value be true or the field be omitted. If the field is included it can
-	// be assumed that the cluster is imported, and therefore the required fields for an imported cluster
-	// will be validated. Otherwise, the required fields for a non-import cluster will be validated.
-	setOpenAPIEnum(obj.Spec.Validation.OpenAPIV3Schema.Properties, []interface{}{true}, "spec", "imported")
-	setOpenAPIAnyOf(obj.Spec.Validation.OpenAPIV3Schema.Properties, []v1beta1.JSONSchemaProps{
-		{
-			Required: []string{"imported", "amazonCredentialSecr", "displayName"},
-		},
-		{
-			Required: []string{"publicAccess", "privateAccess", "amazonCredentialSecr", "displayName"},
-		},
-	}, "spec")*/
-
 	eksCCYaml, err := yaml.Export(&obj)
 	if err != nil {
 		panic(err)

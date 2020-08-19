@@ -73,7 +73,7 @@ func (h *Handler) OnEksConfigChanged(key string, config *v13.EKSClusterConfig) (
 		return nil, nil
 	}
 
-	sess, eksService, err := h.startAWSSessions(config)
+	sess, eksService, err := StartAWSSessions(h.secretsCache, config.Spec)
 	if err != nil {
 		return config, err
 	}
@@ -149,7 +149,7 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 
 	logrus.Infof("deleting cluster [%s]", config.Name)
 
-	sess, eksService, err := h.startAWSSessions(config)
+	sess, eksService, err := StartAWSSessions(h.secretsCache, config.Spec)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// if AmazonCredentialSecret cannot be used then skip cleanup
@@ -160,9 +160,6 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 	}
 
 	svc := cloudformation.New(sess)
-	if err != nil {
-		return config, fmt.Errorf("error getting new aws session: %v", err)
-	}
 
 	logrus.Infof("starting node group deletion for config [%s]", config.Spec.DisplayName)
 	waitingForNodegroupDeletion := true
@@ -191,7 +188,7 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 		}
 	}
 
-	if config.Spec.ServiceRole == "" {
+	if aws.StringValue(config.Spec.ServiceRole) == "" {
 		logrus.Infof("deleting service role for config [%s]", config.Name)
 		err = deleteStack(svc, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName))
 		if err != nil {
@@ -222,7 +219,7 @@ func deleteNodeGroups(clusterName string, eksService *eks.EKS, nodeGroups []v13.
 		ngState, err := eksService.DescribeNodegroup(
 			&eks.DescribeNodegroupInput{
 				ClusterName:   aws.String(clusterName),
-				NodegroupName: aws.String(ng.NodegroupName),
+				NodegroupName: ng.NodegroupName,
 			})
 		if err != nil {
 			if notFound(err) {
@@ -240,7 +237,7 @@ func deleteNodeGroups(clusterName string, eksService *eks.EKS, nodeGroups []v13.
 		_, err = eksService.DeleteNodegroup(
 			&eks.DeleteNodegroupInput{
 				ClusterName:   aws.String(clusterName),
-				NodegroupName: aws.String(ng.NodegroupName),
+				NodegroupName: ng.NodegroupName,
 			})
 		if err != nil {
 			return false, err
@@ -318,7 +315,7 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 		nodegroupARNs[aws.StringValue(ngName)] = aws.StringValue(ng.Nodegroup.NodegroupArn)
 	}
 
-	upstreamSpec, clusterARN, err := h.buildUpstreamClusterState(config.Spec.DisplayName, clusterState, nodeGroupStates, eksService)
+	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(config.Spec.DisplayName, clusterState, nodeGroupStates, eksService)
 	if err != nil {
 		return config, err
 	}
@@ -390,17 +387,27 @@ func createStack(svc *cloudformation.CloudFormation, name string, displayName st
 }
 
 func validateUpdate(config *v13.EKSClusterConfig) error {
-	clusterVersion, err := semver.New(fmt.Sprintf("%s.0", config.Spec.KubernetesVersion))
-	if err != nil {
-		return fmt.Errorf("improper version format for cluster [%s]: %s", config.Name, config.Spec.KubernetesVersion)
+	var clusterVersion *semver.Version
+	if config.Spec.KubernetesVersion != nil {
+		var err error
+		clusterVersion, err = semver.New(fmt.Sprintf("%s.0", aws.StringValue(config.Spec.KubernetesVersion)))
+		if err != nil {
+			return fmt.Errorf("improper version format for cluster [%s]: %s", config.Name, aws.StringValue(config.Spec.KubernetesVersion))
+		}
 	}
 
 	var errors []string
 	// validate nodegroup versions
 	for _, ng := range config.Spec.NodeGroups {
+		if ng.Version == nil {
+			continue
+		}
 		version, err := semver.New(fmt.Sprintf("%s.0", aws.StringValue(ng.Version)))
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("improper version format for nodegroup [%s]: %s", ng.NodegroupName, aws.StringValue(ng.Version)))
+			continue
+		}
+		if clusterVersion == nil {
 			continue
 		}
 		if clusterVersion.EQ(*version) {
@@ -410,7 +417,7 @@ func validateUpdate(config *v13.EKSClusterConfig) error {
 			continue
 		}
 		errors = append(errors, fmt.Sprintf("versions for cluster [%s] and nodegroup [%s] not compatible: all nodegroup kubernetes versions"+
-			"must be equal to or one minor version lower than the cluster kubernetes version", config.Spec.KubernetesVersion, aws.StringValue(ng.Version)))
+			"must be equal to or one minor version lower than the cluster kubernetes version", aws.StringValue(config.Spec.KubernetesVersion), aws.StringValue(ng.Version)))
 	}
 	if len(errors) != 0 {
 		return fmt.Errorf(strings.Join(errors, ";"))
@@ -443,7 +450,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 	subnetIds := aws.StringSlice(config.Status.Subnets)
 
 	var roleARN string
-	if config.Spec.ServiceRole == "" {
+	if aws.StringValue(config.Spec.ServiceRole) == "" {
 		logrus.Infof("Creating service role")
 
 		stack, err := createStack(svc, getServiceRoleName(config.Spec.DisplayName), displayName, templates.ServiceRoleTemplate,
@@ -460,7 +467,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		logrus.Infof("Retrieving existing service role")
 		iamClient := iam.New(sess, aws.NewConfig().WithRegion(config.Spec.Region))
 		role, err := iamClient.GetRole(&iam.GetRoleInput{
-			RoleName: aws.String(config.Spec.ServiceRole),
+			RoleName: config.Spec.ServiceRole,
 		})
 		if err != nil {
 			return config, fmt.Errorf("error getting role: %v", err)
@@ -473,22 +480,22 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 		Name:    aws.String(config.Spec.DisplayName),
 		RoleArn: aws.String(roleARN),
 		ResourcesVpcConfig: &eks.VpcConfigRequest{
-			EndpointPrivateAccess: aws.Bool(config.Spec.PrivateAccess),
-			EndpointPublicAccess:  aws.Bool(config.Spec.PublicAccess),
+			EndpointPrivateAccess: config.Spec.PrivateAccess,
+			EndpointPublicAccess:  config.Spec.PublicAccess,
 			SecurityGroupIds:      securityGroups,
 			SubnetIds:             subnetIds,
 			PublicAccessCidrs:     getPublicAccessCidrs(config.Spec.PublicAccessSources),
 		},
 		Tags:    getTags(config.Spec.Tags),
 		Logging: getLogging(config.Spec.LoggingTypes),
-		Version: aws.String(config.Spec.KubernetesVersion),
+		Version: config.Spec.KubernetesVersion,
 	}
 
-	if config.Spec.SecretsEncryption {
+	if aws.BoolValue(config.Spec.SecretsEncryption) {
 		createClusterInput.EncryptionConfig = []*eks.EncryptionConfig{
 			{
 				Provider: &eks.Provider{
-					KeyArn: aws.String(config.Spec.KmsKey),
+					KeyArn: config.Spec.KmsKey,
 				},
 				Resources: aws.StringSlice([]string{"secrets"}),
 			},
@@ -508,8 +515,74 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 
 func validateCreate(config *v13.EKSClusterConfig) error {
 	// validate nodegroup version
+	if !config.Spec.Imported {
+		cannotBeNilError := "field [%s] cannot be nil for non-import cluster [%s]"
+		if config.Spec.KubernetesVersion == nil {
+			return fmt.Errorf(cannotBeNilError, "kubernetesVersion", config.Name)
+		}
+		if config.Spec.PrivateAccess == nil {
+			return fmt.Errorf(cannotBeNilError, "privateAccess", config.Name)
+		}
+		if config.Spec.PublicAccess == nil {
+			return fmt.Errorf(cannotBeNilError, "publicAccess", config.Name)
+		}
+		if config.Spec.SecretsEncryption == nil {
+			return fmt.Errorf(cannotBeNilError, "secretsEncryption", config.Name)
+		}
+		if config.Spec.Tags == nil {
+			return fmt.Errorf(cannotBeNilError, "tags", config.Name)
+		}
+		if config.Spec.Subnets == nil {
+			return fmt.Errorf(cannotBeNilError, "subnets", config.Name)
+		}
+		if config.Spec.SecurityGroups == nil {
+			return fmt.Errorf(cannotBeNilError, "securityGroups", config.Name)
+		}
+		if config.Spec.LoggingTypes == nil {
+			return fmt.Errorf(cannotBeNilError, "loggingTypes", config.Name)
+		}
+		if config.Spec.PublicAccessSources == nil {
+			return fmt.Errorf(cannotBeNilError, "publicAccessSources", config.Name)
+		}
+	}
 	for _, ng := range config.Spec.NodeGroups {
-		if aws.StringValue(ng.Version) != config.Spec.KubernetesVersion {
+		cannotBeNilError := "field [%s] cannot be nil for nodegroup [%s] in non-nil cluster [%s]"
+		if !config.Spec.Imported {
+			if ng.MinSize == nil {
+				return fmt.Errorf(cannotBeNilError, "minSize", *ng.NodegroupName, config.Name)
+			}
+			if ng.MaxSize == nil {
+				return fmt.Errorf(cannotBeNilError, "maxSize", *ng.NodegroupName, config.Name)
+			}
+			if ng.DesiredSize == nil {
+				return fmt.Errorf(cannotBeNilError, "desiredSize", *ng.NodegroupName, config.Name)
+			}
+			if ng.Version == nil {
+				return fmt.Errorf(cannotBeNilError, "desiredSize", *ng.NodegroupName, config.Name)
+			}
+			if ng.DiskSize == nil {
+				return fmt.Errorf(cannotBeNilError, "diskSize", *ng.NodegroupName, config.Name)
+			}
+			if ng.Gpu == nil {
+				return fmt.Errorf(cannotBeNilError, "gpu", *ng.NodegroupName, config.Name)
+			}
+			if ng.Ec2SshKey == nil {
+				return fmt.Errorf(cannotBeNilError, "ec2SshKey", *ng.NodegroupName, config.Name)
+			}
+			if ng.InstanceType == nil {
+				return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Name)
+			}
+			if ng.Subnets == nil {
+				return fmt.Errorf(cannotBeNilError, "subnets", *ng.NodegroupName, config.Name)
+			}
+			if ng.Tags == nil {
+				return fmt.Errorf(cannotBeNilError, "tags", *ng.NodegroupName, config.Name)
+			}
+			if ng.Labels == nil {
+				return fmt.Errorf(cannotBeNilError, "labels", *ng.NodegroupName, config.Name)
+			}
+		}
+		if aws.StringValue(ng.Version) != *config.Spec.KubernetesVersion {
 			return fmt.Errorf("nodegroup [%s] version must match cluster [%s] version on create", ng.NodegroupName, config.Name)
 		}
 	}
@@ -557,16 +630,16 @@ func (h *Handler) generateAndSetNetworking(svc *cloudformation.CloudFormation, c
 	return h.eksCC.UpdateStatus(config)
 }
 
-func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Session, *eks.EKS, error) {
+func StartAWSSessions(secretsCache v14.SecretCache, spec v13.EKSClusterConfigSpec) (*session.Session, *eks.EKS, error) {
 	awsConfig := &aws.Config{}
 
-	if region := config.Spec.Region; region != "" {
+	if region := spec.Region; region != "" {
 		awsConfig.Region = aws.String(region)
 	}
 
-	ns, id := utils.Parse(config.Spec.AmazonCredentialSecret)
-	if amazonCredentialSecret := config.Spec.AmazonCredentialSecret; amazonCredentialSecret != "" {
-		secret, err := h.secretsCache.Get(ns, id)
+	ns, id := utils.Parse(spec.AmazonCredentialSecret)
+	if amazonCredentialSecret := spec.AmazonCredentialSecret; amazonCredentialSecret != "" {
+		secret, err := secretsCache.Get(ns, id)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -574,7 +647,7 @@ func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Sessi
 		accessKeyBytes, _ := secret.Data["amazonec2credentialConfig-accessKey"]
 		secretKeyBytes, _ := secret.Data["amazonec2credentialConfig-secretKey"]
 		if accessKeyBytes == nil || secretKeyBytes == nil {
-			return nil, nil, fmt.Errorf("Invalid aws cloud credential")
+			return nil, nil, fmt.Errorf("invalid aws cloud credential")
 		}
 
 		accessKey := string(accessKeyBytes)
@@ -633,7 +706,7 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 }
 
 // buildUpstreamClusterState
-func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, eksService *eks.EKS) (*v13.EKSClusterConfigSpec, string, error) {
+func BuildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, eksService *eks.EKS) (*v13.EKSClusterConfigSpec, string, error) {
 	upstreamSpec := &v13.EKSClusterConfigSpec{}
 
 	upstreamSpec.Imported = true
@@ -643,29 +716,36 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 	if upstreamVersion == "" {
 		return nil, "", fmt.Errorf("cannot detect cluster [%s] upstream kubernetes version", name)
 	}
-	upstreamSpec.KubernetesVersion = upstreamVersion
+	upstreamSpec.KubernetesVersion = aws.String(upstreamVersion)
 
 	// set  tags
+	upstreamSpec.Tags = make(map[string]string)
 	if len(clusterState.Cluster.Tags) != 0 {
 		upstreamSpec.Tags = aws.StringValueMap(clusterState.Cluster.Tags)
 	}
 
 	// set public access
 	if hasPublicAccess := clusterState.Cluster.ResourcesVpcConfig.EndpointPublicAccess; hasPublicAccess == nil || *hasPublicAccess {
-		upstreamSpec.PublicAccess = true
+		upstreamSpec.PublicAccess = aws.Bool(true)
+	} else {
+		upstreamSpec.PublicAccess = aws.Bool(false)
 	}
 
 	// set private access
 	if hasPrivateAccess := clusterState.Cluster.ResourcesVpcConfig.EndpointPrivateAccess; hasPrivateAccess != nil && *hasPrivateAccess {
-		upstreamSpec.PrivateAccess = true
+		upstreamSpec.PrivateAccess = aws.Bool(true)
+	} else {
+		upstreamSpec.PrivateAccess = aws.Bool(false)
 	}
 
 	// set public access sources
+	upstreamSpec.PublicAccessSources = make([]string, 0)
 	if publicAccessSources := aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.PublicAccessCidrs); len(publicAccessSources) > 0 {
 		upstreamSpec.PublicAccessSources = publicAccessSources
 	}
 
 	// set logging
+	upstreamSpec.LoggingTypes = make([]string, 0)
 	if clusterState.Cluster.Logging != nil {
 		if clusterLogging := clusterState.Cluster.Logging.ClusterLogging; len(clusterLogging) > 0 {
 			setup := clusterLogging[0]
@@ -675,14 +755,11 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 		}
 	}
 
-	if upstreamSpec.LoggingTypes == nil {
-		upstreamSpec.LoggingTypes = make([]string, 0)
-	}
-
 	// set node groups
+	upstreamSpec.NodeGroups = make([]v13.NodeGroup, 0, len(nodeGroupStates))
 	for _, ng := range nodeGroupStates {
 		ngToAdd := v13.NodeGroup{
-			NodegroupName: aws.StringValue(ng.Nodegroup.NodegroupName),
+			NodegroupName: ng.Nodegroup.NodegroupName,
 			DiskSize:      ng.Nodegroup.DiskSize,
 			InstanceType:  ng.Nodegroup.InstanceTypes[0],
 			Labels:        ng.Nodegroup.Labels,
@@ -694,7 +771,7 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 			Version:       ng.Nodegroup.Version,
 		}
 		if aws.StringValue(ng.Nodegroup.AmiType) == eks.AMITypesAl2X8664Gpu {
-			ngToAdd.Gpu = true
+			ngToAdd.Gpu = aws.Bool(true)
 		}
 		upstreamSpec.NodeGroups = append(upstreamSpec.NodeGroups, ngToAdd)
 	}
@@ -704,6 +781,16 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 	// set security groups
 	upstreamSpec.SecurityGroups = aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.SecurityGroupIds)
 
+	upstreamSpec.SecretsEncryption = aws.Bool(len(clusterState.Cluster.EncryptionConfig) != 0)
+	upstreamSpec.KmsKey = aws.String("")
+	if len(clusterState.Cluster.EncryptionConfig) > 0 {
+		upstreamSpec.KmsKey = clusterState.Cluster.EncryptionConfig[0].Provider.KeyArn
+	}
+
+	upstreamSpec.ServiceRole = clusterState.Cluster.RoleArn
+	if upstreamSpec.ServiceRole == nil {
+		upstreamSpec.ServiceRole = aws.String("")
+	}
 	return upstreamSpec, aws.StringValue(clusterState.Cluster.Arn), nil
 }
 
@@ -712,128 +799,142 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 // no more updates will be accepted until the current update is finished.
 func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigSpec, config *v13.EKSClusterConfig, clusterARN string, ngARNs map[string]string, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
 	// check kubernetes version for update
-	if upstreamSpec.KubernetesVersion != config.Spec.KubernetesVersion {
-		logrus.Infof("updating kubernetes version for cluster [%s]", config.Name)
-		_, err := eksService.UpdateClusterVersion(&eks.UpdateClusterVersionInput{
-			Name:    aws.String(config.Spec.DisplayName),
-			Version: aws.String(config.Spec.KubernetesVersion),
-		})
-		if err != nil {
-			return config, err
+	if config.Spec.KubernetesVersion != nil {
+		if aws.StringValue(upstreamSpec.KubernetesVersion) != aws.StringValue(config.Spec.KubernetesVersion) {
+			logrus.Infof("updating kubernetes version for cluster [%s]", config.Name)
+			_, err := eksService.UpdateClusterVersion(&eks.UpdateClusterVersionInput{
+				Name:    aws.String(config.Spec.DisplayName),
+				Version: config.Spec.KubernetesVersion,
+			})
+			if err != nil {
+				return config, err
+			}
+			return h.enqueueUpdate(config)
 		}
-		return h.enqueueUpdate(config)
 	}
 
 	// check tags for update
-	if updateTags := utils.GetKeyValuesToUpdate(config.Spec.Tags, upstreamSpec.Tags); updateTags != nil {
-		_, err := eksService.TagResource(
-			&eks.TagResourceInput{
-				ResourceArn: aws.String(clusterARN),
-				Tags:        updateTags,
-			})
-		if err != nil {
-			return config, err
-		}
-		return h.enqueueUpdate(config)
-	}
-
-	if updateUntags := utils.GetKeysToDelete(config.Spec.Tags, upstreamSpec.Tags); updateUntags != nil {
-		_, err := eksService.UntagResource(
-			&eks.UntagResourceInput{
-				ResourceArn: aws.String(clusterARN),
-				TagKeys:     updateUntags,
-			})
-		if err != nil {
-			return config, err
+	if config.Spec.Tags != nil {
+		if updateTags := utils.GetKeyValuesToUpdate(config.Spec.Tags, upstreamSpec.Tags); updateTags != nil {
+			_, err := eksService.TagResource(
+				&eks.TagResourceInput{
+					ResourceArn: aws.String(clusterARN),
+					Tags:        updateTags,
+				})
+			if err != nil {
+				return config, err
+			}
 		}
 
-		return h.enqueueUpdate(config)
-
-	}
-
-	// check logging for update
-	if loggingTypesUpdate := getLoggingTypesUpdate(config.Spec.LoggingTypes, upstreamSpec.LoggingTypes); loggingTypesUpdate != nil {
-		_, err := eksService.UpdateClusterConfig(
-			&eks.UpdateClusterConfigInput{
-				Name:    aws.String(config.Spec.DisplayName),
-				Logging: loggingTypesUpdate,
-			},
-		)
-		if err != nil {
-			return config, err
+		if updateUntags := utils.GetKeysToDelete(config.Spec.Tags, upstreamSpec.Tags); updateUntags != nil {
+			_, err := eksService.UntagResource(
+				&eks.UntagResourceInput{
+					ResourceArn: aws.String(clusterARN),
+					TagKeys:     updateUntags,
+				})
+			if err != nil {
+				return config, err
+			}
 		}
-
-		return h.enqueueUpdate(config)
 	}
 
-	// check public access for update
-	if upstreamSpec.PublicAccess != config.Spec.PublicAccess {
-		_, err := eksService.UpdateClusterConfig(
-			&eks.UpdateClusterConfigInput{
-				Name: aws.String(config.Spec.DisplayName),
-				ResourcesVpcConfig: &eks.VpcConfigRequest{
-					EndpointPublicAccess: aws.Bool(config.Spec.PublicAccess),
+	if config.Spec.LoggingTypes != nil {
+		// check logging for update
+		if loggingTypesUpdate := getLoggingTypesUpdate(config.Spec.LoggingTypes, upstreamSpec.LoggingTypes); loggingTypesUpdate != nil {
+			_, err := eksService.UpdateClusterConfig(
+				&eks.UpdateClusterConfigInput{
+					Name:    aws.String(config.Spec.DisplayName),
+					Logging: loggingTypesUpdate,
 				},
-			},
-		)
-		if err != nil {
-			return config, err
+			)
+			if err != nil {
+				return config, err
+			}
+			return h.enqueueUpdate(config)
 		}
-
-		return h.enqueueUpdate(config)
 	}
 
-	// check private access for update
-	if upstreamSpec.PrivateAccess != config.Spec.PrivateAccess {
-		_, err := eksService.UpdateClusterConfig(
-			&eks.UpdateClusterConfigInput{
-				Name: aws.String(config.Spec.DisplayName),
-				ResourcesVpcConfig: &eks.VpcConfigRequest{
-					EndpointPrivateAccess: aws.Bool(config.Spec.PrivateAccess),
+	if config.Spec.PublicAccess != nil {
+		if aws.BoolValue(upstreamSpec.PublicAccess) != aws.BoolValue(config.Spec.PublicAccess) {
+			_, err := eksService.UpdateClusterConfig(
+				&eks.UpdateClusterConfigInput{
+					Name: aws.String(config.Spec.DisplayName),
+					ResourcesVpcConfig: &eks.VpcConfigRequest{
+						EndpointPublicAccess: config.Spec.PublicAccess,
+					},
 				},
-			},
-		)
-		if err != nil {
-			return config, err
+			)
+			if err != nil {
+				return config, err
+			}
+			return h.enqueueUpdate(config)
 		}
-
-		return h.enqueueUpdate(config)
 	}
 
-	// check public access CIDRs for update (public access sources)
-	filteredSpecPublicAccessSources := filterPublicAccessSources(config.Spec.PublicAccessSources)
-	filteredUpstreamPublicAccessSources := filterPublicAccessSources(upstreamSpec.PublicAccessSources)
-	if !utils.CompareStringSliceElements(filteredSpecPublicAccessSources, filteredUpstreamPublicAccessSources) {
-		_, err := eksService.UpdateClusterConfig(
-			&eks.UpdateClusterConfigInput{
-				Name: aws.String(config.Spec.DisplayName),
-				ResourcesVpcConfig: &eks.VpcConfigRequest{
-					PublicAccessCidrs: getPublicAccessCidrs(config.Spec.PublicAccessSources),
+	if config.Spec.PrivateAccess != nil {
+		// check private access for update
+		if aws.BoolValue(upstreamSpec.PrivateAccess) != aws.BoolValue(config.Spec.PrivateAccess) {
+			_, err := eksService.UpdateClusterConfig(
+				&eks.UpdateClusterConfigInput{
+					Name: aws.String(config.Spec.DisplayName),
+					ResourcesVpcConfig: &eks.VpcConfigRequest{
+						EndpointPrivateAccess: config.Spec.PrivateAccess,
+					},
 				},
-			},
-		)
-		if err != nil {
-			return config, err
-		}
+			)
+			if err != nil {
+				return config, err
+			}
 
-		return h.enqueueUpdate(config)
+			return h.enqueueUpdate(config)
+		}
 	}
 
-	// check if node groups need to be added or deleted
+	if config.Spec.PublicAccessSources != nil {
+		// check public access CIDRs for update (public access sources)
+		filteredSpecPublicAccessSources := filterPublicAccessSources(config.Spec.PublicAccessSources)
+		filteredUpstreamPublicAccessSources := filterPublicAccessSources(upstreamSpec.PublicAccessSources)
+		if !utils.CompareStringSliceElements(filteredSpecPublicAccessSources, filteredUpstreamPublicAccessSources) {
+			_, err := eksService.UpdateClusterConfig(
+				&eks.UpdateClusterConfigInput{
+					Name: aws.String(config.Spec.DisplayName),
+					ResourcesVpcConfig: &eks.VpcConfigRequest{
+						PublicAccessCidrs: getPublicAccessCidrs(config.Spec.PublicAccessSources),
+					},
+				},
+			)
+			if err != nil {
+				return config, err
+			}
+
+			return h.enqueueUpdate(config)
+		}
+	}
+
+	if config.Spec.NodeGroups == nil {
+		logrus.Infof("cluster [%s] finished updating", config.Name)
+		config = config.DeepCopy()
+		config.Status.Phase = eksConfigActivePhase
+		return h.eksCC.UpdateStatus(config)
+	}
+
+	// check nodegroups for updates
+
 	upstreamNgs := make(map[string]v13.NodeGroup)
 	ngs := make(map[string]v13.NodeGroup)
 
 	for _, ng := range upstreamSpec.NodeGroups {
-		upstreamNgs[ng.NodegroupName] = ng
+		upstreamNgs[aws.StringValue(ng.NodegroupName)] = ng
 	}
 
 	for _, ng := range config.Spec.NodeGroups {
-		ngs[ng.NodegroupName] = ng
+		ngs[aws.StringValue(ng.NodegroupName)] = ng
 	}
 
+	// check if node groups need to be created
 	var updatingNodegroups bool
 	for _, ng := range config.Spec.NodeGroups {
-		if _, ok := upstreamNgs[ng.NodegroupName]; ok {
+		if _, ok := upstreamNgs[aws.StringValue(ng.NodegroupName)]; ok {
 			continue
 		}
 		// in this case update is set right away because creating the
@@ -854,14 +955,15 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		updatingNodegroups = true
 	}
 
+	// check if node groups need to be deleted
 	for _, ng := range upstreamSpec.NodeGroups {
-		if _, ok := ngs[ng.NodegroupName]; ok {
+		if _, ok := ngs[aws.StringValue(ng.NodegroupName)]; ok {
 			continue
 		}
 		_, err := eksService.DeleteNodegroup(
 			&eks.DeleteNodegroupInput{
 				ClusterName:   aws.String(config.Spec.DisplayName),
-				NodegroupName: aws.String(ng.NodegroupName),
+				NodegroupName: ng.NodegroupName,
 			})
 		if err != nil {
 			return config, err
@@ -876,11 +978,13 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	// check node groups for kubernetes version updates
 	desiredNgVersions := make(map[string]string)
 	for _, ng := range config.Spec.NodeGroups {
-		desiredVersion := aws.StringValue(ng.Version)
-		if desiredVersion == "" {
-			desiredVersion = config.Spec.KubernetesVersion
+		if ng.Version != nil {
+			desiredVersion := aws.StringValue(ng.Version)
+			if desiredVersion == "" {
+				desiredVersion = aws.StringValue(config.Spec.KubernetesVersion)
+			}
+			desiredNgVersions[aws.StringValue(ng.NodegroupName)] = desiredVersion
 		}
-		desiredNgVersions[ng.NodegroupName] = desiredVersion
 	}
 
 	var attemptUpdatingNodegroups bool
@@ -890,56 +994,66 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		// Some updates such as minSize, maxSize, and desiredSize can
 		// happen together
 
-		ng := ngs[upstreamNg.NodegroupName]
-		if aws.StringValue(upstreamNg.Version) != desiredNgVersions[ng.NodegroupName] {
-			attemptUpdatingNodegroups = true
-			_, err := eksService.UpdateNodegroupVersion(
-				&eks.UpdateNodegroupVersionInput{
-					NodegroupName: aws.String(ng.NodegroupName),
-					ClusterName:   aws.String(config.Spec.DisplayName),
-					Version:       aws.String(desiredNgVersions[ng.NodegroupName]),
-				},
-			)
-			if err != nil {
-				return config, err
+		ng := ngs[aws.StringValue(upstreamNg.NodegroupName)]
+		if ng.Version != nil {
+			if aws.StringValue(upstreamNg.Version) != desiredNgVersions[aws.StringValue(ng.NodegroupName)] {
+				attemptUpdatingNodegroups = true
+				_, err := eksService.UpdateNodegroupVersion(
+					&eks.UpdateNodegroupVersionInput{
+						NodegroupName: aws.String(aws.StringValue(ng.NodegroupName)),
+						ClusterName:   aws.String(config.Spec.DisplayName),
+						Version:       aws.String(desiredNgVersions[aws.StringValue(ng.NodegroupName)]),
+					},
+				)
+				if err != nil {
+					return config, err
+				}
+				continue
 			}
-			continue
 		}
 
 		updateNodegroupConfig := &eks.UpdateNodegroupConfigInput{
 			ClusterName:   aws.String(config.Spec.DisplayName),
-			NodegroupName: aws.String(ng.NodegroupName),
+			NodegroupName: ng.NodegroupName,
 		}
 		updateNodegroupConfig.ScalingConfig = &eks.NodegroupScalingConfig{}
 		var sendUpdateNodegroupConfig bool
 
-		if unlabels := utils.GetKeysToDelete(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); unlabels != nil {
-			updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
-				RemoveLabels: unlabels,
+		if ng.Labels != nil {
+			if unlabels := utils.GetKeysToDelete(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); unlabels != nil {
+				updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
+					RemoveLabels: unlabels,
+				}
+				sendUpdateNodegroupConfig = true
 			}
-			sendUpdateNodegroupConfig = true
-		}
 
-		if labels := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); labels != nil {
-			updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
-				AddOrUpdateLabels: labels,
+			if labels := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); labels != nil {
+				updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
+					AddOrUpdateLabels: labels,
+				}
+				sendUpdateNodegroupConfig = true
 			}
-			sendUpdateNodegroupConfig = true
 		}
 
-		if aws.Int64Value(upstreamNg.DesiredSize) != aws.Int64Value(ng.DesiredSize) {
-			updateNodegroupConfig.ScalingConfig.DesiredSize = ng.DesiredSize
-			sendUpdateNodegroupConfig = true
+		if ng.DesiredSize != nil {
+			if aws.Int64Value(upstreamNg.DesiredSize) != aws.Int64Value(ng.DesiredSize) {
+				updateNodegroupConfig.ScalingConfig.DesiredSize = ng.DesiredSize
+				sendUpdateNodegroupConfig = true
+			}
 		}
 
-		if aws.Int64Value(upstreamNg.MinSize) != aws.Int64Value(ng.MinSize) {
-			updateNodegroupConfig.ScalingConfig.MinSize = ng.MinSize
-			sendUpdateNodegroupConfig = true
+		if ng.MinSize != nil {
+			if aws.Int64Value(upstreamNg.MinSize) != aws.Int64Value(ng.MinSize) {
+				updateNodegroupConfig.ScalingConfig.MinSize = ng.MinSize
+				sendUpdateNodegroupConfig = true
+			}
 		}
 
-		if aws.Int64Value(upstreamNg.MaxSize) != aws.Int64Value(ng.MaxSize) {
-			updateNodegroupConfig.ScalingConfig.MaxSize = ng.MaxSize
-			sendUpdateNodegroupConfig = true
+		if ng.MaxSize != nil {
+			if aws.Int64Value(upstreamNg.MaxSize) != aws.Int64Value(ng.MaxSize) {
+				updateNodegroupConfig.ScalingConfig.MaxSize = ng.MaxSize
+				sendUpdateNodegroupConfig = true
+			}
 		}
 
 		if sendUpdateNodegroupConfig {
@@ -951,26 +1065,28 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			continue
 		}
 
-		if untags := utils.GetKeysToDelete(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); untags != nil {
-			_, err := eksService.UntagResource(&eks.UntagResourceInput{
-				ResourceArn: aws.String(ngARNs[ng.NodegroupName]),
-				TagKeys:     untags,
-			})
-			if err != nil {
-				return config, err
+		if ng.Tags == nil {
+			if untags := utils.GetKeysToDelete(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); untags != nil {
+				_, err := eksService.UntagResource(&eks.UntagResourceInput{
+					ResourceArn: aws.String(ngARNs[aws.StringValue(ng.NodegroupName)]),
+					TagKeys:     untags,
+				})
+				if err != nil {
+					return config, err
+				}
+				attemptUpdatingNodegroups = true
 			}
-			attemptUpdatingNodegroups = true
-		}
 
-		if tags := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); tags != nil {
-			_, err := eksService.TagResource(&eks.TagResourceInput{
-				ResourceArn: aws.String(ngARNs[ng.NodegroupName]),
-				Tags:        tags,
-			})
-			if err != nil {
-				return config, err
+			if tags := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); tags != nil {
+				_, err := eksService.TagResource(&eks.TagResourceInput{
+					ResourceArn: aws.String(ngARNs[aws.StringValue(ng.NodegroupName)]),
+					Tags:        tags,
+				})
+				if err != nil {
+					return config, err
+				}
+				attemptUpdatingNodegroups = true
 			}
-			attemptUpdatingNodegroups = true
 		}
 	}
 
@@ -1004,55 +1120,14 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 		return config, err
 	}
 
-	ngList, err := eksService.ListNodegroups(
-		&eks.ListNodegroupsInput{
-			ClusterName: aws.String(config.Spec.DisplayName),
-		})
-	if err != nil {
-		return config, err
-	}
-	var nodeGroupStates []*eks.DescribeNodegroupOutput
-	for _, ngName := range ngList.Nodegroups {
-		ng, err := eksService.DescribeNodegroup(
-			&eks.DescribeNodegroupInput{
-				ClusterName:   aws.String(config.Spec.DisplayName),
-				NodegroupName: ngName,
-			})
-		if err != nil {
+	if err := h.createCASecret(config.Name, config.Namespace, clusterState); err != nil {
+		if !errors.IsAlreadyExists(err) {
 			return config, err
 		}
-		nodeGroupStates = append(nodeGroupStates, ng)
 	}
 
-	upstreamSpec, _, err := h.buildUpstreamClusterState(config.Spec.DisplayName, clusterState, nodeGroupStates, eksService)
-	if err != nil {
-		return config, err
-	}
-
-	upstreamSpec.DisplayName = config.Spec.DisplayName
-	upstreamSpec.AmazonCredentialSecret = config.Spec.AmazonCredentialSecret
-	upstreamSpec.Region = config.Spec.Region
-
-	config = config.DeepCopy()
-	config.Spec = *upstreamSpec
-
-	config, err = h.eksCC.Update(config)
-	if err != nil {
-		return config, err
-	}
-
-	config.Status.SecurityGroups = config.Spec.SecurityGroups
-	config.Status.Subnets = config.Spec.Subnets
-
-	config, err = h.eksCC.UpdateStatus(config)
-	if err != nil {
-		return config, err
-	}
-
-	if err := h.createCASecret(config.Name, config.Namespace, clusterState); err != nil {
-		return config, err
-	}
-
+	config.Status.Subnets = aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.SubnetIds)
+	config.Status.SecurityGroups = aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.SecurityGroupIds)
 	config.Status.Phase = eksConfigActivePhase
 	return h.eksCC.UpdateStatus(config)
 }
@@ -1233,7 +1308,7 @@ func getLoggingTypesToEnable(loggingTypes []string, upstreamLoggingTypes []strin
 func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksService *eks.EKS, svc *cloudformation.CloudFormation) error {
 	nodeGroupCreateInput := &eks.CreateNodegroupInput{
 		ClusterName:   aws.String(eksConfig.Spec.DisplayName),
-		NodegroupName: aws.String(group.NodegroupName),
+		NodegroupName: group.NodegroupName,
 		DiskSize:      group.DiskSize,
 		InstanceTypes: []*string{group.InstanceType},
 		Labels:        group.Labels,
@@ -1244,7 +1319,7 @@ func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksSe
 		},
 	}
 
-	if sshKey := group.Ec2SshKey; sshKey != nil {
+	if sshKey := group.Ec2SshKey; aws.StringValue(sshKey) != "" {
 		nodeGroupCreateInput.RemoteAccess = &eks.RemoteAccessConfig{
 			Ec2SshKey: sshKey,
 		}
