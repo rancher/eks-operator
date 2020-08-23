@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"os"
 
 	v12 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
@@ -63,60 +61,6 @@ func main() {
 	}
 
 	fmt.Printf("obj yaml: %s", eksCCYaml)
-}
-
-func setOpenAPIRequired(properties map[string]v1beta1.JSONSchemaProps, required []string, keys ...string) {
-	if len(keys) == 0 {
-		return
-	}
-
-	if len(keys) == 1 {
-		propertyCopy := properties[keys[0]]
-		propertyCopy.Required = required
-		properties[keys[0]] = propertyCopy
-	}
-
-	setOpenAPIRequired(properties[keys[0]].Properties, required, keys[1:]...)
-}
-
-func setOpenAPIEnum(properties map[string]v1beta1.JSONSchemaProps, enumVals []interface{}, keys ...string) {
-	if len(keys) == 0 {
-		return
-	}
-
-	if len(keys) == 1 {
-		propertyCopy := properties[keys[0]]
-
-		var enum []v1beta1.JSON
-		for _, val := range enumVals {
-			j, err := json.Marshal(val)
-			if err != nil {
-				panic(err)
-			}
-
-			enum = append(
-				enum,
-				v1beta1.JSON{Raw: j})
-		}
-		propertyCopy.Enum =  enum
-		properties[keys[0]] = propertyCopy
-	}
-
-	setOpenAPIEnum(properties[keys[0]].Properties, enumVals, keys[1:]...)
-}
-
-func setOpenAPIAnyOf(properties map[string]v1beta1.JSONSchemaProps, props []v1beta1.JSONSchemaProps, keys ...string) {
-	if len(keys) == 0 {
-		return
-	}
-
-	if len(keys) == 1 {
-		propertyCopy := properties[keys[0]]
-		propertyCopy.AnyOf = props
-		properties[keys[0]] = propertyCopy
-	}
-
-	setOpenAPIAnyOf(properties[keys[0]].Properties, props, keys[1:]...)
 }
 
 func newCRD(obj interface{}, customize func(crd.CRD) crd.CRD) crd.CRD {

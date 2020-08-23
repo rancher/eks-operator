@@ -283,6 +283,9 @@ func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.E
 		&eks.ListNodegroupsInput{
 			ClusterName: aws.String(config.Spec.DisplayName),
 		})
+	if err != nil {
+		return config, err
+	}
 
 	// gather upstream node groups states
 	var nodeGroupStates []*eks.DescribeNodegroupOutput
@@ -404,7 +407,7 @@ func validateUpdate(config *v13.EKSClusterConfig) error {
 		}
 		version, err := semver.New(fmt.Sprintf("%s.0", aws.StringValue(ng.Version)))
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("improper version format for nodegroup [%s]: %s", ng.NodegroupName, aws.StringValue(ng.Version)))
+			errors = append(errors, fmt.Sprintf("improper version format for nodegroup [%s]: %s", aws.StringValue(ng.NodegroupName), aws.StringValue(ng.Version)))
 			continue
 		}
 		if clusterVersion == nil {
@@ -583,7 +586,7 @@ func validateCreate(config *v13.EKSClusterConfig) error {
 			}
 		}
 		if aws.StringValue(ng.Version) != *config.Spec.KubernetesVersion {
-			return fmt.Errorf("nodegroup [%s] version must match cluster [%s] version on create", ng.NodegroupName, config.Name)
+			return fmt.Errorf("nodegroup [%s] version must match cluster [%s] version on create", aws.StringValue(ng.NodegroupName), config.Name)
 		}
 	}
 	return nil
@@ -644,8 +647,8 @@ func StartAWSSessions(secretsCache wranglerv1.SecretCache, spec v13.EKSClusterCo
 			return nil, nil, err
 		}
 
-		accessKeyBytes, _ := secret.Data["amazonec2credentialConfig-accessKey"]
-		secretKeyBytes, _ := secret.Data["amazonec2credentialConfig-secretKey"]
+		accessKeyBytes := secret.Data["amazonec2credentialConfig-accessKey"]
+		secretKeyBytes := secret.Data["amazonec2credentialConfig-secretKey"]
 		if accessKeyBytes == nil || secretKeyBytes == nil {
 			return nil, nil, fmt.Errorf("invalid aws cloud credential")
 		}
