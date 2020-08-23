@@ -17,10 +17,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/blang/semver"
 	v13 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
-	v14 "github.com/rancher/eks-operator/pkg/generated/controllers/core/v1"
 	v12 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/templates"
 	"github.com/rancher/eks-operator/utils"
+	wranglerv1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -42,13 +42,13 @@ type Handler struct {
 	eksCC           v12.EKSClusterConfigClient
 	eksEnqueueAfter func(namespace, name string, duration time.Duration)
 	eksEnqueue      func(namespace, name string)
-	secrets         v14.SecretClient
-	secretsCache    v14.SecretCache
+	secrets         wranglerv1.SecretClient
+	secretsCache    wranglerv1.SecretCache
 }
 
 func Register(
 	ctx context.Context,
-	secrets v14.SecretController,
+	secrets wranglerv1.SecretController,
 	eks v12.EKSClusterConfigController) {
 
 	controller := &Handler{
@@ -630,7 +630,7 @@ func (h *Handler) generateAndSetNetworking(svc *cloudformation.CloudFormation, c
 	return h.eksCC.UpdateStatus(config)
 }
 
-func StartAWSSessions(secretsCache v14.SecretCache, spec v13.EKSClusterConfigSpec) (*session.Session, *eks.EKS, error) {
+func StartAWSSessions(secretsCache wranglerv1.SecretCache, spec v13.EKSClusterConfigSpec) (*session.Session, *eks.EKS, error) {
 	awsConfig := &aws.Config{}
 
 	if region := spec.Region; region != "" {

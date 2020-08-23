@@ -7,8 +7,8 @@ import (
 	"context"
 	"flag"
 	"github.com/rancher/eks-operator/controller"
-	core2 "github.com/rancher/eks-operator/pkg/generated/controllers/core"
 	eksv1 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io"
+	core3 "github.com/rancher/wrangler/pkg/generated/controllers/core"
 
 	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
@@ -41,7 +41,7 @@ func main() {
 	// Generated apps controller
 	apps := apps.NewFactoryFromConfigOrDie(cfg)
 	// core
-	core, err := core2.NewFactoryFromConfig(cfg)
+	core, err := core3.NewFactoryFromConfig(cfg)
 	if err != nil {
 		logrus.Fatalf("Error building core factory: %s", err.Error())
 	}
