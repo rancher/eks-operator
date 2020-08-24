@@ -659,7 +659,7 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 	}
 
 	// set public access sources
-	if publicAccessSources := aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.PublicAccessCidrs); publicAccessSources[0] != allOpen {
+	if publicAccessSources := aws.StringValueSlice(clusterState.Cluster.ResourcesVpcConfig.PublicAccessCidrs); len(publicAccessSources) > 0 {
 		upstreamSpec.PublicAccessSources = publicAccessSources
 	}
 
@@ -799,11 +799,9 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 	}
 
 	// check public access CIDRs for update (public access sources)
-	filteredPublicAccessSources := config.Spec.PublicAccessSources
-	if len(filteredPublicAccessSources) == 1 && filteredPublicAccessSources[0] == allOpen {
-		filteredPublicAccessSources = nil
-	}
-	if !utils.CompareStringSliceElements(upstreamSpec.PublicAccessSources, filteredPublicAccessSources) {
+	filteredSpecPublicAccessSources := filterPublicAccessSources(config.Spec.PublicAccessSources)
+	filteredUpstreamPublicAccessSources := filterPublicAccessSources(upstreamSpec.PublicAccessSources)
+	if !utils.CompareStringSliceElements(filteredSpecPublicAccessSources, filteredUpstreamPublicAccessSources) {
 		_, err := eksService.UpdateClusterConfig(
 			&eks.UpdateClusterConfigInput{
 				Name: aws.String(config.Spec.DisplayName),
@@ -1275,4 +1273,14 @@ func notFound(err error) bool {
 	}
 
 	return false
+}
+
+func filterPublicAccessSources(sources []string) []string {
+	if len(sources) == 0 {
+		return nil
+	}
+	if len(sources) == 1 && sources[0] == allOpen {
+		return nil
+	}
+	return sources
 }
