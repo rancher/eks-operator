@@ -859,40 +859,24 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 		}
 	}
 
-	if config.Spec.PublicAccess != nil {
-		if aws.BoolValue(upstreamSpec.PublicAccess) != aws.BoolValue(config.Spec.PublicAccess) {
-			_, err := eksService.UpdateClusterConfig(
-				&eks.UpdateClusterConfigInput{
-					Name: aws.String(config.Spec.DisplayName),
-					ResourcesVpcConfig: &eks.VpcConfigRequest{
-						EndpointPublicAccess: config.Spec.PublicAccess,
-					},
+	publicAccessUpdate := config.Spec.PublicAccess != nil && aws.BoolValue(upstreamSpec.PublicAccess) != aws.BoolValue(config.Spec.PublicAccess)
+	privateAccessUpdate := config.Spec.PrivateAccess != nil && aws.BoolValue(upstreamSpec.PrivateAccess) != aws.BoolValue(config.Spec.PrivateAccess)
+	if publicAccessUpdate || privateAccessUpdate {
+		// public and private access updates need to be sent together. When they are sent one at a time
+		// the request may be denied due to having both public and private access disabled.
+		_, err := eksService.UpdateClusterConfig(
+			&eks.UpdateClusterConfigInput{
+				Name: aws.String(config.Spec.DisplayName),
+				ResourcesVpcConfig: &eks.VpcConfigRequest{
+					EndpointPublicAccess: config.Spec.PublicAccess,
+					EndpointPrivateAccess: config.Spec.PrivateAccess,
 				},
-			)
-			if err != nil {
-				return config, err
-			}
-			return h.enqueueUpdate(config)
+			},
+		)
+		if err != nil {
+			return config, err
 		}
-	}
-
-	if config.Spec.PrivateAccess != nil {
-		// check private access for update
-		if aws.BoolValue(upstreamSpec.PrivateAccess) != aws.BoolValue(config.Spec.PrivateAccess) {
-			_, err := eksService.UpdateClusterConfig(
-				&eks.UpdateClusterConfigInput{
-					Name: aws.String(config.Spec.DisplayName),
-					ResourcesVpcConfig: &eks.VpcConfigRequest{
-						EndpointPrivateAccess: config.Spec.PrivateAccess,
-					},
-				},
-			)
-			if err != nil {
-				return config, err
-			}
-
-			return h.enqueueUpdate(config)
-		}
+		return h.enqueueUpdate(config)
 	}
 
 	if config.Spec.PublicAccessSources != nil {
