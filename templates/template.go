@@ -117,6 +117,8 @@ Resources:
       Tags:
       - Key: Name
         Value: !Sub "${AWS::StackName}-Subnet01"
+      - Key: kubernetes.io/role/elb
+        Value: 1
 
   Subnet02:
     Type: AWS::EC2::Subnet
@@ -136,6 +138,8 @@ Resources:
       Tags:
       - Key: Name
         Value: !Sub "${AWS::StackName}-Subnet02"
+      - Key: kubernetes.io/role/elb
+        Value: 1
 
   Subnet03:
     Condition: HasMoreThan2Azs
@@ -156,6 +160,8 @@ Resources:
       Tags:
       - Key: Name
         Value: !Sub "${AWS::StackName}-Subnet03"
+      - Key: kubernetes.io/role/elb
+        Value: 1
 
   Subnet01RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
