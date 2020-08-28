@@ -432,54 +432,14 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 
 	displayName := config.Spec.DisplayName
 
-	var subnetIds []*string
-	var securityGroups []*string
-	if len(config.Spec.Subnets) != 0 {
-		logrus.Infof("VPC info provided, skipping vpc/subnet/securitygroup creation")
-		config = config.DeepCopy()
-		// copy networking fields to status
-		config.Status.Subnets = config.Spec.Subnets
-		config.Status.SecurityGroups = config.Spec.SecurityGroups
-		config.Status.NetworkFieldsSource = "provided"
-		var err error
-		config, err = h.eksCC.UpdateStatus(config)
-		if err != nil {
-			return config, err
-		}
-
-		subnetIds = aws.StringSlice(config.Spec.Subnets)
-		securityGroups = aws.StringSlice(config.Spec.SecurityGroups)
-	} else if config.Status.VirtualNetwork == "" {
-		logrus.Infof("Bringing up vpc")
-
-		stack, err := createStack(svc, getVPCStackName(config.Spec.DisplayName), displayName, templates.VpcTemplate, []string{},
-			[]*cloudformation.Parameter{})
-		if err != nil {
-			return config, fmt.Errorf("error creating stack with VPC template: %v", err)
-		}
-
-		virtualNetworkString := getParameterValueFromOutput("VpcId", stack.Stacks[0].Outputs)
-		securityGroupsString := getParameterValueFromOutput("SecurityGroups", stack.Stacks[0].Outputs)
-		subnetIdsString := getParameterValueFromOutput("SubnetIds", stack.Stacks[0].Outputs)
-
-		if securityGroupsString == "" || subnetIdsString == "" {
-			return config, fmt.Errorf("no security groups or subnet ids were returned")
-		}
-
-		config = config.DeepCopy()
-		// copy generated field to status
-		config.Status.VirtualNetwork = virtualNetworkString
-		config.Status.SecurityGroups = strings.Split(securityGroupsString, ",")
-		config.Status.Subnets = strings.Split(subnetIdsString, ",")
-		config.Status.NetworkFieldsSource = "generated"
-		config, err = h.eksCC.UpdateStatus(config)
-		if err != nil {
-			return config, err
-		}
-
-		securityGroups = aws.StringSlice(config.Status.SecurityGroups)
-		subnetIds = aws.StringSlice(config.Status.Subnets)
+	var err error
+	config, err = h.generateAndSetNetworking(svc, config)
+	if err != nil {
+		return config, err
 	}
+
+	securityGroups := aws.StringSlice(config.Status.SecurityGroups)
+	subnetIds := aws.StringSlice(config.Status.Subnets)
 
 	var roleARN string
 	if config.Spec.ServiceRole == "" {
@@ -553,6 +513,47 @@ func validateCreate(config *v13.EKSClusterConfig) error {
 		}
 	}
 	return nil
+}
+
+func (h *Handler) generateAndSetNetworking(svc *cloudformation.CloudFormation, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+	if len(config.Status.Subnets) != 0 {
+		// networking fields have already been set
+		return config, nil
+	}
+
+	if len(config.Spec.Subnets) != 0 {
+		logrus.Infof("VPC info provided, skipping vpc/subnet/securitygroup creation")
+		config = config.DeepCopy()
+		// copy networking fields to status
+		config.Status.Subnets = config.Spec.Subnets
+		config.Status.SecurityGroups = config.Spec.SecurityGroups
+		config.Status.NetworkFieldsSource = "provided"
+	} else {
+		logrus.Infof("Bringing up vpc")
+
+		stack, err := createStack(svc, getVPCStackName(config.Spec.DisplayName), config.Spec.DisplayName, templates.VpcTemplate, []string{},
+			[]*cloudformation.Parameter{})
+		if err != nil {
+			return config, fmt.Errorf("error creating stack with VPC template: %v", err)
+		}
+
+		virtualNetworkString := getParameterValueFromOutput("VpcId", stack.Stacks[0].Outputs)
+		securityGroupsString := getParameterValueFromOutput("SecurityGroups", stack.Stacks[0].Outputs)
+		subnetIdsString := getParameterValueFromOutput("SubnetIds", stack.Stacks[0].Outputs)
+
+		if securityGroupsString == "" || subnetIdsString == "" {
+			return config, fmt.Errorf("no security groups or subnet ids were returned")
+		}
+
+		config = config.DeepCopy()
+		// copy generated field to status
+		config.Status.VirtualNetwork = virtualNetworkString
+		config.Status.SecurityGroups = strings.Split(securityGroupsString, ",")
+		config.Status.Subnets = strings.Split(subnetIdsString, ",")
+		config.Status.NetworkFieldsSource = "generated"
+	}
+
+	return h.eksCC.UpdateStatus(config)
 }
 
 func (h *Handler) startAWSSessions(config *v13.EKSClusterConfig) (*session.Session, *eks.EKS, error) {
