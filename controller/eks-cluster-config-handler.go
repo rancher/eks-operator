@@ -101,42 +101,41 @@ func (h *Handler) OnEksConfigChanged(key string, config *v13.EKSClusterConfig) (
 func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error)) func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
 	return func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
 		var err error
+		var message string
 		config, err = onChange(key, config)
+		if config == nil {
+			// EKS config is likely deleting
+			return config, err
+		}
 		if err != nil {
-			if config == nil {
-				return config, err
+			if !strings.Contains(err.Error(), "currently has update") {
+				// the update is valid in that the controller should retry but there is
+				// no actionable resolution as far as a user is concerned. An update
+				// that has either been initiated by eks-operator or another source is
+				// already in progress. It is possible an update is not being immediately
+				// reflected in upstream cluster state. The config object will reenter the
+				// controller and then the controller will wait for the update to finish.
+				message = err.Error()
 			}
+		}
 
-			if config.Status.FailureMessage == err.Error() {
-				return config, err
-			}
+		if config.Status.FailureMessage == message {
+			return config, err
+		}
+
+		if message != "" {
 			config = config.DeepCopy()
-			config.Status.FailureMessage = err.Error()
 			if config.Status.Phase == eksConfigActivePhase {
 				// can assume an update is failing
 				config.Status.Phase = eksConfigUpdatingPhase
 			}
-			var recordErr error
-			config, recordErr = h.eksCC.UpdateStatus(config)
-			if recordErr != nil {
-				logrus.Errorf("Error recording ekscc [%s] failure message: %s", config.Name, recordErr.Error())
-			}
-			return config, err
 		}
+		config.Status.FailureMessage = message
 
-		// EKS config is likely deleting
-		if config == nil {
-			return config, err
-		}
-
-		if config.Status.FailureMessage != "" {
-			config = config.DeepCopy()
-			config.Status.FailureMessage = ""
-			var recordErr error
-			config, recordErr = h.eksCC.UpdateStatus(config)
-			if recordErr != nil {
-				logrus.Error("Error clearing ekscc [%s] failure message: %s", config.Name, recordErr.Error())
-			}
+		var recordErr error
+		config, recordErr = h.eksCC.UpdateStatus(config)
+		if recordErr != nil {
+			logrus.Errorf("Error recording ekscc [%s] failure message: %s", config.Name, recordErr.Error())
 		}
 		return config, err
 	}
