@@ -684,7 +684,6 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 		ngToAdd := v13.NodeGroup{
 			NodegroupName: aws.StringValue(ng.Nodegroup.NodegroupName),
 			DiskSize:      ng.Nodegroup.DiskSize,
-			InstanceType:  ng.Nodegroup.InstanceTypes[0],
 			Labels:        ng.Nodegroup.Labels,
 			DesiredSize:   ng.Nodegroup.ScalingConfig.DesiredSize,
 			MaxSize:       ng.Nodegroup.ScalingConfig.MaxSize,
@@ -692,6 +691,9 @@ func (h *Handler) buildUpstreamClusterState(name string, clusterState *eks.Descr
 			Subnets:       aws.StringValueSlice(ng.Nodegroup.Subnets),
 			Tags:          ng.Nodegroup.Tags,
 			Version:       ng.Nodegroup.Version,
+		}
+		if len(ng.Nodegroup.InstanceTypes) > 0 {
+			ngToAdd.InstanceType = ng.Nodegroup.InstanceTypes[0]
 		}
 		if aws.StringValue(ng.Nodegroup.AmiType) == eks.AMITypesAl2X8664Gpu {
 			ngToAdd.Gpu = true
