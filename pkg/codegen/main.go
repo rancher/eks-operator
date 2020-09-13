@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"os"
 
 	v12 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
@@ -53,23 +51,6 @@ func main() {
 		panic(err)
 	}
 
-	// set additional validation
-	// removed anyOf for now, may be useful in future for api level validation
-	/*
-	// Openapi does not have a way of changing validation based of value directly. This approach instead
-	// requires the import field's value be true or the field be omitted. If the field is included it can
-	// be assumed that the cluster is imported, and therefore the required fields for an imported cluster
-	// will be validated. Otherwise, the required fields for a non-import cluster will be validated.
-	setOpenAPIEnum(obj.Spec.Validation.OpenAPIV3Schema.Properties, []interface{}{true}, "spec", "imported")
-	setOpenAPIAnyOf(obj.Spec.Validation.OpenAPIV3Schema.Properties, []v1beta1.JSONSchemaProps{
-		{
-			Required: []string{"imported", "amazonCredentialSecr", "displayName"},
-		},
-		{
-			Required: []string{"publicAccess", "privateAccess", "amazonCredentialSecr", "displayName"},
-		},
-	}, "spec")*/
-
 	eksCCYaml, err := yaml.Export(&obj)
 	if err != nil {
 		panic(err)
@@ -80,60 +61,6 @@ func main() {
 	}
 
 	fmt.Printf("obj yaml: %s", eksCCYaml)
-}
-
-func setOpenAPIRequired(properties map[string]v1beta1.JSONSchemaProps, required []string, keys ...string) {
-	if len(keys) == 0 {
-		return
-	}
-
-	if len(keys) == 1 {
-		propertyCopy := properties[keys[0]]
-		propertyCopy.Required = required
-		properties[keys[0]] = propertyCopy
-	}
-
-	setOpenAPIRequired(properties[keys[0]].Properties, required, keys[1:]...)
-}
-
-func setOpenAPIEnum(properties map[string]v1beta1.JSONSchemaProps, enumVals []interface{}, keys ...string) {
-	if len(keys) == 0 {
-		return
-	}
-
-	if len(keys) == 1 {
-		propertyCopy := properties[keys[0]]
-
-		var enum []v1beta1.JSON
-		for _, val := range enumVals {
-			j, err := json.Marshal(val)
-			if err != nil {
-				panic(err)
-			}
-
-			enum = append(
-				enum,
-				v1beta1.JSON{Raw: j})
-		}
-		propertyCopy.Enum =  enum
-		properties[keys[0]] = propertyCopy
-	}
-
-	setOpenAPIEnum(properties[keys[0]].Properties, enumVals, keys[1:]...)
-}
-
-func setOpenAPIAnyOf(properties map[string]v1beta1.JSONSchemaProps, props []v1beta1.JSONSchemaProps, keys ...string) {
-	if len(keys) == 0 {
-		return
-	}
-
-	if len(keys) == 1 {
-		propertyCopy := properties[keys[0]]
-		propertyCopy.AnyOf = props
-		properties[keys[0]] = propertyCopy
-	}
-
-	setOpenAPIAnyOf(properties[keys[0]].Properties, props, keys[1:]...)
 }
 
 func newCRD(obj interface{}, customize func(crd.CRD) crd.CRD) crd.CRD {
