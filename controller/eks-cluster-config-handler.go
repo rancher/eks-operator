@@ -694,7 +694,9 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 
 	if status == eks.ClusterStatusActive {
 		if err := h.createCASecret(config.Name, config.Namespace, state); err != nil {
-			return config, err
+			if !errors.IsAlreadyExists(err) {
+				return config, err
+			}
 		}
 		logrus.Infof("cluster [%s] created successfully", config.Name)
 		config = config.DeepCopy()
