@@ -551,6 +551,9 @@ func validateCreate(config *v13.EKSClusterConfig) error {
 	for _, ng := range config.Spec.NodeGroups {
 		cannotBeNilError := "field [%s] cannot be nil for nodegroup [%s] in non-nil cluster [%s]"
 		if !config.Spec.Imported {
+			if ng.Version == nil {
+				return fmt.Errorf(cannotBeNilError, "version", *ng.NodegroupName, config.Name)
+			}
 			if ng.MinSize == nil {
 				return fmt.Errorf(cannotBeNilError, "minSize", *ng.NodegroupName, config.Name)
 			}
