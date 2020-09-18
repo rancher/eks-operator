@@ -764,6 +764,9 @@ func BuildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOut
 	// set node groups
 	upstreamSpec.NodeGroups = make([]v13.NodeGroup, 0, len(nodeGroupStates))
 	for _, ng := range nodeGroupStates {
+		if aws.StringValue(ng.Nodegroup.Status) == eks.NodegroupStatusDeleting {
+			continue
+		}
 		ngToAdd := v13.NodeGroup{
 			NodegroupName: ng.Nodegroup.NodegroupName,
 			DiskSize:      ng.Nodegroup.DiskSize,
@@ -1060,7 +1063,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 			continue
 		}
 
-		if ng.Tags == nil {
+		if ng.Tags != nil {
 			if untags := utils.GetKeysToDelete(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); untags != nil {
 				_, err := eksService.UntagResource(&eks.UntagResourceInput{
 					ResourceArn: aws.String(ngARNs[aws.StringValue(ng.NodegroupName)]),
