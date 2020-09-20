@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/blang/semver"
-	v13 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
+	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	v12 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/templates"
 	"github.com/rancher/eks-operator/utils"
@@ -36,6 +36,7 @@ const (
 	eksConfigUpdatingPhase   = "updating"
 	eksConfigImportingPhase  = "importing"
 	allOpen                  = "0.0.0.0/0"
+	eksClusterConfigKind     = "EKSClusterConfig"
 )
 
 type Handler struct {
@@ -64,7 +65,7 @@ func Register(
 	eks.OnRemove(ctx, controllerRemoveName, controller.OnEksConfigRemoved)
 }
 
-func (h *Handler) OnEksConfigChanged(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+func (h *Handler) OnEksConfigChanged(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
 	if config == nil {
 		return nil, nil
 	}
@@ -98,8 +99,8 @@ func (h *Handler) OnEksConfigChanged(key string, config *v13.EKSClusterConfig) (
 
 // recordError writes the error return by onChange to the failureMessage field on status. If there is no error, then
 // empty string will be written to status
-func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error)) func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
-	return func(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+func (h *Handler) recordError(onChange func(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error)) func(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
+	return func(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
 		var err error
 		var message string
 		config, err = onChange(key, config)
@@ -141,7 +142,7 @@ func (h *Handler) recordError(onChange func(key string, config *v13.EKSClusterCo
 	}
 }
 
-func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+func (h *Handler) OnEksConfigRemoved(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
 	if config.Spec.Imported {
 		logrus.Infof("cluster [%s] is imported, will not delete EKS cluster", config.Name)
 		return config, nil
@@ -213,7 +214,7 @@ func (h *Handler) OnEksConfigRemoved(key string, config *v13.EKSClusterConfig) (
 	return config, err
 }
 
-func deleteNodeGroups(clusterName string, eksService *eks.EKS, nodeGroups []v13.NodeGroup) (bool, error) {
+func deleteNodeGroups(clusterName string, eksService *eks.EKS, nodeGroups []eksv1.NodeGroup) (bool, error) {
 	var waitingForNodegroupDeletion bool
 	for _, ng := range nodeGroups {
 		ngState, err := eksService.DescribeNodegroup(
@@ -246,7 +247,7 @@ func deleteNodeGroups(clusterName string, eksService *eks.EKS, nodeGroups []v13.
 	return waitingForNodegroupDeletion, nil
 }
 
-func (h *Handler) checkAndUpdate(config *v13.EKSClusterConfig, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
+func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*eksv1.EKSClusterConfig, error) {
 	if err := validateUpdate(config); err != nil {
 		// validation failed, will be considered a failing update until resolved
 		config = config.DeepCopy()
@@ -389,7 +390,7 @@ func createStack(svc *cloudformation.CloudFormation, name string, displayName st
 	return stack, nil
 }
 
-func validateUpdate(config *v13.EKSClusterConfig) error {
+func validateUpdate(config *eksv1.EKSClusterConfig) error {
 	var clusterVersion *semver.Version
 	if config.Spec.KubernetesVersion != nil {
 		var err error
@@ -428,7 +429,7 @@ func validateUpdate(config *v13.EKSClusterConfig) error {
 	return nil
 }
 
-func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*v13.EKSClusterConfig, error) {
+func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*eksv1.EKSClusterConfig, error) {
 	if err := validateCreate(config); err != nil {
 		return config, err
 	}
@@ -516,7 +517,7 @@ func (h *Handler) create(config *v13.EKSClusterConfig, sess *session.Session, ek
 	return h.eksCC.UpdateStatus(config)
 }
 
-func validateCreate(config *v13.EKSClusterConfig) error {
+func validateCreate(config *eksv1.EKSClusterConfig) error {
 	// validate nodegroup version
 	if !config.Spec.Imported {
 		cannotBeNilError := "field [%s] cannot be nil for non-import cluster [%s]"
@@ -595,7 +596,7 @@ func validateCreate(config *v13.EKSClusterConfig) error {
 	return nil
 }
 
-func (h *Handler) generateAndSetNetworking(svc *cloudformation.CloudFormation, config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+func (h *Handler) generateAndSetNetworking(svc *cloudformation.CloudFormation, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
 	if len(config.Status.Subnets) != 0 {
 		// networking fields have already been set
 		return config, nil
@@ -636,7 +637,7 @@ func (h *Handler) generateAndSetNetworking(svc *cloudformation.CloudFormation, c
 	return h.eksCC.UpdateStatus(config)
 }
 
-func StartAWSSessions(secretsCache wranglerv1.SecretCache, spec v13.EKSClusterConfigSpec) (*session.Session, *eks.EKS, error) {
+func StartAWSSessions(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (*session.Session, *eks.EKS, error) {
 	awsConfig := &aws.Config{}
 
 	if region := spec.Region; region != "" {
@@ -669,7 +670,7 @@ func StartAWSSessions(secretsCache wranglerv1.SecretCache, spec v13.EKSClusterCo
 	return sess, eks.New(sess), nil
 }
 
-func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
+func (h *Handler) waitForCreationComplete(config *eksv1.EKSClusterConfig, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*eksv1.EKSClusterConfig, error) {
 	var err error
 
 	state, err := eksService.DescribeCluster(
@@ -696,7 +697,7 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 	}
 
 	if status == eks.ClusterStatusActive {
-		if err := h.createCASecret(config.Name, config.Namespace, state); err != nil {
+		if err := h.createCASecret(config, state); err != nil {
 			return config, err
 		}
 		logrus.Infof("cluster [%s] created successfully", config.Name)
@@ -712,8 +713,8 @@ func (h *Handler) waitForCreationComplete(config *v13.EKSClusterConfig, eksServi
 }
 
 // buildUpstreamClusterState
-func BuildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, eksService *eks.EKS) (*v13.EKSClusterConfigSpec, string, error) {
-	upstreamSpec := &v13.EKSClusterConfigSpec{}
+func BuildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, eksService *eks.EKS) (*eksv1.EKSClusterConfigSpec, string, error) {
+	upstreamSpec := &eksv1.EKSClusterConfigSpec{}
 
 	upstreamSpec.Imported = true
 
@@ -762,12 +763,12 @@ func BuildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOut
 	}
 
 	// set node groups
-	upstreamSpec.NodeGroups = make([]v13.NodeGroup, 0, len(nodeGroupStates))
+	upstreamSpec.NodeGroups = make([]eksv1.NodeGroup, 0, len(nodeGroupStates))
 	for _, ng := range nodeGroupStates {
 		if aws.StringValue(ng.Nodegroup.Status) == eks.NodegroupStatusDeleting {
 			continue
 		}
-		ngToAdd := v13.NodeGroup{
+		ngToAdd := eksv1.NodeGroup{
 			NodegroupName: ng.Nodegroup.NodegroupName,
 			DiskSize:      ng.Nodegroup.DiskSize,
 			Labels:        ng.Nodegroup.Labels,
@@ -811,7 +812,7 @@ func BuildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOut
 // updateUpstreamClusterState compares the upstream spec with the config spec, then updates the upstream EKS cluster to
 // match the config spec. Function often returns after a single update because once the cluster is in updating phase in EKS,
 // no more updates will be accepted until the current update is finished.
-func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigSpec, config *v13.EKSClusterConfig, clusterARN string, ngARNs map[string]string, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*v13.EKSClusterConfig, error) {
+func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfigSpec, config *eksv1.EKSClusterConfig, clusterARN string, ngARNs map[string]string, eksService *eks.EKS, svc *cloudformation.CloudFormation) (*eksv1.EKSClusterConfig, error) {
 	// check kubernetes version for update
 	if config.Spec.KubernetesVersion != nil {
 		if aws.StringValue(upstreamSpec.KubernetesVersion) != aws.StringValue(config.Spec.KubernetesVersion) {
@@ -918,8 +919,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 
 	// check nodegroups for updates
 
-	upstreamNgs := make(map[string]v13.NodeGroup)
-	ngs := make(map[string]v13.NodeGroup)
+	upstreamNgs := make(map[string]eksv1.NodeGroup)
+	ngs := make(map[string]eksv1.NodeGroup)
 
 	for _, ng := range upstreamSpec.NodeGroups {
 		upstreamNgs[aws.StringValue(ng.NodegroupName)] = ng
@@ -1109,7 +1110,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *v13.EKSClusterConfigS
 
 // importCluster cluster returns a spec representing the upstream state of the cluster matching to the
 // given config's displayName and region.
-func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EKS) (*v13.EKSClusterConfig, error) {
+func (h *Handler) importCluster(config *eksv1.EKSClusterConfig, eksService *eks.EKS) (*eksv1.EKSClusterConfig, error) {
 	clusterState, err := eksService.DescribeCluster(
 		&eks.DescribeClusterInput{
 			Name: aws.String(config.Spec.DisplayName),
@@ -1118,7 +1119,7 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 		return config, err
 	}
 
-	if err := h.createCASecret(config.Name, config.Namespace, clusterState); err != nil {
+	if err := h.createCASecret(config, clusterState); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			return config, err
 		}
@@ -1132,15 +1133,23 @@ func (h *Handler) importCluster(config *v13.EKSClusterConfig, eksService *eks.EK
 
 // createCASecret creates a secret containing ca and endpoint. These can be used to create a kubeconfig via
 // the go sdk
-func (h *Handler) createCASecret(name, namespace string, clusterState *eks.DescribeClusterOutput) error {
+func (h *Handler) createCASecret(config *eksv1.EKSClusterConfig, clusterState *eks.DescribeClusterOutput) error {
 	endpoint := aws.StringValue(clusterState.Cluster.Endpoint)
 	ca := aws.StringValue(clusterState.Cluster.CertificateAuthority.Data)
 
 	_, err := h.secrets.Create(
 		&v1.Secret{
 			ObjectMeta: v15.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
+				Name:      config.Name,
+				Namespace: config.Namespace,
+				OwnerReferences: []v15.OwnerReference{
+					{
+						APIVersion: eksv1.SchemeGroupVersion.String(),
+						Kind:       eksClusterConfigKind,
+						UID:        config.UID,
+						Name:       config.Name,
+					},
+				},
 			},
 			Data: map[string][]byte{
 				"endpoint": []byte(endpoint),
@@ -1153,7 +1162,7 @@ func (h *Handler) createCASecret(name, namespace string, clusterState *eks.Descr
 // enqueueUpdate enqueues the config if it is already in the updating phase. Otherwise, the
 // phase is updated to "updating". This is important because the object needs to reenter the
 // onChange handler to start waiting on the update.
-func (h *Handler) enqueueUpdate(config *v13.EKSClusterConfig) (*v13.EKSClusterConfig, error) {
+func (h *Handler) enqueueUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
 	if config.Status.Phase == eksConfigUpdatingPhase {
 		h.eksEnqueue(config.Namespace, config.Name)
 		return config, nil
@@ -1303,7 +1312,7 @@ func getLoggingTypesToEnable(loggingTypes []string, upstreamLoggingTypes []strin
 	return nil
 }
 
-func createNodeGroup(eksConfig *v13.EKSClusterConfig, group v13.NodeGroup, eksService *eks.EKS, svc *cloudformation.CloudFormation) error {
+func createNodeGroup(eksConfig *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksService *eks.EKS, svc *cloudformation.CloudFormation) error {
 	nodeGroupCreateInput := &eks.CreateNodegroupInput{
 		ClusterName:   aws.String(eksConfig.Spec.DisplayName),
 		NodegroupName: group.NodegroupName,
