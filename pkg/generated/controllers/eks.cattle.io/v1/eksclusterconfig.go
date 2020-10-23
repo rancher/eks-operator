@@ -84,7 +84,7 @@ type eKSClusterConfigController struct {
 }
 
 func NewEKSClusterConfigController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) EKSClusterConfigController {
-	c := controller.ForResource(gvk.GroupVersion().WithResource(resource), namespaced)
+	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
 	return &eKSClusterConfigController{
 		controller: c,
 		client:     c.Client(),
@@ -318,6 +318,11 @@ func (a *eKSClusterConfigStatusHandler) sync(key string, obj *v1.EKSClusterConfi
 		}
 	}
 	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
 		var newErr error
 		obj.Status = newStatus
 		obj, newErr = a.client.UpdateStatus(obj)
