@@ -6,6 +6,16 @@ platform:
   arch: amd64
 
 steps:
+- name: ci
+  image: briandowns/rancher-build-base:v0.1.1
+  commands:
+  - ./scripts/ci
+  when:
+    event:
+    - push
+    - pull_request
+    - tag
+
 - name: build
   image: briandowns/rancher-build-base:v0.1.1
   volumes:
