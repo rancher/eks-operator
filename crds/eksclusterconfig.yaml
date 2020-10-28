@@ -18,8 +18,10 @@ spec:
         spec:
           properties:
             amazonCredentialSecret:
+              nullable: true
               type: string
             displayName:
+              nullable: true
               type: string
             imported:
               type: boolean
@@ -31,6 +33,7 @@ spec:
               type: string
             loggingTypes:
               items:
+                nullable: true
                 type: string
               nullable: true
               type: array
@@ -54,6 +57,7 @@ spec:
                     type: string
                   labels:
                     additionalProperties:
+                      nullable: true
                       type: string
                     nullable: true
                     type: object
@@ -68,20 +72,19 @@ spec:
                     type: string
                   subnets:
                     items:
+                      nullable: true
                       type: string
                     nullable: true
                     type: array
                   tags:
                     additionalProperties:
+                      nullable: true
                       type: string
                     nullable: true
                     type: object
                   version:
                     nullable: true
                     type: string
-                required:
-                - nodegroupName
-                - instanceType
                 type: object
               nullable: true
               type: array
@@ -93,16 +96,19 @@ spec:
               type: boolean
             publicAccessSources:
               items:
+                nullable: true
                 type: string
               nullable: true
               type: array
             region:
+              nullable: true
               type: string
             secretsEncryption:
               nullable: true
               type: boolean
             securityGroups:
               items:
+                nullable: true
                 type: string
               nullable: true
               type: array
@@ -111,11 +117,13 @@ spec:
               type: string
             subnets:
               items:
+                nullable: true
                 type: string
               nullable: true
               type: array
             tags:
               additionalProperties:
+                nullable: true
                 type: string
               nullable: true
               type: object
@@ -123,22 +131,28 @@ spec:
         status:
           properties:
             failureMessage:
+              nullable: true
               type: string
             networkFieldsSource:
+              nullable: true
               type: string
             phase:
+              nullable: true
               type: string
             securityGroups:
               items:
+                nullable: true
                 type: string
               nullable: true
               type: array
             subnets:
               items:
+                nullable: true
                 type: string
               nullable: true
               type: array
             virtualNetwork:
+              nullable: true
               type: string
           type: object
       type: object
