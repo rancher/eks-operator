@@ -182,12 +182,6 @@ Resources:
       SubnetId: !Ref Subnet03
       RouteTableId: !Ref RouteTable
 
-  ControlPlaneSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Cluster communication with worker nodes
-      VpcId: !Ref VPC
-
 Outputs:
 
   SubnetIds:
@@ -197,10 +191,6 @@ Outputs:
       - HasMoreThan2Azs
       - !Join [ ",", [ !Ref Subnet01, !Ref Subnet02, !Ref Subnet03 ] ]
       - !Join [ ",", [ !Ref Subnet01, !Ref Subnet02 ] ]
-
-  SecurityGroups:
-    Description: Security group for the cluster control plane communication with worker nodes
-    Value: !Join [ ",", [ !Ref ControlPlaneSecurityGroup ] ]
 
   VpcId:
     Description: The VPC Id

@@ -619,17 +619,15 @@ func (h *Handler) generateAndSetNetworking(svc *cloudformation.CloudFormation, c
 		}
 
 		virtualNetworkString := getParameterValueFromOutput("VpcId", stack.Stacks[0].Outputs)
-		securityGroupsString := getParameterValueFromOutput("SecurityGroups", stack.Stacks[0].Outputs)
 		subnetIdsString := getParameterValueFromOutput("SubnetIds", stack.Stacks[0].Outputs)
 
-		if securityGroupsString == "" || subnetIdsString == "" {
-			return config, fmt.Errorf("no security groups or subnet ids were returned")
+		if subnetIdsString == "" {
+			return config, fmt.Errorf("no subnet ids were returned")
 		}
 
 		config = config.DeepCopy()
 		// copy generated field to status
 		config.Status.VirtualNetwork = virtualNetworkString
-		config.Status.SecurityGroups = strings.Split(securityGroupsString, ",")
 		config.Status.Subnets = strings.Split(subnetIdsString, ",")
 		config.Status.NetworkFieldsSource = "generated"
 	}
@@ -878,7 +876,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			&eks.UpdateClusterConfigInput{
 				Name: aws.String(config.Spec.DisplayName),
 				ResourcesVpcConfig: &eks.VpcConfigRequest{
-					EndpointPublicAccess: config.Spec.PublicAccess,
+					EndpointPublicAccess:  config.Spec.PublicAccess,
 					EndpointPrivateAccess: config.Spec.PrivateAccess,
 				},
 			},
