@@ -1326,6 +1326,12 @@ func createNodeGroup(eksConfig *eksv1.EKSClusterConfig, group eksv1.NodeGroup, e
 		},
 	}
 
+	if gpu := group.Gpu; aws.BoolValue(gpu) {
+		nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesAl2X8664Gpu)
+	} else {
+		nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesAl2X8664)
+	}
+
 	if sshKey := group.Ec2SshKey; aws.StringValue(sshKey) != "" {
 		nodeGroupCreateInput.RemoteAccess = &eks.RemoteAccessConfig{
 			Ec2SshKey: sshKey,
