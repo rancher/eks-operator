@@ -784,6 +784,8 @@ func BuildUpstreamClusterState(name string, clusterState *eks.DescribeClusterOut
 		}
 		if aws.StringValue(ng.Nodegroup.AmiType) == eks.AMITypesAl2X8664Gpu {
 			ngToAdd.Gpu = aws.Bool(true)
+		} else if aws.StringValue(ng.Nodegroup.AmiType) == eks.AMITypesAl2X8664 {
+			ngToAdd.Gpu = aws.Bool(false)
 		}
 		if ng.Nodegroup.RemoteAccess != nil {
 			ngToAdd.Ec2SshKey = ng.Nodegroup.RemoteAccess.Ec2SshKey
