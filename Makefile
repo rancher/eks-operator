@@ -2,7 +2,7 @@ SEVERITIES = HIGH,CRITICAL
 
 .PHONY: all
 all:
-	sudo docker build --build-arg TAG=$(TAG) -t rancher/eks-operator:$(TAG) .
+	docker build --build-arg TAG=$(TAG) -t rancher/eks-operator:$(TAG) .
 
 .PHONY: image-push
 image-push:

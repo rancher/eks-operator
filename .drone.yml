@@ -23,7 +23,7 @@ steps:
     path: /var/run
   commands:
   - sleep 20
-  - sudo TAG=${DRONE_TAG} make
+  - TAG=${DRONE_TAG} make
   when:
     event:
     - tag
