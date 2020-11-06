@@ -7,7 +7,7 @@ platform:
 
 steps:
 - name: ci
-  image: rancher/hardened-build-base:v1.15.2b5
+  image: briandowns/rancher-build-base:v0.1.1
   commands:
   - ./scripts/ci
   when:
@@ -17,7 +17,7 @@ steps:
     - tag
 
 - name: build
-  image: rancher/hardened-build-base:v1.15.2b5
+  image: briandowns/rancher-build-base:v0.1.1
   volumes:
   - name: dockersock
     path: /var/run
@@ -29,7 +29,7 @@ steps:
     - tag
 
 - name: push
-  image: rancher/hardened-build-base:v1.15.2b5
+  image: briandowns/rancher-build-base:v0.1.1
   volumes:
   - name: dockersock
     path: /var/run
@@ -46,7 +46,7 @@ steps:
     - tag
 
 - name: scan
-  image: rancher/hardened-build-base:v1.15.2b5
+  image: briandowns/rancher-build-base:v0.1.1
   volumes:
   - name: dockersock
     path: /var/run
@@ -57,7 +57,7 @@ steps:
     - tag
 
 - name: manifest
-  image: rancher/hardened-build-base:v1.15.2b5
+  image: briandowns/rancher-build-base:v0.1.1
   volumes:
   - name: dockersock
     path: /var/run
