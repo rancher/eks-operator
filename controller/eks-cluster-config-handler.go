@@ -147,6 +147,11 @@ func (h *Handler) OnEksConfigRemoved(key string, config *eksv1.EKSClusterConfig)
 		logrus.Infof("cluster [%s] is imported, will not delete EKS cluster", config.Name)
 		return config, nil
 	}
+	if config.Status.Phase == eksConfigNotCreatedPhase {
+		// The most likely context here is that the cluster already existed in EKS, so we shouldn't delete it
+		logrus.Warnf("cluster [%s] never advanced to creating status, will not delete EKS cluster", config.Name)
+		return config, nil
+	}
 
 	logrus.Infof("deleting cluster [%s]", config.Name)
 
@@ -430,7 +435,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 }
 
 func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*eksv1.EKSClusterConfig, error) {
-	if err := validateCreate(config); err != nil {
+	if err := h.validateCreate(config, eksService); err != nil {
 		return config, err
 	}
 
@@ -443,8 +448,8 @@ func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, 
 	svc := cloudformation.New(sess)
 
 	displayName := config.Spec.DisplayName
-
 	var err error
+
 	config, err = h.generateAndSetNetworking(svc, config)
 	if err != nil {
 		return config, err
@@ -517,7 +522,28 @@ func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, 
 	return h.eksCC.UpdateStatus(config)
 }
 
-func validateCreate(config *eksv1.EKSClusterConfig) error {
+func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, eksService *eks.EKS) error {
+	// Check for existing eksclusterconfigs with the same display name
+	eksConfigs, err := h.eksCC.List(config.Namespace, v15.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("cannot list eksclusterconfigs for display name check")
+	}
+	for _, c := range eksConfigs.Items {
+		if c.Spec.DisplayName == config.Spec.DisplayName && c.Name != config.Name {
+			return fmt.Errorf("cannot create cluster [%s] because an eksclusterconfig exists with the same name", config.Spec.DisplayName)
+		}
+	}
+	// Check for existing clusters in EKS with the same display name
+	listOutput, err := eksService.ListClusters(&eks.ListClustersInput{})
+	if err != nil {
+		return fmt.Errorf("error listing clusters: %v", err)
+	}
+	for _, cluster := range listOutput.Clusters {
+		if aws.StringValue(cluster) == config.Spec.DisplayName {
+			return fmt.Errorf("cannot create cluster [%s] because a cluster in EKS exists with the same name", config.Spec.DisplayName)
+		}
+	}
+
 	// validate nodegroup version
 	if !config.Spec.Imported {
 		cannotBeNilError := "field [%s] cannot be nil for non-import cluster [%s]"
