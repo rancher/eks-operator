@@ -533,19 +533,19 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, eksService *eks
 			return fmt.Errorf("cannot create cluster [%s] because an eksclusterconfig exists with the same name", config.Spec.DisplayName)
 		}
 	}
-	// Check for existing clusters in EKS with the same display name
-	listOutput, err := eksService.ListClusters(&eks.ListClustersInput{})
-	if err != nil {
-		return fmt.Errorf("error listing clusters: %v", err)
-	}
-	for _, cluster := range listOutput.Clusters {
-		if aws.StringValue(cluster) == config.Spec.DisplayName {
-			return fmt.Errorf("cannot create cluster [%s] because a cluster in EKS exists with the same name", config.Spec.DisplayName)
-		}
-	}
 
 	// validate nodegroup version
 	if !config.Spec.Imported {
+		// Check for existing clusters in EKS with the same display name
+		listOutput, err := eksService.ListClusters(&eks.ListClustersInput{})
+		if err != nil {
+			return fmt.Errorf("error listing clusters: %v", err)
+		}
+		for _, cluster := range listOutput.Clusters {
+			if aws.StringValue(cluster) == config.Spec.DisplayName {
+				return fmt.Errorf("cannot create cluster [%s] because a cluster in EKS exists with the same name", config.Spec.DisplayName)
+			}
+		}
 		cannotBeNilError := "field [%s] cannot be nil for non-import cluster [%s]"
 		if config.Spec.KubernetesVersion == nil {
 			return fmt.Errorf(cannotBeNilError, "kubernetesVersion", config.Name)
