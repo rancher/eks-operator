@@ -17,7 +17,7 @@ import (
 func main() {
 	controllergen.Run(args.Options{
 		OutputPackage: "github.com/rancher/eks-operator/pkg/generated",
-		Boilerplate:   "hack/boilerplate.go.txt",
+		Boilerplate:   "pkg/codegen/boilerplate.go.txt",
 		Groups: map[string]args.Group{
 			"eks.cattle.io": {
 				Types: []interface{}{
