@@ -52,26 +52,41 @@ type EKSClusterConfigSpec struct {
 }
 
 type EKSClusterConfigStatus struct {
-	Phase          string   `json:"phase"`
-	VirtualNetwork string   `json:"virtualNetwork"`
-	Subnets        []string `json:"subnets"`
-	SecurityGroups []string `json:"securityGroups"`
+	Phase                         string            `json:"phase"`
+	VirtualNetwork                string            `json:"virtualNetwork"`
+	Subnets                       []string          `json:"subnets"`
+	SecurityGroups                []string          `json:"securityGroups"`
+	ManagedLaunchTemplateID       string            `json:"managedLaunchTemplateID"`
+	ManagedLaunchTemplateVersions map[string]string `json:"managedLaunchTemplateVersions"`
+	TemplateVersionsToDelete      []string          `json:"templateVersionsToDelete"`
 	// describes how the above network fields were provided. Valid values are provided and generated
 	NetworkFieldsSource string `json:"networkFieldsSource"`
 	FailureMessage      string `json:"failureMessage"`
 }
 
 type NodeGroup struct {
-	Gpu           *bool               `json:"gpu"`
-	NodegroupName *string             `json:"nodegroupName" norman:"required"`
-	DiskSize      *int64              `json:"diskSize"`
-	InstanceType  *string             `json:"instanceType" norman:"required"`
-	Labels        map[string]*string `json:"labels"`
-	Ec2SshKey     *string             `json:"ec2SshKey"`
-	DesiredSize   *int64              `json:"desiredSize"`
-	MaxSize       *int64              `json:"maxSize"`
-	MinSize       *int64              `json:"minSize"`
-	Subnets       []string           `json:"subnets"`
-	Tags          map[string]*string `json:"tags"`
-	Version       *string             `json:"version"`
+	Gpu                  *bool              `json:"gpu"`
+	ImageID              *string            `json:"imageId"`
+	NodegroupName        *string            `json:"nodegroupName" norman:"required"`
+	DiskSize             *int64             `json:"diskSize"`
+	InstanceType         *string            `json:"instanceType" norman:"required"`
+	Labels               map[string]*string `json:"labels"`
+	Ec2SshKey            *string            `json:"ec2SshKey"`
+	DesiredSize          *int64             `json:"desiredSize"`
+	MaxSize              *int64             `json:"maxSize"`
+	MinSize              *int64             `json:"minSize"`
+	Subnets              []string           `json:"subnets"`
+	Tags                 map[string]*string `json:"tags"`
+	ResourceTags         map[string]*string `json:"resourceTags"`
+	UserData             *string            `json:"userData"`
+	Version              *string            `json:"version"`
+	LaunchTemplate       *LaunchTemplate    `json:"launchTemplate"`
+	RequestSpotInstances *bool              `json:"requestSpotInstances"`
+	SpotInstanceTypes    []*string          `json:"spotInstanceTypes"`
+}
+
+type LaunchTemplate struct {
+	ID      *string `json:"id"`
+	Name    *string `json:"name"`
+	Version *int64  `json:"version"`
 }

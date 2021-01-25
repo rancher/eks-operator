@@ -52,6 +52,9 @@ spec:
                   gpu:
                     nullable: true
                     type: boolean
+                  imageId:
+                    nullable: true
+                    type: string
                   instanceType:
                     nullable: true
                     type: string
@@ -60,6 +63,19 @@ spec:
                       nullable: true
                       type: string
                     nullable: true
+                    type: object
+                  launchTemplate:
+                    nullable: true
+                    properties:
+                      id:
+                        nullable: true
+                        type: string
+                      name:
+                        nullable: true
+                        type: string
+                      version:
+                        nullable: true
+                        type: integer
                     type: object
                   maxSize:
                     nullable: true
@@ -70,6 +86,21 @@ spec:
                   nodegroupName:
                     nullable: true
                     type: string
+                  requestSpotInstances:
+                    nullable: true
+                    type: boolean
+                  resourceTags:
+                    additionalProperties:
+                      nullable: true
+                      type: string
+                    nullable: true
+                    type: object
+                  spotInstanceTypes:
+                    items:
+                      nullable: true
+                      type: string
+                    nullable: true
+                    type: array
                   subnets:
                     items:
                       nullable: true
@@ -82,6 +113,9 @@ spec:
                       type: string
                     nullable: true
                     type: object
+                  userData:
+                    nullable: true
+                    type: string
                   version:
                     nullable: true
                     type: string
@@ -133,6 +167,15 @@ spec:
             failureMessage:
               nullable: true
               type: string
+            managedLaunchTemplateID:
+              nullable: true
+              type: string
+            managedLaunchTemplateVersions:
+              additionalProperties:
+                nullable: true
+                type: string
+              nullable: true
+              type: object
             networkFieldsSource:
               nullable: true
               type: string
@@ -146,6 +189,12 @@ spec:
               nullable: true
               type: array
             subnets:
+              items:
+                nullable: true
+                type: string
+              nullable: true
+              type: array
+            templateVersionsToDelete:
               items:
                 nullable: true
                 type: string
