@@ -67,9 +67,9 @@ type EKSClusterConfigStatus struct {
 type NodeGroup struct {
 	Gpu                  *bool              `json:"gpu"`
 	ImageID              *string            `json:"imageId"`
-	NodegroupName        *string            `json:"nodegroupName" norman:"required"`
+	NodegroupName        *string            `json:"nodegroupName" norman:"required" wrangler:"required"`
 	DiskSize             *int64             `json:"diskSize"`
-	InstanceType         *string            `json:"instanceType" norman:"required"`
+	InstanceType         *string            `json:"instanceType"`
 	Labels               map[string]*string `json:"labels"`
 	Ec2SshKey            *string            `json:"ec2SshKey"`
 	DesiredSize          *int64             `json:"desiredSize"`
