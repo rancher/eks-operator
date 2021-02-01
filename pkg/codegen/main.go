@@ -51,6 +51,10 @@ func main() {
 		panic(err)
 	}
 
+	obj.ObjectMeta.Annotations = map[string]string{
+		"helm.sh/resource-policy": "keep",
+	}
+
 	eksCCYaml, err := yaml.Export(&obj)
 	if err != nil {
 		panic(err)
