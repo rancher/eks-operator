@@ -219,7 +219,10 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 		}
 	}
 
-	launchTemplateVersion := aws.String(strconv.FormatInt(*lt.Version, 10))
+	var launchTemplateVersion *string
+	if aws.Int64Value(lt.Version) != 0 {
+		launchTemplateVersion = aws.String(strconv.FormatInt(*lt.Version, 10))
+	}
 
 	nodeGroupCreateInput.LaunchTemplate = &eks.LaunchTemplateSpecification{
 		Id:      lt.ID,
@@ -230,7 +233,7 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 		nodeGroupCreateInput.InstanceTypes = group.SpotInstanceTypes
 	}
 
-	if group.ImageID == nil {
+	if aws.StringValue(group.ImageID) == "" {
 		if gpu := group.Gpu; aws.BoolValue(gpu) {
 			nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesAl2X8664Gpu)
 		} else {
