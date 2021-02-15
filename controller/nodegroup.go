@@ -126,9 +126,6 @@ func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg
 			return nil, err
 		}
 
-		if upstreamNg.LaunchTemplate.Version != nil {
-			config.Status.TemplateVersionsToDelete = append(config.Status.TemplateVersionsToDelete, strconv.FormatInt(*upstreamNg.LaunchTemplate.Version, 10))
-		}
 		return lt, nil
 	}
 
@@ -255,6 +252,12 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 
 	nodeGroupCreateInput.NodeRole = aws.String(getParameterValueFromOutput("NodeInstanceRole", output.Stacks[0].Outputs))
 	_, err = eksService.CreateNodegroup(nodeGroupCreateInput)
+	if err != nil {
+		// If there was an error creating the node group, then the template version should be deleted
+		// to prevent many launch template versions from being created before the issue is fixed.
+		deleteLaunchTemplateVersions(*lt.ID, []*string{launchTemplateVersion}, ec2Service)
+	}
+
 	return aws.StringValue(launchTemplateVersion), err
 }
 

@@ -1127,6 +1127,9 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 				}
 
 				if lt != nil {
+					if upstreamTemplateVersion > 0 {
+						templateVersionsToDelete[aws.StringValue(upstreamNg.NodegroupName)] = strconv.FormatInt(upstreamTemplateVersion, 10)
+					}
 					templateVersionsToAdd[aws.StringValue(ng.NodegroupName)] = strconv.FormatInt(*lt.Version, 10)
 				}
 			}
@@ -1135,9 +1138,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 				ngVersionInput.LaunchTemplate = &eks.LaunchTemplateSpecification{
 					Id:      lt.ID,
 					Version: aws.String(strconv.FormatInt(*lt.Version, 10)),
-				}
-				if upstreamTemplateVersion > 0 {
-					templateVersionsToDelete[aws.StringValue(upstreamNg.NodegroupName)] = strconv.FormatInt(upstreamTemplateVersion, 10)
 				}
 			}
 		}
@@ -1152,6 +1152,11 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			updateNodegroupProperties = true
 			_, err := eksService.UpdateNodegroupVersion(ngVersionInput)
 			if err != nil {
+				if version, ok := templateVersionsToAdd[aws.StringValue(ng.NodegroupName)]; ok {
+					// If there was an error updating the node group and a Rancher-managed launch template version was created,
+					// then the version that caused the issue needs to be delete to prevent bad versions from piling up.
+					deleteLaunchTemplateVersions(config.Status.ManagedLaunchTemplateID, []*string{aws.String(version)}, ec2Service)
+				}
 				return config, err
 			}
 			continue
