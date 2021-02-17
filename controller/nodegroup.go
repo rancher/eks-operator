@@ -21,7 +21,7 @@ const (
 	launchTemplateNameFormat = "rancher-managed-lt-%s"
 	launchTemplateTagKey     = "rancher-managed-template"
 	launchTemplateTagValue   = "do-not-modify-or-delete"
-	storageDeviceName        = "/dev/sdr"
+	defaultStorageDeviceName = "/dev/xvda"
 )
 
 func createLaunchTemplate(clusterDisplayName string, ec2Service *ec2.EC2) (*eksv1.LaunchTemplate, error) {
@@ -57,7 +57,7 @@ func createLaunchTemplate(clusterDisplayName string, ec2Service *ec2.EC2) (*eksv
 }
 
 func createNewLaunchTemplateVersion(launchTemplateID string, group eksv1.NodeGroup, ec2Service *ec2.EC2) (*eksv1.LaunchTemplate, error) {
-	launchTemplate, err := buildLaunchTemplateData(group)
+	launchTemplate, err := buildLaunchTemplateData(group, ec2Service)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func createNewLaunchTemplateVersion(launchTemplateID string, group eksv1.NodeGro
 	}, nil
 }
 
-func buildLaunchTemplateData(group eksv1.NodeGroup) (*ec2.RequestLaunchTemplateData, error) {
+func buildLaunchTemplateData(group eksv1.NodeGroup, ec2Service *ec2.EC2) (*ec2.RequestLaunchTemplateData, error) {
 	var imageID *string
 	if aws.StringValue(group.ImageID) != "" {
 		imageID = group.ImageID
@@ -93,13 +93,22 @@ func buildLaunchTemplateData(group eksv1.NodeGroup) (*ec2.RequestLaunchTemplateD
 		*userdata = base64.StdEncoding.EncodeToString([]byte(*userdata))
 	}
 
+	deviceName := aws.String(defaultStorageDeviceName)
+	if aws.StringValue(group.ImageID) != "" {
+		if rootDeviceName, err := getImageRootDeviceName(group.ImageID, ec2Service); err != nil {
+			return nil, err
+		} else if rootDeviceName != nil {
+			deviceName = rootDeviceName
+		}
+	}
+
 	launchTemplateData := &ec2.RequestLaunchTemplateData{
 		ImageId:  imageID,
 		KeyName:  group.Ec2SshKey,
 		UserData: userdata,
 		BlockDeviceMappings: []*ec2.LaunchTemplateBlockDeviceMappingRequest{
 			{
-				DeviceName: aws.String(storageDeviceName),
+				DeviceName: deviceName,
 				Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
 					VolumeSize: group.DiskSize,
 				},
@@ -305,4 +314,16 @@ func deleteNodeGroup(config *eksv1.EKSClusterConfig, ng eksv1.NodeGroup, eksServ
 	}
 
 	return templateVersionToDelete, true, err
+}
+
+func getImageRootDeviceName(imageID *string, ec2Service *ec2.EC2) (*string, error) {
+	describeOutput, err := ec2Service.DescribeImages(&ec2.DescribeImagesInput{ImageIds: []*string{imageID}})
+	if err != nil {
+		return nil, err
+	}
+	if len(describeOutput.Images) == 0 {
+		return nil, fmt.Errorf("no images returned for id %v", aws.StringValue(imageID))
+	}
+
+	return describeOutput.Images[0].RootDeviceName, nil
 }
