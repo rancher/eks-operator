@@ -29,7 +29,7 @@ func createLaunchTemplate(clusterDisplayName string, ec2Service *ec2.EC2) (*eksv
 	// Since the default version cannot be deleted until the launch template is deleted, it will not be used for any node group.
 	// Also, launch templates cannot be created blank, so fake userdata is added to the first version.
 	launchTemplateCreateInput := &ec2.CreateLaunchTemplateInput{
-		LaunchTemplateData: &ec2.RequestLaunchTemplateData{UserData: aws.String("placeholder")},
+		LaunchTemplateData: &ec2.RequestLaunchTemplateData{UserData: aws.String("cGxhY2Vob2xkZXIK")},
 		LaunchTemplateName: aws.String(fmt.Sprintf(launchTemplateNameFormat, clusterDisplayName)),
 		TagSpecifications: []*ec2.TagSpecification{
 			{
