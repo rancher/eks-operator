@@ -1,24 +1,9 @@
 #!/bin/bash
 
-cd $(dirname $0)/..
+set -e
 
-echo 'Running: go fmt'
-go fmt
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo 'go fmt produced differences'
-  exit 1
-fi
+cd $(dirname $0)
 
-echo 'Running: go generate'
-go generate
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo 'go generate produced differences'
-  exit 1
-fi
-
-echo 'Running: go mod tidy'
-go mod tidy
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo 'go mod tidy produced differences'
-  exit 1
-fi
+./validate
+./build
+./package

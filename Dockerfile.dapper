@@ -1,0 +1,21 @@
+FROM golang:1.16
+
+ARG DAPPER_HOST_ARCH
+ENV ARCH $DAPPER_HOST_ARCH
+
+RUN apt update && \
+    apt install -y bash git gcc docker.io vim less file curl wget ca-certificates
+RUN if [ "${ARCH}" = "amd64" ]; then \
+    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.30.0; \
+    fi
+
+ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS
+ENV DAPPER_SOURCE /go/src/github.com/rancher/eks-operator/
+ENV DAPPER_OUTPUT ./bin ./dist
+ENV DAPPER_DOCKER_SOCKET true
+ENV DAPPER_RUN_ARGS "-v eks-operator-pkg:/go/pkg -v eks-operator-cache:/root/.cache"
+ENV HOME ${DAPPER_SOURCE}
+WORKDIR ${DAPPER_SOURCE}
+
+ENTRYPOINT ["./scripts/entry"]
+CMD ["ci"]
