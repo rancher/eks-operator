@@ -25,7 +25,9 @@ import (
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v15 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -495,9 +497,23 @@ func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, 
 		}
 	}
 
-	config = config.DeepCopy()
-	config.Status.Phase = eksConfigCreatingPhase
-	return h.eksCC.UpdateStatus(config)
+	// If a user edits a cluster at the exact right (or wrong) time, then the
+	// `UpdateStatus` call may produce a conflict and will error. When the
+	// controller re-enters the create function, it will try to verify that a
+	// cluster with the same name in EKS does not exist (in the `validateCreate`
+	// call above). It will find the one that was created and error.
+	// Therefore, the `RetryOnConflict` will successfully update the status in this situation.
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		config, err = h.eksCC.Get(config.Namespace, config.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		config.Status.Phase = eksConfigCreatingPhase
+		config.Status.FailureMessage = ""
+		config, err = h.eksCC.UpdateStatus(config)
+		return err
+	})
+	return config, err
 }
 
 func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, eksService *eks.EKS) error {
