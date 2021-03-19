@@ -1,0 +1,31 @@
+#!/bin/bash
+set -e
+
+source $(dirname $0)/version
+
+cd $(dirname $0)/..
+
+function build-image() {
+  IMAGE=${REPO}/${1}:${TAG}
+  DOCKERFILE=package/Dockerfile${2}
+  if [ -e ${DOCKERFILE}.${ARCH} ]; then
+      DOCKERFILE=${DOCKERFILE}.${ARCH}
+  fi
+
+  docker build -f ${DOCKERFILE} -t ${IMAGE} .
+  echo Built ${IMAGE}
+
+  if [ "$PUSH" = "true" ]; then
+      docker push ${IMAGE}
+  fi
+}
+
+mkdir -p dist/artifacts
+cp bin/eks-operator dist/artifacts/eks-operator-linux${SUFFIX}
+for i in bin/eks-operator-*; do
+    if [ -e "$i" ]; then
+          cp $i dist/artifacts
+    fi
+done
+
+build-image eks-operator

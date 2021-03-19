@@ -15,13 +15,15 @@ import (
 )
 
 func main() {
+	os.Unsetenv("GOPATH")
+
 	controllergen.Run(args.Options{
 		OutputPackage: "github.com/rancher/eks-operator/pkg/generated",
 		Boilerplate:   "pkg/codegen/boilerplate.go.txt",
 		Groups: map[string]args.Group{
 			"eks.cattle.io": {
 				Types: []interface{}{
-					v12.EKSClusterConfig{},
+					"./pkg/apis/eks.cattle.io/v1",
 				},
 				GenerateTypes: true,
 			},

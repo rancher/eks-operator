@@ -1,19 +1,16 @@
-SEVERITIES = HIGH,CRITICAL
+TARGETS := $(shell ls scripts)
 
-.PHONY: all
-all:
-	docker build --build-arg TAG=$(TAG) -t rancher/eks-operator:$(TAG) .
+.dapper:
+	@echo Downloading dapper
+	@curl -sL https://releases.rancher.com/dapper/latest/dapper-`uname -s`-`uname -m` > .dapper.tmp
+	@@chmod +x .dapper.tmp
+	@./.dapper.tmp -v
+	@mv .dapper.tmp .dapper
 
-.PHONY: image-push
-image-push:
-	docker push rancher/eks-operator:$(TAG) >> /dev/null
+$(TARGETS): .dapper
+	./.dapper $@
 
-.PHONY: scan
-image-scan:
-	trivy --severity $(SEVERITIES) --no-progress --skip-update --ignore-unfixed rancher/eks-operator:$(TAG)
+clean:
+	rm -rf build bin dist
 
-.PHONY: image-manifest
-image-manifest:
-	docker image inspect rancher/eks-operator:$(TAG)
-	DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create rancher/eks-operator:$(TAG) \
-		$(shell docker image inspect rancher/eks-operator:$(TAG) | jq -r '.[] | .RepoDigests[0]')
+.PHONY: $(TARGETS)
