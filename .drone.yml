@@ -10,10 +10,10 @@ steps:
 - name: ci
   image: rancher/dapper:v0.5.4
   commands:
-    - dapper ci
+  - dapper ci
   volumes:
-    - name: docker
-      path: /var/run/docker.sock
+  - name: docker
+    path: /var/run/docker.sock
   when:
     event:
     - push
@@ -35,9 +35,9 @@ steps:
     - tag
 
 volumes:
-  - name: docker
-    host:
-      path: /var/run/docker.sock
+- name: docker
+  host:
+    path: /var/run/docker.sock
 
 ---
 
@@ -52,15 +52,15 @@ steps:
 - name: ci
   image: rancher/dapper:v0.5.4
   commands:
-    - dapper ci
+  - dapper ci
   volumes:
-    - name: docker
-      path: /var/run/docker.sock
+  - name: docker
+    path: /var/run/docker.sock
   when:
     event:
-      - push
-      - pull_request
-      - tag
+    - push
+    - pull_request
+    - tag
 
 - name: docker-publish
   image: plugins/docker
@@ -74,7 +74,7 @@ steps:
     tag: "${DRONE_TAG}-arm64"
   when:
     event:
-      - tag
+    - tag
 
 volumes:
 - name: docker
@@ -99,13 +99,14 @@ steps:
     password:
       from_secret: docker_password
     platforms:
-      - linux/amd64
-      - linux/arm64
+    - linux/amd64
+    - linux/arm64
     target: "rancher/eks-operator:${DRONE_TAG}"
     template: "rancher/eks-operator:${DRONE_TAG}-ARCH"
   when:
     event:
-      - tag
+    - tag
+
 depends_on:
-  - amd64
-  - arm64
+- linux-amd64
+- linux-arm64
