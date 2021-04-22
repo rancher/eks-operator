@@ -29,3 +29,5 @@ for i in bin/eks-operator-*; do
 done
 
 build-image eks-operator
+
+./scripts/package-helm
