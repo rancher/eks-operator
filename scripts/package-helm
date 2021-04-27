@@ -1,0 +1,30 @@
+#!/bin/bash
+set -e
+
+if ! hash helm 2>/dev/null; then
+    exit 0
+fi
+
+cd $(dirname $0)/..
+. ./scripts/version
+
+rm -rf build/charts
+mkdir -p build dist/artifacts
+cp -rf charts build/
+
+sed -i \
+    -e 's/version:.*/version: '${HELM_VERSION}'/' \
+    -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
+    build/charts/eks-operator/Chart.yaml
+
+sed -i \
+    -e 's/tag:.*/tag: '${HELM_TAG}'/' \
+    build/charts/eks-operator/values.yaml
+
+sed -i \
+    -e 's/version:.*/version: '${HELM_VERSION}'/' \
+    -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
+    build/charts/eks-operator-crd/Chart.yaml
+
+helm package -d ./dist/artifacts ./build/charts/eks-operator
+helm package -d ./dist/artifacts ./build/charts/eks-operator-crd
