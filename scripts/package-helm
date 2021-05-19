@@ -13,7 +13,7 @@ mkdir -p build dist/artifacts
 cp -rf charts build/
 
 sed -i \
-    -e 's/version:.*/version: '${HELM_VERSION}'/' \
+    -e 's/^version:.*/version: '${HELM_VERSION}'/' \
     -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
     build/charts/eks-operator/Chart.yaml
 
@@ -22,7 +22,7 @@ sed -i \
     build/charts/eks-operator/values.yaml
 
 sed -i \
-    -e 's/version:.*/version: '${HELM_VERSION}'/' \
+    -e 's/^version:.*/version: '${HELM_VERSION}'/' \
     -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
     build/charts/eks-operator-crd/Chart.yaml
 
