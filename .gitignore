@@ -2,3 +2,4 @@
 .vscode/
 bin/
 dist/
+.dapper
