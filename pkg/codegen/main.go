@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/wrangler/pkg/crd"
 	"github.com/rancher/wrangler/pkg/yaml"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -53,11 +54,11 @@ func main() {
 		panic(err)
 	}
 
-	obj.ObjectMeta.Annotations = map[string]string{
+	obj.(*unstructured.Unstructured).SetAnnotations(map[string]string{
 		"helm.sh/resource-policy": "keep",
-	}
+	})
 
-	eksCCYaml, err := yaml.Export(&obj)
+	eksCCYaml, err := yaml.Export(obj)
 	if err != nil {
 		panic(err)
 	}

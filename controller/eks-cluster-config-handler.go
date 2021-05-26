@@ -217,7 +217,7 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 
 	logrus.Infof("deleting node instance role for config [%s]", config.Name)
 	err = deleteStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName))
-	if err != nil {
+	if err != nil && !notFound(err) {
 		return config, fmt.Errorf("error deleting worker node stack: %v", err)
 	}
 
@@ -620,6 +620,9 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, eksService *eks
 			if ng.RequestSpotInstances == nil {
 				return fmt.Errorf(cannotBeNilError, "requestSpotInstances", *ng.NodegroupName, config.Name)
 			}
+			if ng.NodeRole == nil {
+				return fmt.Errorf(cannotBeNilError, "nodeRole", *ng.NodegroupName, config.Name)
+			}
 			if aws.BoolValue(ng.RequestSpotInstances) {
 				if len(ng.SpotInstanceTypes) == 0 {
 					return fmt.Errorf("nodegroup [%s] in cluster [%s]: spotInstanceTypes must be specified when requesting spot instances", *ng.NodegroupName, config.Name)
@@ -819,6 +822,7 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 			Tags:                 ng.Nodegroup.Tags,
 			Version:              ng.Nodegroup.Version,
 			RequestSpotInstances: aws.Bool(aws.StringValue(ng.Nodegroup.CapacityType) == eks.CapacityTypesSpot),
+			NodeRole:             ng.Nodegroup.NodeRole,
 		}
 
 		if aws.BoolValue(ngToAdd.RequestSpotInstances) {
@@ -1177,54 +1181,11 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			}
 			continue
 		}
-
-		updateNodegroupConfig := &eks.UpdateNodegroupConfigInput{
-			ClusterName:   aws.String(config.Spec.DisplayName),
-			NodegroupName: ng.NodegroupName,
-		}
-		updateNodegroupConfig.ScalingConfig = &eks.NodegroupScalingConfig{}
-		var sendUpdateNodegroupConfig bool
-
-		if ng.Labels != nil {
-			if unlabels := utils.GetKeysToDelete(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); unlabels != nil {
-				updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
-					RemoveLabels: unlabels,
-				}
-				sendUpdateNodegroupConfig = true
-			}
-
-			if labels := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); labels != nil {
-				updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
-					AddOrUpdateLabels: labels,
-				}
-				sendUpdateNodegroupConfig = true
-			}
-		}
-
-		if ng.DesiredSize != nil {
-			if aws.Int64Value(upstreamNg.DesiredSize) != aws.Int64Value(ng.DesiredSize) {
-				updateNodegroupConfig.ScalingConfig.DesiredSize = ng.DesiredSize
-				sendUpdateNodegroupConfig = true
-			}
-		}
-
-		if ng.MinSize != nil {
-			if aws.Int64Value(upstreamNg.MinSize) != aws.Int64Value(ng.MinSize) {
-				updateNodegroupConfig.ScalingConfig.MinSize = ng.MinSize
-				sendUpdateNodegroupConfig = true
-			}
-		}
-
-		if ng.MaxSize != nil {
-			if aws.Int64Value(upstreamNg.MaxSize) != aws.Int64Value(ng.MaxSize) {
-				updateNodegroupConfig.ScalingConfig.MaxSize = ng.MaxSize
-				sendUpdateNodegroupConfig = true
-			}
-		}
+		updateNodegroupConfig, sendUpdateNodegroupConfig := getNodegroupConfigUpdate(config.Spec.DisplayName, ng, upstreamNg)
 
 		if sendUpdateNodegroupConfig {
 			updateNodegroupProperties = true
-			_, err := eksService.UpdateNodegroupConfig(updateNodegroupConfig)
+			_, err := eksService.UpdateNodegroupConfig(&updateNodegroupConfig)
 			if err != nil {
 				return config, err
 			}

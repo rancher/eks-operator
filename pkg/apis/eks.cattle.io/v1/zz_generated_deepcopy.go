@@ -363,6 +363,11 @@ func (in *NodeGroup) DeepCopyInto(out *NodeGroup) {
 			}
 		}
 	}
+	if in.NodeRole != nil {
+		in, out := &in.NodeRole, &out.NodeRole
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 
