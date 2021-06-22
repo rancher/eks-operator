@@ -53,6 +53,17 @@ steps:
     event:
     - tag
 
+- name: docker-build
+  image: plugins/docker
+  settings:
+    dockerfile: package/Dockerfile
+    repo: "rancher/eks-operator"
+    tag: "${DRONE_COMMIT}-amd64"
+    dry_run: true
+  when:
+    event:
+    - pull_request
+
 volumes:
 - name: docker
   host:
@@ -113,6 +124,17 @@ steps:
   when:
     event:
     - tag
+
+- name: docker-build
+  image: plugins/docker
+  settings:
+    dockerfile: package/Dockerfile
+    repo: "rancher/eks-operator"
+    tag: "${DRONE_COMMIT}-arm64"
+    dry_run: true
+  when:
+    event:
+    - pull_request
 
 volumes:
 - name: docker
