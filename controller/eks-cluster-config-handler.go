@@ -1177,54 +1177,11 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			}
 			continue
 		}
-
-		updateNodegroupConfig := &eks.UpdateNodegroupConfigInput{
-			ClusterName:   aws.String(config.Spec.DisplayName),
-			NodegroupName: ng.NodegroupName,
-		}
-		updateNodegroupConfig.ScalingConfig = &eks.NodegroupScalingConfig{}
-		var sendUpdateNodegroupConfig bool
-
-		if ng.Labels != nil {
-			if unlabels := utils.GetKeysToDelete(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); unlabels != nil {
-				updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
-					RemoveLabels: unlabels,
-				}
-				sendUpdateNodegroupConfig = true
-			}
-
-			if labels := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels)); labels != nil {
-				updateNodegroupConfig.Labels = &eks.UpdateLabelsPayload{
-					AddOrUpdateLabels: labels,
-				}
-				sendUpdateNodegroupConfig = true
-			}
-		}
-
-		if ng.DesiredSize != nil {
-			if aws.Int64Value(upstreamNg.DesiredSize) != aws.Int64Value(ng.DesiredSize) {
-				updateNodegroupConfig.ScalingConfig.DesiredSize = ng.DesiredSize
-				sendUpdateNodegroupConfig = true
-			}
-		}
-
-		if ng.MinSize != nil {
-			if aws.Int64Value(upstreamNg.MinSize) != aws.Int64Value(ng.MinSize) {
-				updateNodegroupConfig.ScalingConfig.MinSize = ng.MinSize
-				sendUpdateNodegroupConfig = true
-			}
-		}
-
-		if ng.MaxSize != nil {
-			if aws.Int64Value(upstreamNg.MaxSize) != aws.Int64Value(ng.MaxSize) {
-				updateNodegroupConfig.ScalingConfig.MaxSize = ng.MaxSize
-				sendUpdateNodegroupConfig = true
-			}
-		}
+		updateNodegroupConfig, sendUpdateNodegroupConfig := getNodegroupConfigUpdate(config.Spec.DisplayName, ng, upstreamNg)
 
 		if sendUpdateNodegroupConfig {
 			updateNodegroupProperties = true
-			_, err := eksService.UpdateNodegroupConfig(updateNodegroupConfig)
+			_, err := eksService.UpdateNodegroupConfig(&updateNodegroupConfig)
 			if err != nil {
 				return config, err
 			}

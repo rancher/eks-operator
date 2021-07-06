@@ -33,8 +33,9 @@ func GetKeysToDelete(tags map[string]string, upstreamTags map[string]string) []*
 	}
 
 	var updateUntags []*string
-	for key, val := range upstreamTags {
-		if len(tags) == 0 || tags[key] != val {
+	for key := range upstreamTags {
+		_, ok := tags[key]
+		if !ok {
 			updateUntags = append(updateUntags, aws.String(key))
 		}
 	}
