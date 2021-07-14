@@ -8,8 +8,8 @@ require (
 	github.com/aws/aws-sdk-go v1.36.7
 	github.com/blang/semver v3.5.0+incompatible
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/rancher/lasso v0.0.0-20200905045615-7fcb07d6a20b
-	github.com/rancher/wrangler v0.7.3-0.20201020003736-e86bc912dfac
+	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
+	github.com/rancher/wrangler v0.8.3
 	github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.4.0
