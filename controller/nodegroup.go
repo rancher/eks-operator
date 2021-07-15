@@ -327,3 +327,50 @@ func getImageRootDeviceName(imageID *string, ec2Service *ec2.EC2) (*string, erro
 
 	return describeOutput.Images[0].RootDeviceName, nil
 }
+
+// getNodegroupConfigUpdate returns an UpdateNodegroupConfigInput that represents desired state and a bool
+// indicating whether an update needs to take place to achieve the desired state.
+func getNodegroupConfigUpdate(clusterName string, ng eksv1.NodeGroup, upstreamNg eksv1.NodeGroup) (eks.UpdateNodegroupConfigInput, bool) {
+	nodegroupConfig := eks.UpdateNodegroupConfigInput{
+		ClusterName:   aws.String(clusterName),
+		NodegroupName: ng.NodegroupName,
+		ScalingConfig: &eks.NodegroupScalingConfig{},
+	}
+	var sendUpdateNodegroupConfig bool
+
+	if ng.Labels != nil {
+		unlabels := utils.GetKeysToDelete(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels))
+		labels := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels))
+
+		if unlabels != nil || labels != nil {
+			sendUpdateNodegroupConfig = true
+			nodegroupConfig.Labels = &eks.UpdateLabelsPayload{
+				RemoveLabels:      unlabels,
+				AddOrUpdateLabels: labels,
+			}
+		}
+	}
+
+	if ng.DesiredSize != nil {
+		nodegroupConfig.ScalingConfig.DesiredSize = ng.DesiredSize
+		if aws.Int64Value(upstreamNg.DesiredSize) != aws.Int64Value(ng.DesiredSize) {
+			sendUpdateNodegroupConfig = true
+		}
+	}
+
+	if ng.MinSize != nil {
+		nodegroupConfig.ScalingConfig.MinSize = ng.MinSize
+		if aws.Int64Value(upstreamNg.MinSize) != aws.Int64Value(ng.MinSize) {
+			sendUpdateNodegroupConfig = true
+		}
+	}
+
+	if ng.MaxSize != nil {
+		nodegroupConfig.ScalingConfig.MaxSize = ng.MaxSize
+		if aws.Int64Value(upstreamNg.MaxSize) != aws.Int64Value(ng.MaxSize) {
+			sendUpdateNodegroupConfig = true
+		}
+	}
+
+	return nodegroupConfig, sendUpdateNodegroupConfig
+}
