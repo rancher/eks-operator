@@ -360,6 +360,10 @@ func (a *eKSClusterConfigGeneratingHandler) Remove(key string, obj *v1.EKSCluste
 }
 
 func (a *eKSClusterConfigGeneratingHandler) Handle(obj *v1.EKSClusterConfig, status v1.EKSClusterConfigStatus) (v1.EKSClusterConfigStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.EKSClusterConfigGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
