@@ -1,4 +1,4 @@
-FROM registry.suse.com/suse/sle15:15.3
+FROM registry.suse.com/suse/sle15:15.3.17.8.6
 RUN zypper -n update && \
     zypper -n clean -a && \
     rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/*
