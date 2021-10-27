@@ -822,7 +822,12 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 			Tags:                 ng.Nodegroup.Tags,
 			Version:              ng.Nodegroup.Version,
 			RequestSpotInstances: aws.Bool(aws.StringValue(ng.Nodegroup.CapacityType) == eks.CapacityTypesSpot),
-			NodeRole:             ng.Nodegroup.NodeRole,
+		}
+
+		managedNodeRoleName := name + "-node-instance-role"
+
+		if aws.StringValue(ng.Nodegroup.NodeRole) != managedNodeRoleName {
+			ngToAdd.NodeRole = ng.Nodegroup.NodeRole
 		}
 
 		if aws.BoolValue(ngToAdd.RequestSpotInstances) {
