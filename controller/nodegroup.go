@@ -56,8 +56,8 @@ func createLaunchTemplate(clusterDisplayName string, ec2Service *ec2.EC2) (*eksv
 	}, nil
 }
 
-func createNewLaunchTemplateVersion(launchTemplateID string, group eksv1.NodeGroup, ec2Service *ec2.EC2) (*eksv1.LaunchTemplate, error) {
-	launchTemplate, err := buildLaunchTemplateData(group, ec2Service)
+func createNewLaunchTemplateVersion(launchTemplateID string, securityGroups []string, group eksv1.NodeGroup, ec2Service *ec2.EC2) (*eksv1.LaunchTemplate, error) {
+	launchTemplate, err := buildLaunchTemplateData(group, securityGroups, ec2Service)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func createNewLaunchTemplateVersion(launchTemplateID string, group eksv1.NodeGro
 	}, nil
 }
 
-func buildLaunchTemplateData(group eksv1.NodeGroup, ec2Service *ec2.EC2) (*ec2.RequestLaunchTemplateData, error) {
+func buildLaunchTemplateData(group eksv1.NodeGroup, securityGroups []string, ec2Service *ec2.EC2) (*ec2.RequestLaunchTemplateData, error) {
 	var imageID *string
 	if aws.StringValue(group.ImageID) != "" {
 		imageID = group.ImageID
@@ -102,6 +102,13 @@ func buildLaunchTemplateData(group eksv1.NodeGroup, ec2Service *ec2.EC2) (*ec2.R
 		}
 	}
 
+	// If the user specifies a custom VPC in the launch template, we are using security groups
+	// so add the security group IDs.
+	var securityGroupIds []*string
+	if securityGroups != nil {
+		securityGroupIds = aws.StringSlice(securityGroups)
+	}
+
 	launchTemplateData := &ec2.RequestLaunchTemplateData{
 		ImageId:  imageID,
 		KeyName:  group.Ec2SshKey,
@@ -115,6 +122,7 @@ func buildLaunchTemplateData(group eksv1.NodeGroup, ec2Service *ec2.EC2) (*ec2.R
 			},
 		},
 		TagSpecifications: utils.CreateTagSpecs(group.ResourceTags),
+		SecurityGroupIds:  securityGroupIds,
 	}
 	if !aws.BoolValue(group.RequestSpotInstances) {
 		launchTemplateData.InstanceType = group.InstanceType
@@ -130,7 +138,7 @@ func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg
 		aws.StringValue(upstreamNg.ImageID) != aws.StringValue(ng.ImageID) ||
 		(!aws.BoolValue(upstreamNg.RequestSpotInstances) && aws.StringValue(upstreamNg.InstanceType) != aws.StringValue(ng.InstanceType)) ||
 		!utils.CompareStringMaps(aws.StringValueMap(upstreamNg.ResourceTags), aws.StringValueMap(ng.ResourceTags)) {
-		lt, err := createNewLaunchTemplateVersion(config.Status.ManagedLaunchTemplateID, ng, ec2Service)
+		lt, err := createNewLaunchTemplateVersion(config.Status.ManagedLaunchTemplateID, config.Status.SecurityGroups, ng, ec2Service)
 		if err != nil {
 			return nil, err
 		}
@@ -219,7 +227,7 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 	if lt == nil {
 		// In this case, the user has not specified their own launch template.
 		// If the cluster doesn't have a launch template associated with it, then we create one.
-		lt, err = createNewLaunchTemplateVersion(config.Status.ManagedLaunchTemplateID, group, ec2Service)
+		lt, err = createNewLaunchTemplateVersion(config.Status.ManagedLaunchTemplateID, config.Status.SecurityGroups, group, ec2Service)
 		if err != nil {
 			return "", err
 		}
