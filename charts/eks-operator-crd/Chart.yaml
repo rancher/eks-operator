@@ -9,3 +9,5 @@ annotations:
   catalog.cattle.io/hidden: "true"
   catalog.cattle.io/release-name: rancher-eks-operator-crd
   catalog.cattle.io/os: linux
+  catalog.cattle.io/permits-os: linux,windows
+
