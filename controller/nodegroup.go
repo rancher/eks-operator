@@ -105,7 +105,7 @@ func buildLaunchTemplateData(group eksv1.NodeGroup, securityGroups []string, ec2
 	// If the user specifies a custom VPC in the launch template, we are using security groups
 	// so add the security group IDs.
 	var securityGroupIds []*string
-	if securityGroups != nil {
+	if len(securityGroups) > 0 {
 		securityGroupIds = aws.StringSlice(securityGroups)
 	}
 
