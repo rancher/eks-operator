@@ -170,3 +170,19 @@ steps:
 depends_on:
 - linux-amd64
 - linux-arm64
+
+---
+
+kind: pipeline
+name: fossa
+
+steps:
+- name: fossa
+  image: rancher/drone-fossa:latest
+  settings:
+    api_key:
+      from_secret: FOSSA_API_KEY
+  when:
+    instance:
+      - drone-publish.rancher.io
+
