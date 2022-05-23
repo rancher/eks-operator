@@ -87,6 +87,9 @@ spec:
                     minSize:
                       nullable: true
                       type: integer
+                    nodeRole:
+                      nullable: true
+                      type: string
                     nodegroupName:
                       nullable: true
                       type: string

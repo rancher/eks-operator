@@ -217,7 +217,7 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 
 	logrus.Infof("deleting node instance role for config [%s]", config.Name)
 	err = deleteStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName))
-	if err != nil {
+	if err != nil && !notFound(err) {
 		return config, fmt.Errorf("error deleting worker node stack: %v", err)
 	}
 
@@ -620,6 +620,9 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, eksService *eks
 			if ng.RequestSpotInstances == nil {
 				return fmt.Errorf(cannotBeNilError, "requestSpotInstances", *ng.NodegroupName, config.Name)
 			}
+			if ng.NodeRole == nil {
+				return fmt.Errorf(cannotBeNilError, "nodeRole", *ng.NodegroupName, config.Name)
+			}
 			if aws.BoolValue(ng.RequestSpotInstances) {
 				if len(ng.SpotInstanceTypes) == 0 {
 					return fmt.Errorf("nodegroup [%s] in cluster [%s]: spotInstanceTypes must be specified when requesting spot instances", *ng.NodegroupName, config.Name)
@@ -819,6 +822,12 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 			Tags:                 ng.Nodegroup.Tags,
 			Version:              ng.Nodegroup.Version,
 			RequestSpotInstances: aws.Bool(aws.StringValue(ng.Nodegroup.CapacityType) == eks.CapacityTypesSpot),
+		}
+
+		managedNodeRoleName := name + "-node-instance-role"
+
+		if aws.StringValue(ng.Nodegroup.NodeRole) != managedNodeRoleName {
+			ngToAdd.NodeRole = ng.Nodegroup.NodeRole
 		}
 
 		if aws.BoolValue(ngToAdd.RequestSpotInstances) {

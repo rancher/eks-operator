@@ -261,13 +261,17 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 		nodeGroupCreateInput.Subnets = aws.StringSlice(config.Status.Subnets)
 	}
 
-	finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(config.Spec.Region))
-	output, err := createStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), config.Spec.DisplayName, finalTemplate, []string{cloudformation.CapabilityCapabilityIam}, []*cloudformation.Parameter{})
-	if err != nil {
-		return "", err
+	if aws.StringValue(group.NodeRole) == "" {
+		finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(config.Spec.Region))
+		output, err := createStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), config.Spec.DisplayName, finalTemplate, []string{cloudformation.CapabilityCapabilityIam}, []*cloudformation.Parameter{})
+		if err != nil {
+			return "", err
+		}
+		nodeGroupCreateInput.NodeRole = aws.String(getParameterValueFromOutput("NodeInstanceRole", output.Stacks[0].Outputs))
+	} else {
+		nodeGroupCreateInput.NodeRole = group.NodeRole
 	}
 
-	nodeGroupCreateInput.NodeRole = aws.String(getParameterValueFromOutput("NodeInstanceRole", output.Stacks[0].Outputs))
 	_, err = eksService.CreateNodegroup(nodeGroupCreateInput)
 	if err != nil {
 		// If there was an error creating the node group, then the template version should be deleted
