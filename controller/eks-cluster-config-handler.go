@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v15 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/util/retry"
 )
 
@@ -109,13 +110,19 @@ func (h *Handler) recordError(onChange func(key string, config *eksv1.EKSCluster
 		}
 		if err != nil {
 			if !strings.Contains(err.Error(), "currently has update") {
-				// the update is valid in that the controller should retry but there is
-				// no actionable resolution as far as a user is concerned. An update
-				// that has either been initiated by eks-operator or another source is
-				// already in progress. It is possible an update is not being immediately
-				// reflected in upstream cluster state. The config object will reenter the
-				// controller and then the controller will wait for the update to finish.
+				// The update is valid in that the controller should retry but there is no actionable resolution as far
+				// as a user is concerned. An update has either been initiated by the eks-operator or another source
+				// is already in progress. It is possible an update is not being immediately reflected in the upstream
+				// cluster state. The config object will reenter the controller and then the controller will wait for
+				// the update to finish.
 				message = err.Error()
+			}
+
+			messageNoMeta, err := removeErrorMetadata(message)
+			if err != nil {
+				logrus.Errorf("Error removing metadata from failure message: %s", err.Error())
+			} else {
+				message = messageNoMeta
 			}
 		}
 
@@ -139,6 +146,54 @@ func (h *Handler) recordError(onChange func(key string, config *eksv1.EKSCluster
 		}
 		return config, err
 	}
+}
+
+func removeErrorMetadata(message string) (string, error) {
+
+	// failure message
+	type RespMetadata struct {
+		StatusCode int    `json:"statusCode"`
+		RequestID  string `json:"requestID"`
+	}
+
+	type Message struct {
+		RespMetadata  RespMetadata `json:"respMetadata"`
+		ClusterName   string       `json:"clusterName"`
+		Message_      string       `json:"message_"`
+		NodegroupName string       `json:"nodegroupName"`
+	}
+
+	// failure message with no meta
+	type FailureMessage struct {
+		ClusterName   string `json:"clusterName"`
+		Message_      string `json:"message_"`
+		NodegroupName string `json:"nodegroupName"`
+	}
+
+	// Remove the first line of the message because it usually contains the name of an Amazon EKS error type that
+	// implements Seralizable (ex: ResourceInUseException). That name is unpredictable depending on the error. We
+	// only need cluster name, message, and node group.
+	index := strings.Index(message, "{"); if index == -1 {
+		return "", fmt.Errorf("message body not formatted as expected")
+	}
+	message = message[index:]
+
+	// unmarshal json error to an object
+	in := []byte(message)
+	failureMessage := Message{}
+	err := yaml.Unmarshal(in, &failureMessage); if err != nil {
+		return "", err
+	}
+
+	// add error message fields without metadata to new object
+	failureMessageNoMeta := FailureMessage{
+		ClusterName: failureMessage.ClusterName,
+		Message_: failureMessage.Message_,
+		NodegroupName: failureMessage.NodegroupName,
+	}
+
+	str := fmt.Sprintf("%#v", failureMessageNoMeta)
+	return str, nil
 }
 
 func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
@@ -1170,7 +1225,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			if err != nil {
 				if version, ok := templateVersionsToAdd[aws.StringValue(ng.NodegroupName)]; ok {
 					// If there was an error updating the node group and a Rancher-managed launch template version was created,
-					// then the version that caused the issue needs to be delete to prevent bad versions from piling up.
+					// then the version that caused the issue needs to be deleted to prevent bad versions from piling up.
 					deleteLaunchTemplateVersions(config.Status.ManagedLaunchTemplateID, []*string{aws.String(version)}, ec2Service)
 				}
 				return config, err
