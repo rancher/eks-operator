@@ -12,6 +12,7 @@ require (
 	github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.7.0
+	golang.org/x/text v0.3.7 // indirect
 	k8s.io/api v0.21.2
 	k8s.io/apimachinery v0.21.2
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
