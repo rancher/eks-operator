@@ -131,7 +131,7 @@ func buildLaunchTemplateData(group eksv1.NodeGroup, securityGroups []string, ec2
 	return launchTemplateData, nil
 }
 
-func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg, ng eksv1.NodeGroup, ec2Service *ec2.EC2, addDefaultClusterSecurityGroup bool) (*eksv1.LaunchTemplate, error) {
+func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg, ng eksv1.NodeGroup, ec2Service *ec2.EC2, addDefaultSecurityGroup bool) (*eksv1.LaunchTemplate, error) {
 
 	if aws.StringValue(upstreamNg.UserData) != aws.StringValue(ng.UserData) ||
 		aws.StringValue(upstreamNg.Ec2SshKey) != aws.StringValue(ng.Ec2SshKey) ||
@@ -139,7 +139,7 @@ func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg
 		aws.StringValue(upstreamNg.ImageID) != aws.StringValue(ng.ImageID) ||
 		(!aws.BoolValue(upstreamNg.RequestSpotInstances) && aws.StringValue(upstreamNg.InstanceType) != aws.StringValue(ng.InstanceType)) ||
 		!utils.CompareStringMaps(aws.StringValueMap(upstreamNg.ResourceTags), aws.StringValueMap(ng.ResourceTags)) ||
-		addDefaultClusterSecurityGroup {
+		addDefaultSecurityGroup {
 
 		lt, err := createNewLaunchTemplateVersion(config.Status.ManagedLaunchTemplateID, config.Status.SecurityGroups, ng, ec2Service)
 		if err != nil {
