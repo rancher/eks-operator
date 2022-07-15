@@ -1183,6 +1183,12 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		addDefaultSecurityGroup = true
 		config = config.DeepCopy()
 		config.Status.SecurityGroups = upstreamSpec.SecurityGroups
+
+		var err error
+		config, err = h.eksCC.UpdateStatus(config)
+		if err != nil {
+			return config, err
+		}
 	}
 
 	var updateNodegroupProperties bool
