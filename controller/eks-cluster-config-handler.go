@@ -171,7 +171,7 @@ func removeErrorMetadata(message string) (string, error) {
 	}
 
 	// Remove the first line of the message because it usually contains the name of an Amazon EKS error type that
-	// implements Seralizable (ex: ResourceInUseException). That name is unpredictable depending on the error. We
+	// implements Serializable (ex: ResourceInUseException). That name is unpredictable depending on the error. We
 	// only need cluster name, message, and node group.
 	index := strings.Index(message, "{"); if index == -1 {
 		return "", fmt.Errorf("message body not formatted as expected")
@@ -359,7 +359,7 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig, eksService *eks
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(config.Spec.DisplayName, config.Status.ManagedLaunchTemplateID, clusterState, nodeGroupStates, ec2Service, true)
+	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(config.Spec.DisplayName, config.Status.ManagedLaunchTemplateID, config.Status.GeneratedNodeRole, clusterState, nodeGroupStates, ec2Service, true)
 	if err != nil {
 		return config, err
 	}
@@ -470,6 +470,11 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 }
 
 func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*eksv1.EKSClusterConfig, error) {
+	//test
+	*config = *config.DeepCopy()
+	nodeRole := ""
+	config.Spec.NodeGroups[0].NodeRole = &nodeRole
+
 	if err := h.validateCreate(config, eksService); err != nil {
 		return config, err
 	}
@@ -675,6 +680,9 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, eksService *eks
 			if ng.RequestSpotInstances == nil {
 				return fmt.Errorf(cannotBeNilError, "requestSpotInstances", *ng.NodegroupName, config.Name)
 			}
+			if ng.NodeRole == nil {
+				return fmt.Errorf(cannotBeNilError, "nodeRole", *ng.NodegroupName, config.Name)
+			}
 			if aws.BoolValue(ng.RequestSpotInstances) {
 				if len(ng.SpotInstanceTypes) == 0 {
 					return fmt.Errorf("nodegroup [%s] in cluster [%s]: spotInstanceTypes must be specified when requesting spot instances", *ng.NodegroupName, config.Name)
@@ -807,7 +815,7 @@ func (h *Handler) waitForCreationComplete(config *eksv1.EKSClusterConfig, eksSer
 }
 
 // buildUpstreamClusterState
-func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, ec2Service *ec2.EC2, includeManagedLaunchTemplate bool) (*eksv1.EKSClusterConfigSpec, string, error) {
+func BuildUpstreamClusterState(name, managedTemplateID string, generatedNodeRoleID string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, ec2Service *ec2.EC2, includeManagedLaunchTemplate bool) (*eksv1.EKSClusterConfigSpec, string, error) {
 	upstreamSpec := &eksv1.EKSClusterConfigSpec{}
 
 	upstreamSpec.Imported = true
@@ -874,6 +882,10 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 			Tags:                 ng.Nodegroup.Tags,
 			Version:              ng.Nodegroup.Version,
 			RequestSpotInstances: aws.Bool(aws.StringValue(ng.Nodegroup.CapacityType) == eks.CapacityTypesSpot),
+		}
+
+		if aws.StringValue(ng.Nodegroup.NodeRole) != generatedNodeRoleID {
+			ngToAdd.NodeRole = ng.Nodegroup.NodeRole
 		}
 
 		if aws.BoolValue(ngToAdd.RequestSpotInstances) {
@@ -1093,6 +1105,12 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		ngs[aws.StringValue(ng.NodegroupName)] = ng
 	}
 
+	//test
+	config = config.DeepCopy()
+	if len(config.Spec.NodeGroups) > 0 {
+		config.Spec.NodeGroups[0].NodeRole = new(string)
+	}
+
 	// check if node groups need to be created
 	var updatingNodegroups bool
 	templateVersionsToAdd := make(map[string]string)
@@ -1123,7 +1141,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 				return config, err
 			}
 		}
-		ltVersion, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
+		ltVersion, generatedNodeRole, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
+		config.Status.GeneratedNodeRole = generatedNodeRole
 		if err != nil {
 			return config, err
 		}
@@ -1506,7 +1525,7 @@ func deleteStack(svc *cloudformation.CloudFormation, newStyleName, oldStyleName 
 	_, err = svc.DeleteStack(&cloudformation.DeleteStackInput{
 		StackName: aws.String(name),
 	})
-	if err != nil {
+	if err != nil && !doesNotExist(err) {
 		return fmt.Errorf("error deleting stack: %v", err)
 	}
 
