@@ -1107,8 +1107,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 	//test
 	config = config.DeepCopy()
-	if len(config.Spec.NodeGroups) > 0 {
-		config.Spec.NodeGroups[0].NodeRole = new(string)
+	if len(config.Spec.NodeGroups) > 1 {
+		config.Spec.NodeGroups[1].NodeRole = new(string)
 	}
 
 	// check if node groups need to be created
@@ -1142,10 +1142,10 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			}
 		}
 		ltVersion, generatedNodeRole, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
-		config.Status.GeneratedNodeRole = generatedNodeRole
 		if err != nil {
 			return config, err
 		}
+		config.Status.GeneratedNodeRole = generatedNodeRole
 		templateVersionsToAdd[aws.StringValue(ng.NodegroupName)] = ltVersion
 		updatingNodegroups = true
 	}
