@@ -196,7 +196,7 @@ func deleteLaunchTemplateVersions(templateID string, templateVersions []*string,
 	)
 }
 
-func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksService *eks.EKS, ec2Service *ec2.EC2, svc *cloudformation.CloudFormation) (string, string, error) {
+func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksService *eks.EKS, ec2Service *ec2.EC2, svc *cloudformation.CloudFormation) (string, error) {
 	var err error
 	capacityType := eks.CapacityTypesOnDemand
 	if aws.BoolValue(group.RequestSpotInstances) {
@@ -221,7 +221,7 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 		// If the cluster doesn't have a launch template associated with it, then we create one.
 		lt, err = createNewLaunchTemplateVersion(config.Status.ManagedLaunchTemplateID, group, ec2Service)
 		if err != nil {
-			return "", "", err
+			return "", err
 		}
 	}
 
@@ -253,8 +253,6 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 		nodeGroupCreateInput.Subnets = aws.StringSlice(config.Status.Subnets)
 	}
 
-	generatedNodeRole := ""
-
 	if aws.StringValue(group.NodeRole) == "" {
 		if config.Status.GeneratedNodeRole == "" {
 			finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(config.Spec.Region))
@@ -262,11 +260,15 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 			if err != nil {
 				// If there was an error creating the node role stack, return an empty launch template
 				// version and the error.
-				return "", "", err
+				return "", err
 			}
-			generatedNodeRole = getParameterValueFromOutput("NodeInstanceRole", output.Stacks[0].Outputs)
+
+			// Ensure the change persists for the calling function. No need to save here because the
+			// config object will get saved by the calling function.
+			*config = *config.DeepCopy()
+			config.Status.GeneratedNodeRole = getParameterValueFromOutput("NodeInstanceRole", output.Stacks[0].Outputs)
 		}
-		nodeGroupCreateInput.NodeRole = aws.String(generatedNodeRole)
+		nodeGroupCreateInput.NodeRole = aws.String(config.Status.GeneratedNodeRole)
 	} else {
 		nodeGroupCreateInput.NodeRole = group.NodeRole
 	}
@@ -280,7 +282,7 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 
 	// Return the launch template version and generated node role to the calling function so they can
 	// be set on the Status.
-	return aws.StringValue(launchTemplateVersion), generatedNodeRole, err
+	return aws.StringValue(launchTemplateVersion), err
 }
 
 func deleteNodeGroups(config *eksv1.EKSClusterConfig, nodeGroups []eksv1.NodeGroup, eksService *eks.EKS) (bool, error) {

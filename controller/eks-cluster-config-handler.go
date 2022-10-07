@@ -470,11 +470,6 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 }
 
 func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*eksv1.EKSClusterConfig, error) {
-	//test
-	*config = *config.DeepCopy()
-	nodeRole := ""
-	config.Spec.NodeGroups[0].NodeRole = &nodeRole
-
 	if err := h.validateCreate(config, eksService); err != nil {
 		return config, err
 	}
@@ -878,14 +873,11 @@ func BuildUpstreamClusterState(name, managedTemplateID string, generatedNodeRole
 			DesiredSize:          ng.Nodegroup.ScalingConfig.DesiredSize,
 			MaxSize:              ng.Nodegroup.ScalingConfig.MaxSize,
 			MinSize:              ng.Nodegroup.ScalingConfig.MinSize,
+			NodeRole:             ng.Nodegroup.NodeRole,
 			Subnets:              aws.StringValueSlice(ng.Nodegroup.Subnets),
 			Tags:                 ng.Nodegroup.Tags,
 			Version:              ng.Nodegroup.Version,
 			RequestSpotInstances: aws.Bool(aws.StringValue(ng.Nodegroup.CapacityType) == eks.CapacityTypesSpot),
-		}
-
-		if aws.StringValue(ng.Nodegroup.NodeRole) != generatedNodeRoleID {
-			ngToAdd.NodeRole = ng.Nodegroup.NodeRole
 		}
 
 		if aws.BoolValue(ngToAdd.RequestSpotInstances) {
@@ -1105,12 +1097,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		ngs[aws.StringValue(ng.NodegroupName)] = ng
 	}
 
-	//test
-	config = config.DeepCopy()
-	if len(config.Spec.NodeGroups) > 1 {
-		config.Spec.NodeGroups[1].NodeRole = new(string)
-	}
-
 	// check if node groups need to be created
 	var updatingNodegroups bool
 	templateVersionsToAdd := make(map[string]string)
@@ -1141,11 +1127,11 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 				return config, err
 			}
 		}
-		ltVersion, generatedNodeRole, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
+		ltVersion, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
 		if err != nil {
 			return config, err
 		}
-		config.Status.GeneratedNodeRole = generatedNodeRole
+
 		templateVersionsToAdd[aws.StringValue(ng.NodegroupName)] = ltVersion
 		updatingNodegroups = true
 	}
