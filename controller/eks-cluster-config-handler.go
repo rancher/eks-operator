@@ -359,7 +359,7 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig, eksService *eks
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(config.Spec.DisplayName, config.Status.ManagedLaunchTemplateID, config.Status.GeneratedNodeRole, clusterState, nodeGroupStates, ec2Service, true)
+	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(config.Spec.DisplayName, config.Status.ManagedLaunchTemplateID, clusterState, nodeGroupStates, ec2Service, true)
 	if err != nil {
 		return config, err
 	}
@@ -470,6 +470,12 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 }
 
 func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*eksv1.EKSClusterConfig, error) {
+	// test
+	*config = *config.DeepCopy()
+	nodeRole := ""
+	config.Spec.NodeGroups[0].NodeRole = &nodeRole
+	config.Spec.NodeGroups[1].NodeRole = &nodeRole
+
 	if err := h.validateCreate(config, eksService); err != nil {
 		return config, err
 	}
@@ -810,7 +816,7 @@ func (h *Handler) waitForCreationComplete(config *eksv1.EKSClusterConfig, eksSer
 }
 
 // buildUpstreamClusterState
-func BuildUpstreamClusterState(name, managedTemplateID string, generatedNodeRoleID string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, ec2Service *ec2.EC2, includeManagedLaunchTemplate bool) (*eksv1.EKSClusterConfigSpec, string, error) {
+func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, ec2Service *ec2.EC2, includeManagedLaunchTemplate bool) (*eksv1.EKSClusterConfigSpec, string, error) {
 	upstreamSpec := &eksv1.EKSClusterConfigSpec{}
 
 	upstreamSpec.Imported = true
@@ -1097,8 +1103,20 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		ngs[aws.StringValue(ng.NodegroupName)] = ng
 	}
 
+	// Deep copy the config object here, so it's not copied multiple times for each
+	// nodegroup create/delete.
+	config = config.DeepCopy()
+
+	// test
+	if len(config.Spec.NodeGroups) > 1 {
+		config.Spec.NodeGroups[0].NodeRole = new(string)
+		str := "arn:aws:iam::270074865685:role/ablender-2nodegroups-node-instanc-NodeInstanceRole-SBF895G87LLA"
+		config.Spec.NodeGroups[1].NodeRole = &str
+	}
+
 	// check if node groups need to be created
 	var updatingNodegroups bool
+	var generatedNodeRole string
 	templateVersionsToAdd := make(map[string]string)
 	for _, ng := range config.Spec.NodeGroups {
 		if _, ok := upstreamNgs[aws.StringValue(ng.NodegroupName)]; ok {
@@ -1119,19 +1137,18 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		// in this case update is set right away because creating the
 		// nodegroup may not be immediate
 		if config.Status.Phase != eksConfigUpdatingPhase {
-			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
-			var err error
 			config, err = h.eksCC.UpdateStatus(config)
 			if err != nil {
 				return config, err
 			}
 		}
-		ltVersion, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
+		var ltVersion string
+		ltVersion, generatedNodeRole, err = createNodeGroup(config, ng, eksService, ec2Service, svc)
 		if err != nil {
 			return config, err
 		}
-
+		config.Status.GeneratedNodeRole = generatedNodeRole
 		templateVersionsToAdd[aws.StringValue(ng.NodegroupName)] = ltVersion
 		updatingNodegroups = true
 	}
@@ -1154,7 +1171,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 	if updatingNodegroups {
 		if len(templateVersionsToDelete) != 0 || len(templateVersionsToAdd) != 0 {
-			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
 			config.Status.TemplateVersionsToDelete = append(config.Status.TemplateVersionsToDelete, utils.ValuesFromMap(templateVersionsToDelete)...)
 			config.Status.ManagedLaunchTemplateVersions = utils.SubtractMaps(config.Status.ManagedLaunchTemplateVersions, templateVersionsToDelete)
