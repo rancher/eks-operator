@@ -470,12 +470,6 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 }
 
 func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, eksService *eks.EKS) (*eksv1.EKSClusterConfig, error) {
-	// test
-	*config = *config.DeepCopy()
-	nodeRole := ""
-	config.Spec.NodeGroups[0].NodeRole = &nodeRole
-	config.Spec.NodeGroups[1].NodeRole = &nodeRole
-
 	if err := h.validateCreate(config, eksService); err != nil {
 		return config, err
 	}
@@ -1106,13 +1100,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 	// Deep copy the config object here, so it's not copied multiple times for each
 	// nodegroup create/delete.
 	config = config.DeepCopy()
-
-	// test
-	if len(config.Spec.NodeGroups) > 1 {
-		config.Spec.NodeGroups[0].NodeRole = new(string)
-		str := "arn:aws:iam::270074865685:role/ablender-2nodegroups-node-instanc-NodeInstanceRole-SBF895G87LLA"
-		config.Spec.NodeGroups[1].NodeRole = &str
-	}
 
 	// check if node groups need to be created
 	var updatingNodegroups bool
