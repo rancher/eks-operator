@@ -1103,7 +1103,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 	// check if node groups need to be created
 	var updatingNodegroups bool
-	var generatedNodeRole string
 	templateVersionsToAdd := make(map[string]string)
 	for _, ng := range config.Spec.NodeGroups {
 		if _, ok := upstreamNgs[aws.StringValue(ng.NodegroupName)]; ok {
@@ -1130,12 +1129,12 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 				return config, err
 			}
 		}
-		ltVersion, role, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
+		ltVersion, generatedNodeRole, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
 
-		// if the generated node role hasn't been set yet and it just got generated, save
-		// it to set on the Status
-		if generatedNodeRole == "" && role != "" {
-			generatedNodeRole = role
+		// if a generated node role has not been set on the Status yet and it
+		// was just generated, set it
+		if config.Status.GeneratedNodeRole == "" && generatedNodeRole != "" {
+			config.Status.GeneratedNodeRole = generatedNodeRole
 		}
 		if err != nil {
 			return config, err
@@ -1163,7 +1162,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 	if updatingNodegroups {
 		if len(templateVersionsToDelete) != 0 || len(templateVersionsToAdd) != 0 {
 			config.Status.Phase = eksConfigUpdatingPhase
-			config.Status.GeneratedNodeRole = generatedNodeRole
 			config.Status.TemplateVersionsToDelete = append(config.Status.TemplateVersionsToDelete, utils.ValuesFromMap(templateVersionsToDelete)...)
 			config.Status.ManagedLaunchTemplateVersions = utils.SubtractMaps(config.Status.ManagedLaunchTemplateVersions, templateVersionsToDelete)
 			config.Status.ManagedLaunchTemplateVersions = utils.MergeMaps(config.Status.ManagedLaunchTemplateVersions, templateVersionsToAdd)
