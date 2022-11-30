@@ -171,7 +171,7 @@ func removeErrorMetadata(message string) (string, error) {
 	}
 
 	// Remove the first line of the message because it usually contains the name of an Amazon EKS error type that
-	// implements Seralizable (ex: ResourceInUseException). That name is unpredictable depending on the error. We
+	// implements Serializable (ex: ResourceInUseException). That name is unpredictable depending on the error. We
 	// only need cluster name, message, and node group.
 	index := strings.Index(message, "{"); if index == -1 {
 		return "", fmt.Errorf("message body not formatted as expected")
@@ -675,6 +675,9 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, eksService *eks
 			if ng.RequestSpotInstances == nil {
 				return fmt.Errorf(cannotBeNilError, "requestSpotInstances", *ng.NodegroupName, config.Name)
 			}
+			if ng.NodeRole == nil {
+				return fmt.Errorf(cannotBeNilError, "nodeRole", *ng.NodegroupName, config.Name)
+			}
 			if aws.BoolValue(ng.RequestSpotInstances) {
 				if len(ng.SpotInstanceTypes) == 0 {
 					return fmt.Errorf("nodegroup [%s] in cluster [%s]: spotInstanceTypes must be specified when requesting spot instances", *ng.NodegroupName, config.Name)
@@ -870,6 +873,7 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 			DesiredSize:          ng.Nodegroup.ScalingConfig.DesiredSize,
 			MaxSize:              ng.Nodegroup.ScalingConfig.MaxSize,
 			MinSize:              ng.Nodegroup.ScalingConfig.MinSize,
+			NodeRole:             ng.Nodegroup.NodeRole,
 			Subnets:              aws.StringValueSlice(ng.Nodegroup.Subnets),
 			Tags:                 ng.Nodegroup.Tags,
 			Version:              ng.Nodegroup.Version,
@@ -1093,6 +1097,10 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		ngs[aws.StringValue(ng.NodegroupName)] = ng
 	}
 
+	// Deep copy the config object here, so it's not copied multiple times for each
+	// nodegroup create/delete.
+	config = config.DeepCopy()
+
 	// check if node groups need to be created
 	var updatingNodegroups bool
 	templateVersionsToAdd := make(map[string]string)
@@ -1115,15 +1123,19 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		// in this case update is set right away because creating the
 		// nodegroup may not be immediate
 		if config.Status.Phase != eksConfigUpdatingPhase {
-			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
-			var err error
 			config, err = h.eksCC.UpdateStatus(config)
 			if err != nil {
 				return config, err
 			}
 		}
-		ltVersion, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
+		ltVersion, generatedNodeRole, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
+
+		// if a generated node role has not been set on the Status yet and it
+		// was just generated, set it
+		if config.Status.GeneratedNodeRole == "" && generatedNodeRole != "" {
+			config.Status.GeneratedNodeRole = generatedNodeRole
+		}
 		if err != nil {
 			return config, err
 		}
@@ -1149,7 +1161,6 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 	if updatingNodegroups {
 		if len(templateVersionsToDelete) != 0 || len(templateVersionsToAdd) != 0 {
-			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
 			config.Status.TemplateVersionsToDelete = append(config.Status.TemplateVersionsToDelete, utils.ValuesFromMap(templateVersionsToDelete)...)
 			config.Status.ManagedLaunchTemplateVersions = utils.SubtractMaps(config.Status.ManagedLaunchTemplateVersions, templateVersionsToDelete)
@@ -1506,7 +1517,7 @@ func deleteStack(svc *cloudformation.CloudFormation, newStyleName, oldStyleName 
 	_, err = svc.DeleteStack(&cloudformation.DeleteStackInput{
 		StackName: aws.String(name),
 	})
-	if err != nil {
+	if err != nil && !doesNotExist(err) {
 		return fmt.Errorf("error deleting stack: %v", err)
 	}
 

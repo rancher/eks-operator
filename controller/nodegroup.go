@@ -196,7 +196,7 @@ func deleteLaunchTemplateVersions(templateID string, templateVersions []*string,
 	)
 }
 
-func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksService *eks.EKS, ec2Service *ec2.EC2, svc *cloudformation.CloudFormation) (string, error) {
+func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksService *eks.EKS, ec2Service *ec2.EC2, svc *cloudformation.CloudFormation) (string, string, error) {
 	var err error
 	capacityType := eks.CapacityTypesOnDemand
 	if aws.BoolValue(group.RequestSpotInstances) {
@@ -221,7 +221,7 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 		// If the cluster doesn't have a launch template associated with it, then we create one.
 		lt, err = createNewLaunchTemplateVersion(config.Status.ManagedLaunchTemplateID, group, ec2Service)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
@@ -253,13 +253,24 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 		nodeGroupCreateInput.Subnets = aws.StringSlice(config.Status.Subnets)
 	}
 
-	finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(config.Spec.Region))
-	output, err := createStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), config.Spec.DisplayName, finalTemplate, []string{cloudformation.CapabilityCapabilityIam}, []*cloudformation.Parameter{})
-	if err != nil {
-		return "", err
+	generatedNodeRole := config.Status.GeneratedNodeRole
+
+	if aws.StringValue(group.NodeRole) == "" {
+		if config.Status.GeneratedNodeRole == "" {
+			finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(config.Spec.Region))
+			output, err := createStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), config.Spec.DisplayName, finalTemplate, []string{cloudformation.CapabilityCapabilityIam}, []*cloudformation.Parameter{})
+			if err != nil {
+				// If there was an error creating the node role stack, return an empty launch template
+				// version and the error.
+				return "", "", err
+			}
+			generatedNodeRole = getParameterValueFromOutput("NodeInstanceRole", output.Stacks[0].Outputs)
+		}
+		nodeGroupCreateInput.NodeRole = aws.String(generatedNodeRole)
+	} else {
+		nodeGroupCreateInput.NodeRole = group.NodeRole
 	}
 
-	nodeGroupCreateInput.NodeRole = aws.String(getParameterValueFromOutput("NodeInstanceRole", output.Stacks[0].Outputs))
 	_, err = eksService.CreateNodegroup(nodeGroupCreateInput)
 	if err != nil {
 		// If there was an error creating the node group, then the template version should be deleted
@@ -267,7 +278,9 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 		deleteLaunchTemplateVersions(*lt.ID, []*string{launchTemplateVersion}, ec2Service)
 	}
 
-	return aws.StringValue(launchTemplateVersion), err
+	// Return the launch template version and generated node role to the calling function so they can
+	// be set on the Status.
+	return aws.StringValue(launchTemplateVersion), generatedNodeRole, err
 }
 
 func deleteNodeGroups(config *eksv1.EKSClusterConfig, nodeGroups []eksv1.NodeGroup, eksService *eks.EKS) (bool, error) {
