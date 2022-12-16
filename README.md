@@ -40,4 +40,4 @@ Submit a [rancher/rancher PR](https://github.com/rancher/rancher/pull/39745) to 
 
 #### How do I unRC?
 
-UnRC is the process of removing the rc from a KEv2 operator tag and means the released version is stable and ready for use. Release the KEv2 operator but instead of bumping the rc, remove the rc. For example, if the latest release of EKS operator is `v1.1.6-rc1`, release the next version without the rc which would be `v1.1.7`.
+UnRC is the process of removing the rc from a KEv2 operator tag and means the released version is stable and ready for use. Release the KEv2 operator but instead of bumping the rc, remove the rc. For example, if the latest release of EKS operator is `v1.1.6-rc1`, release the next version without the rc which would be `v1.1.6`.
