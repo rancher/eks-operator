@@ -4,21 +4,9 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 )
-
-func alreadyExistsInCloudFormationError(err error) bool {
-	if aerr, ok := err.(awserr.Error); ok {
-		switch aerr.Code() {
-		case cloudformation.ErrCodeAlreadyExistsException:
-			return true
-		}
-	}
-
-	return false
-}
 
 func isClusterConflict(err error) bool {
 	if awsErr, ok := err.(awserr.Error); ok {
