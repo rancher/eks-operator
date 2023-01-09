@@ -60,9 +60,9 @@ type EKSClusterConfigStatus struct {
 	ManagedLaunchTemplateVersions map[string]string `json:"managedLaunchTemplateVersions"`
 	TemplateVersionsToDelete      []string          `json:"templateVersionsToDelete"`
 	// describes how the above network fields were provided. Valid values are provided and generated
-	NetworkFieldsSource           string            `json:"networkFieldsSource"`
-	FailureMessage                string            `json:"failureMessage"`
-	GeneratedNodeRole             string            `json:"generatedNodeRole"`
+	NetworkFieldsSource string `json:"networkFieldsSource"`
+	FailureMessage      string `json:"failureMessage"`
+	GeneratedNodeRole   string `json:"generatedNodeRole"`
 }
 
 type NodeGroup struct {

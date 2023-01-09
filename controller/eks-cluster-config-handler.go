@@ -26,7 +26,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v15 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/util/retry"
 )
@@ -159,21 +158,22 @@ func removeErrorMetadata(message string) (string, error) {
 	type Message struct {
 		RespMetadata  RespMetadata `json:"respMetadata"`
 		ClusterName   string       `json:"clusterName"`
-		Message_      string       `json:"message_"`
+		Message_      string       `json:"message_"` // nolint:revive
 		NodegroupName string       `json:"nodegroupName"`
 	}
 
 	// failure message with no meta
 	type FailureMessage struct {
 		ClusterName   string `json:"clusterName"`
-		Message_      string `json:"message_"`
+		Message_      string `json:"message_"` // nolint:revive
 		NodegroupName string `json:"nodegroupName"`
 	}
 
 	// Remove the first line of the message because it usually contains the name of an Amazon EKS error type that
 	// implements Serializable (ex: ResourceInUseException). That name is unpredictable depending on the error. We
 	// only need cluster name, message, and node group.
-	index := strings.Index(message, "{"); if index == -1 {
+	index := strings.Index(message, "{")
+	if index == -1 {
 		return "", fmt.Errorf("message body not formatted as expected")
 	}
 	message = message[index:]
@@ -181,14 +181,15 @@ func removeErrorMetadata(message string) (string, error) {
 	// unmarshal json error to an object
 	in := []byte(message)
 	failureMessage := Message{}
-	err := yaml.Unmarshal(in, &failureMessage); if err != nil {
+	err := yaml.Unmarshal(in, &failureMessage)
+	if err != nil {
 		return "", err
 	}
 
 	// add error message fields without metadata to new object
 	failureMessageNoMeta := FailureMessage{
-		ClusterName: failureMessage.ClusterName,
-		Message_: failureMessage.Message_,
+		ClusterName:   failureMessage.ClusterName,
+		Message_:      failureMessage.Message_,
 		NodegroupName: failureMessage.NodegroupName,
 	}
 
@@ -573,7 +574,7 @@ func (h *Handler) create(config *eksv1.EKSClusterConfig, sess *session.Session, 
 
 func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, eksService *eks.EKS) error {
 	// Check for existing eksclusterconfigs with the same display name
-	eksConfigs, err := h.eksCC.List(config.Namespace, v15.ListOptions{})
+	eksConfigs, err := h.eksCC.List(config.Namespace, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("cannot list eksclusterconfigs for display name check")
 	}
@@ -1344,10 +1345,10 @@ func (h *Handler) createCASecret(config *eksv1.EKSClusterConfig, clusterState *e
 
 	_, err := h.secrets.Create(
 		&v1.Secret{
-			ObjectMeta: v15.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      config.Name,
 				Namespace: config.Namespace,
-				OwnerReferences: []v15.OwnerReference{
+				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion: eksv1.SchemeGroupVersion.String(),
 						Kind:       eksClusterConfigKind,
