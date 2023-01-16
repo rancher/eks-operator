@@ -38,6 +38,7 @@ linters-settings:
       - name: unused-parameter
       - name: unreachable-code
       - name: redefines-builtin-id
+      - name: unexported-return
 issues:
   exclude-rules:
   - linters:

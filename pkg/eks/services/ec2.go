@@ -19,7 +19,7 @@ type ec2Service struct {
 	svc *ec2.EC2
 }
 
-func NewEC2Service(sess *session.Session) *ec2Service {
+func NewEC2Service(sess *session.Session) EC2ServiceInterface {
 	return &ec2Service{
 		svc: ec2.New(sess),
 	}

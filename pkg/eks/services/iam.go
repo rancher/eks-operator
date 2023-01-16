@@ -13,7 +13,7 @@ type iamService struct {
 	svc *iam.IAM
 }
 
-func NewIAMService(sess *session.Session) *iamService {
+func NewIAMService(sess *session.Session) IAMServiceInterface {
 	return &iamService{
 		svc: iam.New(sess),
 	}

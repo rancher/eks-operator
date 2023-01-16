@@ -26,7 +26,7 @@ type eksService struct {
 	svc *eks.EKS
 }
 
-func NewEKSService(sess *session.Session) *eksService {
+func NewEKSService(sess *session.Session) EKSServiceInterface {
 	return &eksService{
 		svc: eks.New(sess),
 	}

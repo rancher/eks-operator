@@ -16,7 +16,7 @@ type cloudFormationService struct {
 	svc *cloudformation.CloudFormation
 }
 
-func NewCloudFormationService(sess *session.Session) *cloudFormationService {
+func NewCloudFormationService(sess *session.Session) CloudFormationServiceInterface {
 	return &cloudFormationService{
 		svc: cloudformation.New(sess),
 	}
