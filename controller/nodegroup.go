@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
+	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/templates"
 	"github.com/rancher/eks-operator/utils"
 	"github.com/sirupsen/logrus"
@@ -24,7 +25,7 @@ const (
 	defaultStorageDeviceName = "/dev/xvda"
 )
 
-func createLaunchTemplate(clusterDisplayName string, ec2Service *ec2.EC2) (*eksv1.LaunchTemplate, error) {
+func createLaunchTemplate(clusterDisplayName string, ec2Service services.EC2ServiceInterface) (*eksv1.LaunchTemplate, error) {
 	// The first version of the rancher-managed launch template will be the default version.
 	// Since the default version cannot be deleted until the launch template is deleted, it will not be used for any node group.
 	// Also, launch templates cannot be created blank, so fake userdata is added to the first version.
@@ -56,7 +57,7 @@ func createLaunchTemplate(clusterDisplayName string, ec2Service *ec2.EC2) (*eksv
 	}, nil
 }
 
-func createNewLaunchTemplateVersion(launchTemplateID string, group eksv1.NodeGroup, ec2Service *ec2.EC2) (*eksv1.LaunchTemplate, error) {
+func createNewLaunchTemplateVersion(launchTemplateID string, group eksv1.NodeGroup, ec2Service services.EC2ServiceInterface) (*eksv1.LaunchTemplate, error) {
 	launchTemplate, err := buildLaunchTemplateData(group, ec2Service)
 	if err != nil {
 		return nil, err
@@ -79,7 +80,7 @@ func createNewLaunchTemplateVersion(launchTemplateID string, group eksv1.NodeGro
 	}, nil
 }
 
-func buildLaunchTemplateData(group eksv1.NodeGroup, ec2Service *ec2.EC2) (*ec2.RequestLaunchTemplateData, error) {
+func buildLaunchTemplateData(group eksv1.NodeGroup, ec2Service services.EC2ServiceInterface) (*ec2.RequestLaunchTemplateData, error) {
 	var imageID *string
 	if aws.StringValue(group.ImageID) != "" {
 		imageID = group.ImageID
@@ -123,7 +124,7 @@ func buildLaunchTemplateData(group eksv1.NodeGroup, ec2Service *ec2.EC2) (*ec2.R
 	return launchTemplateData, nil
 }
 
-func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg, ng eksv1.NodeGroup, ec2Service *ec2.EC2) (*eksv1.LaunchTemplate, error) {
+func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg, ng eksv1.NodeGroup, ec2Service services.EC2ServiceInterface) (*eksv1.LaunchTemplate, error) {
 	if aws.StringValue(upstreamNg.UserData) != aws.StringValue(ng.UserData) ||
 		aws.StringValue(upstreamNg.Ec2SshKey) != aws.StringValue(ng.Ec2SshKey) ||
 		aws.Int64Value(upstreamNg.DiskSize) != aws.Int64Value(ng.DiskSize) ||
@@ -141,7 +142,7 @@ func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg
 	return nil, nil
 }
 
-func deleteLaunchTemplate(templateID string, ec2Service *ec2.EC2) {
+func deleteLaunchTemplate(templateID string, ec2Service services.EC2ServiceInterface) {
 	var err error
 	for i := 0; i < 5; i++ {
 		_, err = ec2Service.DeleteLaunchTemplate(&ec2.DeleteLaunchTemplateInput{
@@ -161,7 +162,7 @@ func deleteLaunchTemplate(templateID string, ec2Service *ec2.EC2) {
 	)
 }
 
-func deleteLaunchTemplateVersions(templateID string, templateVersions []*string, ec2Service *ec2.EC2) {
+func deleteLaunchTemplateVersions(templateID string, templateVersions []*string, ec2Service services.EC2ServiceInterface) {
 	launchTemplateDeleteVersionInput := &ec2.DeleteLaunchTemplateVersionsInput{
 		LaunchTemplateId: aws.String(templateID),
 		Versions:         templateVersions,
@@ -196,7 +197,8 @@ func deleteLaunchTemplateVersions(templateID string, templateVersions []*string,
 	)
 }
 
-func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksService *eks.EKS, ec2Service *ec2.EC2, svc *cloudformation.CloudFormation) (string, string, error) {
+func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksService services.EKSServiceInterface,
+	ec2Service services.EC2ServiceInterface, svc services.CloudFormationServiceInterface) (string, string, error) {
 	var err error
 	capacityType := eks.CapacityTypesOnDemand
 	if aws.BoolValue(group.RequestSpotInstances) {
@@ -283,7 +285,7 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 	return aws.StringValue(launchTemplateVersion), generatedNodeRole, err
 }
 
-func deleteNodeGroups(config *eksv1.EKSClusterConfig, nodeGroups []eksv1.NodeGroup, eksService *eks.EKS) (bool, error) {
+func deleteNodeGroups(config *eksv1.EKSClusterConfig, nodeGroups []eksv1.NodeGroup, eksService services.EKSServiceInterface) (bool, error) {
 	var waitingForNodegroupDeletion bool
 	for _, ng := range nodeGroups {
 		_, deleteInProgress, err := deleteNodeGroup(config, ng, eksService)
@@ -296,7 +298,7 @@ func deleteNodeGroups(config *eksv1.EKSClusterConfig, nodeGroups []eksv1.NodeGro
 	return waitingForNodegroupDeletion, nil
 }
 
-func deleteNodeGroup(config *eksv1.EKSClusterConfig, ng eksv1.NodeGroup, eksService *eks.EKS) (*string, bool, error) {
+func deleteNodeGroup(config *eksv1.EKSClusterConfig, ng eksv1.NodeGroup, eksService services.EKSServiceInterface) (*string, bool, error) {
 	var templateVersionToDelete *string
 	ngState, err := eksService.DescribeNodegroup(
 		&eks.DescribeNodegroupInput{
@@ -329,7 +331,7 @@ func deleteNodeGroup(config *eksv1.EKSClusterConfig, ng eksv1.NodeGroup, eksServ
 	return templateVersionToDelete, true, err
 }
 
-func getImageRootDeviceName(imageID *string, ec2Service *ec2.EC2) (*string, error) {
+func getImageRootDeviceName(imageID *string, ec2Service services.EC2ServiceInterface) (*string, error) {
 	describeOutput, err := ec2Service.DescribeImages(&ec2.DescribeImagesInput{ImageIds: []*string{imageID}})
 	if err != nil {
 		return nil, err

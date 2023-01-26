@@ -31,7 +31,6 @@ linters-settings:
       - name: range
       - name: receiver-naming
       - name: time-naming
-      - name: unexported-return
       - name: indent-error-flow
       - name: errorf
       - name: empty-block
@@ -39,3 +38,10 @@ linters-settings:
       - name: unused-parameter
       - name: unreachable-code
       - name: redefines-builtin-id
+      - name: unexported-return
+issues:
+  exclude-rules:
+  - linters:
+    - revive
+    text: "var-naming: don't use an underscore in package name"
+    path: 'mock(\w+)/doc.go$'
