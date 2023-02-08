@@ -77,8 +77,8 @@ verify-generate: generate
 	fi
 
 .PHONY: test
-test:
-	go test ./pkg/... ./controller/...
+test: $(GINKGO)
+	$(GINKGO) -v -r --trace --race ./pkg/... ./controller/...
 
 .PHONY: clean
 clean:
