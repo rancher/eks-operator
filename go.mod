@@ -6,7 +6,7 @@ replace k8s.io/client-go => k8s.io/client-go v0.25.4
 
 require (
 	github.com/aws/aws-sdk-go v1.44.83
-	github.com/blang/semver v3.5.0+incompatible
+	github.com/blang/semver v3.5.1+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
 	github.com/rancher/wrangler v1.0.2
