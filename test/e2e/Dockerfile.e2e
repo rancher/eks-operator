@@ -1,0 +1,26 @@
+FROM registry.suse.com/bci/golang:1.19 AS build
+RUN zypper -n install -l openssl-devel
+WORKDIR /src
+COPY go.mod go.sum /src/
+RUN go mod download
+COPY main.go /src/
+COPY controller /src/controller
+COPY pkg /src/pkg
+COPY templates /src/templates
+COPY utils /src/utils
+FROM build AS build-operator
+ARG TAG=v0.0.0
+ARG COMMIT=""
+ARG COMMITDATE=""
+ENV CGO_ENABLED=0
+RUN go build  \
+    -ldflags "-w -s  \
+    -X github.com/rancher/eks-operator/pkg/version.Version=$TAG  \
+    -X github.com/rancher/eks-operator/pkg/version.Commit=$COMMIT  \
+    -X github.com/rancher/eks-operator/pkg/version.CommitDate=$COMMITDATE"  \
+    -o /usr/sbin/eks-operator .
+
+FROM scratch AS eks-operator
+COPY --from=build /var/lib/ca-certificates/ca-bundle.pem /etc/ssl/certs/ca-certificates.crt
+COPY --from=build-operator /usr/sbin/eks-operator /usr/sbin/eks-operator
+ENTRYPOINT ["/usr/sbin/eks-operator"]
