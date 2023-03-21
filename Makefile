@@ -30,6 +30,27 @@ operator:
 generate-go: $(MOCKGEN)
 	go generate ./pkg/eks/...
 
+.PHONY: generate-crd
+generate-crd: $(MOCKGEN)
+	go generate main.go
+
+.PHONY: generate
+generate:
+	$(MAKE) generate-go
+	$(MAKE) generate-crd
+
+ALL_VERIFY_CHECKS = generate
+
+.PHONY: verify
+verify: $(addprefix verify-,$(ALL_VERIFY_CHECKS))
+
+.PHONY: verify-generate
+verify-generate: generate
+	@if !(git diff --quiet HEAD); then \
+		git diff; \
+		echo "generated files are out of date, run make generate"; exit 1; \
+	fi
+
 .PHONY: test
 test:
 	go test ./...
