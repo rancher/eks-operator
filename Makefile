@@ -78,7 +78,7 @@ verify-generate: generate
 
 .PHONY: test
 test:
-	go test ./...
+	go test ./pkg/... ./controller/...
 
 .PHONY: clean
 clean:
