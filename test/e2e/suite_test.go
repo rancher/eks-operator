@@ -3,12 +3,16 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"embed"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	kubectl "github.com/rancher-sandbox/ele-testhelpers/kubectl"
@@ -21,6 +25,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apiserver/pkg/storage/names"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	runtimeconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -56,13 +61,13 @@ var (
 	}
 
 	pollInterval = 10 * time.Second
-	waitLong     = 15 * time.Minute
+	waitLong     = 25 * time.Minute
 )
 
 // Cluster Templates
 var (
-	// //go:embed templates/* TODO: uncomment with first tests
-	// templates embed.FS
+	//go:embed templates/*
+	templates embed.FS
 
 	clusterTemplates         = map[string]*eksv1.EKSClusterConfig{}
 	basicClusterTemplateName = "basic-cluster"
@@ -224,26 +229,28 @@ var _ = BeforeSuite(func() {
 		}
 	})
 
-	// By("Reading cluster templates", func() { TODO: uncomment with first tests
-	// 	assets, err := templates.ReadDir("templates")
-	// 	Expect(err).ToNot(HaveOccurred())
+	By("Reading cluster templates", func() {
+		assets, err := templates.ReadDir("templates")
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	for _, asset := range assets {
-	// 		b, err := templates.ReadFile(path.Join("templates", asset.Name()))
-	// 		Expect(err).ToNot(HaveOccurred())
+		for _, asset := range assets {
+			b, err := templates.ReadFile(path.Join("templates", asset.Name()))
+			Expect(err).ToNot(HaveOccurred())
 
-	// 		eksCluster := &eksv1.EKSClusterConfig{}
-	// 		Expect(yaml.Unmarshal(b, eksCluster)).To(Succeed())
+			eksCluster := &eksv1.EKSClusterConfig{}
+			Expect(yaml.Unmarshal(b, eksCluster)).To(Succeed())
 
-	// 		name := strings.TrimSuffix(asset.Name(), ".yaml")
-	// 		generatedName := names.SimpleNameGenerator.GenerateName(name + "-")
-	// 		eksCluster.Name = generatedName
-	// 		eksCluster.Spec.DisplayName = generatedName
-	// 		eksCluster.Spec.Region = e2eCfg.AWSRegion
+			name := strings.TrimSuffix(asset.Name(), ".yaml")
+			generatedName := names.SimpleNameGenerator.GenerateName(name + "-")
+			eksCluster.Name = generatedName
+			eksCluster.Spec.DisplayName = generatedName
+			eksCluster.Spec.Region = e2eCfg.AWSRegion
+			Expect(eksCluster.Spec.NodeGroups).To(HaveLen(1))
+			eksCluster.Spec.NodeGroups[0].NodeRole = aws.String("")
 
-	// 		clusterTemplates[name] = eksCluster
-	// 	}
-	// })
+			clusterTemplates[name] = eksCluster
+		}
+	})
 })
 
 var _ = AfterSuite(func() {
