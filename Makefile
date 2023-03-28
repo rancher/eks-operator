@@ -26,7 +26,7 @@ MOCKGEN_VER := v1.6.0
 MOCKGEN_BIN := mockgen
 MOCKGEN := $(BIN_DIR)/$(MOCKGEN_BIN)-$(MOCKGEN_VER)
 
-GINKGO_VER := v2.9.1
+GINKGO_VER := v2.9.2
 GINKGO_BIN := ginkgo
 GINKGO := $(BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 
@@ -78,7 +78,7 @@ verify-generate: generate
 
 .PHONY: test
 test:
-	go test ./...
+	go test ./pkg/... ./controller/...
 
 .PHONY: clean
 clean:
