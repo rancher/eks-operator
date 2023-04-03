@@ -24,7 +24,8 @@ var _ = Describe("BasicCluster", func() {
 
 		cluster = &managementv3.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: eksConfig.Name,
+				Name:      eksConfig.Name,
+				Namespace: eksClusterConfigNamespace,
 			},
 			Spec: managementv3.ClusterSpec{
 				EKSConfig: &eksConfig.Spec,
