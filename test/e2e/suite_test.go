@@ -302,10 +302,16 @@ var _ = AfterSuite(func() {
 
 	for _, rancherCluster := range rancherClusterList.Items {
 		Expect(cl.Delete(ctx, &rancherCluster)).To(Succeed())
+		Expect(cl.Delete(ctx, &eksv1.EKSClusterConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      rancherCluster.Name,
+				Namespace: eksClusterConfigNamespace,
+			},
+		})).To(Succeed())
 		Eventually(func() error {
 			return cl.Get(ctx, runtimeclient.ObjectKey{
 				Name:      rancherCluster.Name,
-				Namespace: rancherCluster.Namespace,
+				Namespace: eksClusterConfigNamespace,
 			}, &eksv1.EKSClusterConfig{})
 		}, waitLong, pollInterval).ShouldNot(Succeed())
 	}
