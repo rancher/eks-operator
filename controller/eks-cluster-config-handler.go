@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/blang/semver"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
+	awsservices "github.com/rancher/eks-operator/pkg/eks"
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	v12 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/templates"
@@ -364,69 +365,6 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 	return h.updateUpstreamClusterState(upstreamSpec, config, clusterARN, nodegroupARNs, h.awsServices.eks, h.awsServices.ec2, h.awsServices.cloudformation)
 }
 
-func createStack(svc services.CloudFormationServiceInterface, name string, displayName string,
-	templateBody string, capabilities []string, parameters []*cloudformation.Parameter) (*cloudformation.DescribeStacksOutput, error) {
-	_, err := svc.CreateStack(&cloudformation.CreateStackInput{
-		StackName:    aws.String(name),
-		TemplateBody: aws.String(templateBody),
-		Capabilities: aws.StringSlice(capabilities),
-		Parameters:   parameters,
-		Tags: []*cloudformation.Tag{
-			{Key: aws.String("displayName"), Value: aws.String(displayName)},
-		},
-	})
-	if err != nil && !alreadyExistsInCloudFormationError(err) {
-		return nil, fmt.Errorf("error creating master: %v", err)
-	}
-
-	var stack *cloudformation.DescribeStacksOutput
-	status := "CREATE_IN_PROGRESS"
-
-	for status == "CREATE_IN_PROGRESS" {
-		time.Sleep(time.Second * 5)
-		stack, err = svc.DescribeStacks(&cloudformation.DescribeStacksInput{
-			StackName: aws.String(name),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error polling stack info: %v", err)
-		}
-
-		status = *stack.Stacks[0].StackStatus
-	}
-
-	if len(stack.Stacks) == 0 {
-		return nil, fmt.Errorf("stack did not have output: %v", err)
-	}
-
-	if status != "CREATE_COMPLETE" {
-		reason := "reason unknown"
-		events, err := svc.DescribeStackEvents(&cloudformation.DescribeStackEventsInput{
-			StackName: aws.String(name),
-		})
-		if err == nil {
-			for _, event := range events.StackEvents {
-				// guard against nil pointer dereference
-				if event.ResourceStatus == nil || event.LogicalResourceId == nil || event.ResourceStatusReason == nil {
-					continue
-				}
-
-				if *event.ResourceStatus == "CREATE_FAILED" {
-					reason = *event.ResourceStatusReason
-					break
-				}
-
-				if *event.ResourceStatus == "ROLLBACK_IN_PROGRESS" {
-					reason = *event.ResourceStatusReason
-					// do not break so that CREATE_FAILED takes priority
-				}
-			}
-		}
-		return nil, fmt.Errorf("stack failed to create: %v", reason)
-	}
-
-	return stack, nil
-}
-
 func validateUpdate(config *eksv1.EKSClusterConfig) error {
 	var clusterVersion *semver.Version
 	if config.Spec.KubernetesVersion != nil {
@@ -477,72 +415,23 @@ func (h *Handler) create(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfi
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	displayName := config.Spec.DisplayName
-	var err error
-
-	config, err = h.generateAndSetNetworking(config)
+	config, err := h.generateAndSetNetworking(config)
 	if err != nil {
-		return config, err
+		return config, fmt.Errorf("error generating and setting networking: %w", err)
 	}
 
-	securityGroups := aws.StringSlice(config.Status.SecurityGroups)
-	subnetIds := aws.StringSlice(config.Status.Subnets)
-
-	var roleARN string
-	if aws.StringValue(config.Spec.ServiceRole) == "" {
-		logrus.Infof("Creating service role")
-
-		stack, err := createStack(h.awsServices.cloudformation, getServiceRoleName(config.Spec.DisplayName), displayName, templates.ServiceRoleTemplate,
-			[]string{cloudformation.CapabilityCapabilityIam}, nil)
-		if err != nil {
-			return config, fmt.Errorf("error creating stack with service role template: %v", err)
-		}
-
-		roleARN = getParameterValueFromOutput("RoleArn", stack.Stacks[0].Outputs)
-		if roleARN == "" {
-			return config, fmt.Errorf("no RoleARN was returned")
-		}
-	} else {
-		logrus.Infof("Retrieving existing service role")
-		role, err := h.awsServices.iam.GetRole(&iam.GetRoleInput{
-			RoleName: config.Spec.ServiceRole,
-		})
-		if err != nil {
-			return config, fmt.Errorf("error getting role: %v", err)
-		}
-
-		roleARN = *role.Role.Arn
+	roleARN, err := h.createOrGetServiceRole(config)
+	if err != nil {
+		return config, fmt.Errorf("error creating or getting service role: %w", err)
 	}
 
-	createClusterInput := &eks.CreateClusterInput{
-		Name:    aws.String(config.Spec.DisplayName),
-		RoleArn: aws.String(roleARN),
-		ResourcesVpcConfig: &eks.VpcConfigRequest{
-			EndpointPrivateAccess: config.Spec.PrivateAccess,
-			EndpointPublicAccess:  config.Spec.PublicAccess,
-			SecurityGroupIds:      securityGroups,
-			SubnetIds:             subnetIds,
-			PublicAccessCidrs:     getPublicAccessCidrs(config.Spec.PublicAccessSources),
-		},
-		Tags:    getTags(config.Spec.Tags),
-		Logging: getLogging(config.Spec.LoggingTypes),
-		Version: config.Spec.KubernetesVersion,
-	}
-
-	if aws.BoolValue(config.Spec.SecretsEncryption) {
-		createClusterInput.EncryptionConfig = []*eks.EncryptionConfig{
-			{
-				Provider: &eks.Provider{
-					KeyArn: config.Spec.KmsKey,
-				},
-				Resources: aws.StringSlice([]string{"secrets"}),
-			},
-		}
-	}
-
-	if _, err := h.awsServices.eks.CreateCluster(createClusterInput); err != nil {
+	if err := awsservices.CreateCluster(awsservices.CreateClusterOptions{
+		EKSService: h.awsServices.eks,
+		Config:     config,
+		RoleARN:    roleARN,
+	}); err != nil {
 		if !isClusterConflict(err) {
-			return config, fmt.Errorf("error creating cluster: %v", err)
+			return config, fmt.Errorf("error creating cluster: %w", err)
 		}
 	}
 
@@ -704,9 +593,14 @@ func (h *Handler) generateAndSetNetworking(config *eksv1.EKSClusterConfig) (*eks
 		config.Status.NetworkFieldsSource = "provided"
 	} else {
 		logrus.Infof("Bringing up vpc")
-
-		stack, err := createStack(h.awsServices.cloudformation, getVPCStackName(config.Spec.DisplayName), config.Spec.DisplayName, templates.VpcTemplate, []string{},
-			[]*cloudformation.Parameter{})
+		stack, err := awsservices.CreateStack(awsservices.CreateStackOptions{
+			CloudFormationService: h.awsServices.cloudformation,
+			StackName:             getVPCStackName(config.Spec.DisplayName),
+			DisplayName:           config.Spec.DisplayName,
+			TemplateBody:          templates.VpcTemplate,
+			Capabilities:          []string{},
+			Parameters:            []*cloudformation.Parameter{},
+		})
 		if err != nil {
 			return config, fmt.Errorf("error creating stack with VPC template: %v", err)
 		}
@@ -726,6 +620,42 @@ func (h *Handler) generateAndSetNetworking(config *eksv1.EKSClusterConfig) (*eks
 	}
 
 	return h.eksCC.UpdateStatus(config)
+}
+
+func (h *Handler) createOrGetServiceRole(config *eksv1.EKSClusterConfig) (string, error) {
+	var roleARN string
+	if aws.StringValue(config.Spec.ServiceRole) == "" {
+		logrus.Infof("Creating service role")
+
+		stack, err := awsservices.CreateStack(awsservices.CreateStackOptions{
+			CloudFormationService: h.awsServices.cloudformation,
+			StackName:             getServiceRoleName(config.Spec.DisplayName),
+			DisplayName:           config.Spec.DisplayName,
+			TemplateBody:          templates.ServiceRoleTemplate,
+			Capabilities:          []string{cloudformation.CapabilityCapabilityIam},
+			Parameters:            nil,
+		})
+		if err != nil {
+			return "", fmt.Errorf("error creating stack with service role template: %v", err)
+		}
+
+		roleARN = getParameterValueFromOutput("RoleArn", stack.Stacks[0].Outputs)
+		if roleARN == "" {
+			return "", fmt.Errorf("no RoleARN was returned")
+		}
+	} else {
+		logrus.Infof("Retrieving existing service role")
+		role, err := h.awsServices.iam.GetRole(&iam.GetRoleInput{
+			RoleName: config.Spec.ServiceRole,
+		})
+		if err != nil {
+			return "", fmt.Errorf("error getting role: %w", err)
+		}
+
+		roleARN = *role.Role.Arn
+	}
+
+	return roleARN, nil
 }
 
 func (h *Handler) newAWSServices(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) error {
@@ -1394,35 +1324,6 @@ func getParameterValueFromOutput(key string, outputs []*cloudformation.Output) s
 	}
 
 	return ""
-}
-
-func getLogging(loggingTypes []string) *eks.Logging {
-	if len(loggingTypes) == 0 {
-		return &eks.Logging{
-			ClusterLogging: []*eks.LogSetup{
-				{
-					Enabled: aws.Bool(false),
-					Types:   aws.StringSlice(loggingTypes),
-				},
-			},
-		}
-	}
-	return &eks.Logging{
-		ClusterLogging: []*eks.LogSetup{
-			{
-				Enabled: aws.Bool(true),
-				Types:   aws.StringSlice(loggingTypes),
-			},
-		},
-	}
-}
-
-func getTags(tags map[string]string) map[string]*string {
-	if len(tags) == 0 {
-		return nil
-	}
-
-	return aws.StringMap(tags)
 }
 
 func getPublicAccessCidrs(publicAccessCidrs []string) []*string {

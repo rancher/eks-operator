@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
+	awsservices "github.com/rancher/eks-operator/pkg/eks"
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/templates"
 	"github.com/rancher/eks-operator/utils"
@@ -260,7 +261,14 @@ func createNodeGroup(config *eksv1.EKSClusterConfig, group eksv1.NodeGroup, eksS
 	if aws.StringValue(group.NodeRole) == "" {
 		if config.Status.GeneratedNodeRole == "" {
 			finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(config.Spec.Region))
-			output, err := createStack(svc, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), config.Spec.DisplayName, finalTemplate, []string{cloudformation.CapabilityCapabilityIam}, []*cloudformation.Parameter{})
+			output, err := awsservices.CreateStack(awsservices.CreateStackOptions{
+				CloudFormationService: svc,
+				StackName:             fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName),
+				DisplayName:           config.Spec.DisplayName,
+				TemplateBody:          finalTemplate,
+				Capabilities:          []string{cloudformation.CapabilityCapabilityIam},
+				Parameters:            []*cloudformation.Parameter{},
+			})
 			if err != nil {
 				// If there was an error creating the node role stack, return an empty launch template
 				// version and the error.
