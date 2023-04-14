@@ -301,19 +301,21 @@ var _ = AfterSuite(func() {
 	By("Cleaning up Rancher Clusters")
 
 	for _, rancherCluster := range rancherClusterList.Items {
+		if rancherCluster.Name == "local" {
+			continue
+		}
+
 		Expect(cl.Delete(ctx, &rancherCluster)).To(Succeed())
-		Expect(cl.Delete(ctx, &eksv1.EKSClusterConfig{
-			ObjectMeta: metav1.ObjectMeta{
+		Eventually(func() bool {
+			if err := cl.Get(ctx, runtimeclient.ObjectKey{
 				Name:      rancherCluster.Name,
 				Namespace: eksClusterConfigNamespace,
-			},
-		})).To(Succeed())
-		Eventually(func() error {
-			return cl.Get(ctx, runtimeclient.ObjectKey{
-				Name:      rancherCluster.Name,
-				Namespace: eksClusterConfigNamespace,
-			}, &eksv1.EKSClusterConfig{})
-		}, waitLong, pollInterval).ShouldNot(Succeed())
+			}, &eksv1.EKSClusterConfig{}); err != nil {
+				return apierrors.IsNotFound(err)
+			}
+
+			return false
+		}, waitLong, pollInterval).Should(BeTrue())
 	}
 })
 
