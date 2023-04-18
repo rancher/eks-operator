@@ -5,7 +5,7 @@ bridgeIP: 172.17.0.1
 operatorReplicas: 1
 artifactsDir: ../../_artifacts
 
-certManagerVersion: v1.9.2
+certManagerVersion: v1.11.1
 certManagerChartURL: https://charts.jetstack.io/charts/cert-manager-${CERT_MANAGER_VERSION}.tgz
 
 rancherVersion: 2.7.2
