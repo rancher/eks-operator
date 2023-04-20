@@ -559,7 +559,7 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig) error {
 				return fmt.Errorf(cannotBeNilError, "requestSpotInstances", *ng.NodegroupName, config.Name)
 			}
 			if ng.NodeRole == nil {
-				return fmt.Errorf(cannotBeNilError, "nodeRole", *ng.NodegroupName, config.Name)
+				logrus.Warnf("nodeRole is not specified for nodegroup [%s] in cluster [%s], the controller will generate it", *ng.NodegroupName, config.Name)
 			}
 			if aws.BoolValue(ng.RequestSpotInstances) {
 				if len(ng.SpotInstanceTypes) == 0 {
