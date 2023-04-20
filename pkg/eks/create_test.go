@@ -144,7 +144,7 @@ var _ = Describe("CreateStack", func() {
 			CloudFormationService: cloudFormationsServiceMock,
 			StackName:             "test",
 			DisplayName:           "test",
-			TemplateBody:          "test",
+			TemplateBody:          "test-body",
 			Capabilities:          []string{"test"},
 			Parameters:            []*cloudformation.Parameter{{ParameterKey: aws.String("test"), ParameterValue: aws.String("test")}},
 		}

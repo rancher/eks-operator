@@ -19,7 +19,6 @@ spec:
     launchTemplate: null
     maxSize: 2
     minSize: 2
-    nodeRole: ""
     nodegroupName: nodenametest
     requestSpotInstances: false
     resourceTags: {}
