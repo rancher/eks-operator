@@ -74,7 +74,7 @@ type CreateStackOptions struct {
 func CreateStack(opts CreateStackOptions) (*cloudformation.DescribeStacksOutput, error) {
 	_, err := opts.CloudFormationService.CreateStack(&cloudformation.CreateStackInput{
 		StackName:    aws.String(opts.StackName),
-		TemplateBody: aws.String(opts.StackName),
+		TemplateBody: aws.String(opts.TemplateBody),
 		Capabilities: aws.StringSlice(opts.Capabilities),
 		Parameters:   opts.Parameters,
 		Tags: []*cloudformation.Tag{
