@@ -20,13 +20,13 @@ import (
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	awsservices "github.com/rancher/eks-operator/pkg/eks"
 	"github.com/rancher/eks-operator/pkg/eks/services"
-	v12 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
+	ekscontrollers "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/templates"
 	"github.com/rancher/eks-operator/utils"
 	wranglerv1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/util/retry"
@@ -45,7 +45,7 @@ const (
 )
 
 type Handler struct {
-	eksCC           v12.EKSClusterConfigClient
+	eksCC           ekscontrollers.EKSClusterConfigClient
 	eksEnqueueAfter func(namespace, name string, duration time.Duration)
 	eksEnqueue      func(namespace, name string)
 	secrets         wranglerv1.SecretClient
@@ -63,8 +63,7 @@ type awsServices struct {
 func Register(
 	ctx context.Context,
 	secrets wranglerv1.SecretController,
-	eks v12.EKSClusterConfigController) {
-
+	eks ekscontrollers.EKSClusterConfigController) {
 	controller := &Handler{
 		eksCC:           eks,
 		eksEnqueue:      eks.Enqueue,
@@ -157,7 +156,6 @@ func (h *Handler) recordError(onChange func(key string, config *eksv1.EKSCluster
 }
 
 func removeErrorMetadata(message string) (string, error) {
-
 	// failure message
 	type RespMetadata struct {
 		StatusCode int    `json:"statusCode"`
@@ -319,7 +317,7 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 	}
 
 	// gather upstream node groups states
-	var nodeGroupStates []*eks.DescribeNodegroupOutput
+	nodeGroupStates := make([]*eks.DescribeNodegroupOutput, 0, len(ngs.Nodegroups))
 	nodegroupARNs := make(map[string]string)
 	for _, ngName := range ngs.Nodegroups {
 		ng, err := h.awsServices.eks.DescribeNodegroup(
@@ -375,7 +373,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		}
 	}
 
-	var errs []string
+	errs := make([]string, 0)
 	// validate nodegroup versions
 	for _, ng := range config.Spec.NodeGroups {
 		if ng.Version == nil {
@@ -1249,7 +1247,7 @@ func (h *Handler) importCluster(config *eksv1.EKSClusterConfig) (*eksv1.EKSClust
 	}
 
 	if err := h.createCASecret(config, clusterState); err != nil {
-		if !errors.IsAlreadyExists(err) {
+		if !apierrors.IsAlreadyExists(err) {
 			return config, err
 		}
 	}
@@ -1274,7 +1272,7 @@ func (h *Handler) createCASecret(config *eksv1.EKSClusterConfig, clusterState *e
 	ca := aws.StringValue(clusterState.Cluster.CertificateAuthority.Data)
 
 	_, err := h.secrets.Create(
-		&v1.Secret{
+		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      config.Name,
 				Namespace: config.Namespace,
