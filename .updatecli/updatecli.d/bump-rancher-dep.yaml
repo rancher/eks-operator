@@ -1,0 +1,137 @@
+name: 'Bump EKS operator'
+
+scms:
+  rancher:
+    kind: github
+    spec:
+      user: highlander-ci-bot
+      email: highlander-ci@proton.me
+      owner: rancher
+      repository: rancher
+      branch: '{{ requiredEnv "UPDATECLI_RANCHER_BRANCH" }}'
+      token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
+
+sources:
+  rancher-repo:
+    name: Update go.mod and pkg/apis/go.mod in rancher
+    kind: shell
+    spec:
+      environments:
+        - name: PATH
+        - name: rancher_branch
+          value: '{{ requiredEnv "UPDATECLI_RANCHER_BRANCH" }}'
+      command: |
+        tmp_dir="$(mktemp -d)"
+        cd "${tmp_dir}"
+        git clone https://github.com/rancher/rancher.git . >&2
+        git checkout ${rancher_branch} >&2
+        printf ${tmp_dir}
+        exit 0
+    scmid: rancher
+  bump-rancher-deps:
+    dependson:
+      - rancher-repo
+    name: Update go.mod and pkg/apis/go.mod in rancher
+    kind: shell
+    spec:
+      environments:
+        - name: operator_version
+          value: '{{ requiredEnv "UPDATECLI_EKS_OPERATOR_TAG" }}'
+        - name: PATH
+      command: |
+        cd "{{ source "rancher-repo" }}"
+        GOPATH="$(mktemp -d)"
+        export GOPATH
+        go get "github.com/rancher/eks-operator@${operator_version}"
+        go mod tidy
+        cd pkg/apis
+        go get "github.com/rancher/eks-operator@${operator_version}"
+        go mod tidy
+        echo "Success"
+        exit 0
+    scmid: rancher
+  rancher-gomod:
+    dependson:
+      - bump-rancher-deps
+    name: Print go.mod
+    kind: shell
+    spec:
+      command: |
+        cd "{{ source "rancher-repo" }}"
+        echo "" >> go.mod
+        cat go.mod
+    scmid: rancher
+  rancher-gosum:
+    dependson:
+      - bump-rancher-deps
+    name: Print go.sum
+    kind: shell
+    spec:
+      command: |
+        cd "{{ source "rancher-repo" }}"
+        echo "" >> go.sum
+        cat go.sum
+    scmid: rancher
+  rancher-apis-gomod:
+    dependson:
+      - bump-rancher-deps
+    name: Print go.mod in pkg/apis
+    kind: shell
+    spec:
+      command: |
+        cd "{{ source "rancher-repo" }}"
+        echo "" >> pkg/apis/go.mod
+        cat pkg/apis/go.mod
+    scmid: rancher
+  rancher-apis-gosum:
+    dependson:
+      - bump-rancher-deps
+    name: Print go.sum in pkg/apis
+    kind: shell
+    spec:
+      command: |
+        cd "{{ source "rancher-repo" }}"
+        echo "" >> pkg/apis/go.sum
+        cat pkg/apis/go.sum
+    scmid: rancher
+
+targets:
+    rancher-gomod:
+        name: Update EKS operator version to "{{ requiredEnv "UPDATECLI_EKS_OPERATOR_TAG" }}" in go.mod
+        kind: file
+        spec:
+          file: go.mod
+        scmid: rancher
+        sourceid: rancher-gomod
+    rancher-gosum:
+        name: Update EKS operator version to "{{ requiredEnv "UPDATECLI_EKS_OPERATOR_TAG" }}" in go.sum
+        kind: file
+        spec:
+          file: go.sum
+        scmid: rancher
+        sourceid: rancher-gosum
+    rancher-apis-gomod:
+        name: Update EKS operator version to "{{ requiredEnv "UPDATECLI_EKS_OPERATOR_TAG" }}" in pkg/apis/go.mod
+        kind: file
+        spec:
+          file: pkg/apis/go.mod
+        scmid: rancher
+        sourceid: rancher-apis-gomod
+    rancher-apis-gosum:
+        name: Update EKS operator version to "{{ requiredEnv "UPDATECLI_EKS_OPERATOR_TAG" }}" in pkg/apis/go.sum
+        kind: file
+        spec:
+          file: pkg/apis/go.sum
+        scmid: rancher
+        sourceid: rancher-apis-gosum
+
+actions:
+  update-eks-operator:
+    kind: github/pullrequest
+    scmid: rancher
+    title: 'Bump EKS operator version to new version {{ requiredEnv "UPDATECLI_EKS_OPERATOR_TAG" }}'
+    spec:
+      automerge: false
+      mergemethod: squash
+      description: "@rancher/highlander"
