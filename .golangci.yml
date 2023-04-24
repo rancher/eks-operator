@@ -1,17 +1,32 @@
 run:
   timeout: 5m
+  go: "1.19"
   skip-files:
     - "zz_generated_*"
   tests: false
+  allow-parallel-runners: true
+
 output:
   format: github-actions
+
 linters:
+  disable-all: true
   enable:
-    - revive # replacement for golint
     - dupl # check duplicated code
     - goconst # check strings that can turn into constants
     - gofmt # check fmt
     - goimports # check imports
+    - gosec # check for security problems
+    - govet # check vet
+    - importas # check consistent import aliasing
+    - ineffassign # check ineffectual assignments
+    - misspell # check for misspelled English words
+    - nakedret # check naked returns in functions
+    - prealloc # check preallocated slice declarations
+    - revive # replacement for golint
+    - unconvert # check redundant type conversions
+    - whitespace # check for trailing whitespace and tabs
+
 linters-settings:
   revive:
     rules:
@@ -39,6 +54,31 @@ linters-settings:
       - name: unreachable-code
       - name: redefines-builtin-id
       - name: unexported-return
+  importas:
+    no-unaliased: true
+    alias:
+      # Kubernetes
+      - pkg: k8s.io/api/core/v1
+        alias: corev1
+      - pkg: k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
+        alias: apiextensionsv1
+      - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+        alias: metav1
+      - pkg: k8s.io/apimachinery/pkg/util/runtime
+        alias: utilruntime
+      - pkg: sigs.k8s.io/controller-runtime/pkg/client
+        alias: runtimeclient
+      # Rancher EKS operator
+      - pkg: github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1
+        alias: eksv1
+      - pkg: github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1
+        alias: ekscontrollers
+      - pkg: github.com/rancher/eks-operator/pkg/eks
+        alias: awsservices
+      # Core Rancher
+      - pkg: github.com/rancher/rancher/pkg/apis/management.cattle.io/v3
+        alias: managementv3
+
 issues:
   exclude-rules:
   - linters:
