@@ -129,6 +129,8 @@ var _ = BeforeSuite(func() {
 					"--set",
 					"bootstrapPassword=admin",
 					"--set",
+					"global.cattle.psp.enabled=false",
+					"--set",
 					"replicas=1",
 					"--set", fmt.Sprintf("hostname=%s.%s", e2eCfg.ExternalIP, e2eCfg.MagicDNS),
 					"--create-namespace",
