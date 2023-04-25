@@ -123,7 +123,7 @@ func substituteVersions(config *E2EConfig) error {
 		return config.CertManagerVersion
 	})
 	if err != nil {
-		return fmt.Errorf("failed to substiture cert manager chart url: %w", err)
+		return fmt.Errorf("failed to substitute cert manager chart url: %w", err)
 	}
 	config.CertManagerChartURL = certManagerURL
 
@@ -131,7 +131,7 @@ func substituteVersions(config *E2EConfig) error {
 		return config.RancherVersion
 	})
 	if err != nil {
-		return fmt.Errorf("failed to substiture rancher chart url: %w", err)
+		return fmt.Errorf("failed to substitute rancher chart url: %w", err)
 	}
 	config.RancherChartURL = rancherURL
 
