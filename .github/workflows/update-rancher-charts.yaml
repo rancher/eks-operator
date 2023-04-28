@@ -54,11 +54,13 @@ jobs:
         with:
           token: ${{secrets.CI_BOT_TOKEN}}
           push-to-fork: highlander-ci-bot/charts
-          title: 'Update A to v${{github.event.inputs.new_eks_operator}}'
+          title: 'Update EKS operator to v${{github.event.inputs.new_eks_operator}}'
           body: |
             Update EKS operator to v${{github.event.inputs.new_eks_operator}}
 
             Changelog: https://github.com/rancher/eks-operator/releases/tag/v${{github.event.inputs.new_eks_operator}}
+
+            cc @rancher/highlander
           branch-suffix: timestamp
           base: ${{github.event.inputs.charts_ref}}
           path: ./charts/
