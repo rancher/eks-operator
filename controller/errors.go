@@ -40,11 +40,3 @@ func notFound(err error) bool {
 
 	return false
 }
-
-// NodeGroupIssueIsUpdatable checks to see the node group can be updated with the given issue code.
-func NodeGroupIssueIsUpdatable(code string) bool {
-	return code == eks.NodegroupIssueCodeAsgInstanceLaunchFailures ||
-		code == eks.NodegroupIssueCodeInstanceLimitExceeded ||
-		code == eks.NodegroupIssueCodeInsufficientFreeAddresses ||
-		code == eks.NodegroupIssueCodeClusterUnreachable
-}
