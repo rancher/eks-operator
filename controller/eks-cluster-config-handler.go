@@ -657,6 +657,20 @@ func (h *Handler) createOrGetServiceRole(config *eksv1.EKSClusterConfig) (string
 }
 
 func (h *Handler) newAWSServices(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) error {
+	sess, err := newAWSSession(secretsCache, spec)
+	if err != nil {
+		return err
+	}
+
+	h.awsServices.eks = services.NewEKSService(sess)
+	h.awsServices.cloudformation = services.NewCloudFormationService(sess)
+	h.awsServices.iam = services.NewIAMService(sess)
+	h.awsServices.ec2 = services.NewEC2Service(sess)
+
+	return nil
+}
+
+func newAWSSession(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (*session.Session, error) {
 	awsConfig := &aws.Config{}
 
 	if region := spec.Region; region != "" {
@@ -667,13 +681,13 @@ func (h *Handler) newAWSServices(secretsCache wranglerv1.SecretCache, spec eksv1
 	if amazonCredentialSecret := spec.AmazonCredentialSecret; amazonCredentialSecret != "" {
 		secret, err := secretsCache.Get(ns, id)
 		if err != nil {
-			return fmt.Errorf("error getting secret %s/%s: %w", ns, id, err)
+			return nil, fmt.Errorf("error getting secret %s/%s: %w", ns, id, err)
 		}
 
 		accessKeyBytes := secret.Data["amazonec2credentialConfig-accessKey"]
 		secretKeyBytes := secret.Data["amazonec2credentialConfig-secretKey"]
 		if accessKeyBytes == nil || secretKeyBytes == nil {
-			return fmt.Errorf("invalid aws cloud credential")
+			return nil, fmt.Errorf("invalid aws cloud credential")
 		}
 
 		accessKey := string(accessKeyBytes)
@@ -684,15 +698,10 @@ func (h *Handler) newAWSServices(secretsCache wranglerv1.SecretCache, spec eksv1
 
 	sess, err := session.NewSession(awsConfig)
 	if err != nil {
-		return fmt.Errorf("error getting new aws session: %v", err)
+		return nil, fmt.Errorf("error getting new aws session: %v", err)
 	}
 
-	h.awsServices.eks = services.NewEKSService(sess)
-	h.awsServices.cloudformation = services.NewCloudFormationService(sess)
-	h.awsServices.iam = services.NewIAMService(sess)
-	h.awsServices.ec2 = services.NewEC2Service(sess)
-
-	return nil
+	return sess, nil
 }
 
 func (h *Handler) waitForCreationComplete(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
