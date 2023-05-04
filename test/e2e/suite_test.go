@@ -24,6 +24,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/storage/names"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -40,8 +41,9 @@ func init() {
 }
 
 const (
-	operatorName              = "eks-config-operator"
-	crdChartName              = "eks-config-operator-crd"
+	operatorChartName         = "rancher-eks-operator"
+	crdChartName              = "rancher-eks-operator-crd"
+	deploymentName            = "eks-config-operator"
 	certManagerNamespace      = "cert-manager"
 	certManagerName           = "cert-manager"
 	certManagerCAInjectorName = "cert-manager-cainjector"
@@ -145,16 +147,17 @@ var _ = BeforeSuite(func() {
 	})
 
 	By("Deploying eks operator CRD chart", func() {
-		if isDeploymentReady(cattleSystemNamespace, operatorName) {
+		if isDeploymentReady(cattleSystemNamespace, deploymentName) {
 			By("already installed")
 		} else {
 			Expect(kubectl.RunHelmBinaryWithCustomErr(
 				"-n",
-				crdChartName,
-				"install",
+				cattleSystemNamespace,
+				"upgrade",
+				"--install",
+				"--wait",
 				"--create-namespace",
-				"--set", "debug=true",
-				operatorName,
+				crdChartName,
 				e2eCfg.CRDChart,
 			)).To(Succeed())
 
@@ -177,22 +180,23 @@ var _ = BeforeSuite(func() {
 	})
 
 	By("Deploying eks operator chart", func() {
-		if isDeploymentReady(cattleSystemNamespace, operatorName) {
+		if isDeploymentReady(cattleSystemNamespace, deploymentName) {
 			By("already installed")
 		} else {
 			Expect(kubectl.RunHelmBinaryWithCustomErr(
 				"-n",
 				cattleSystemNamespace,
-				"install",
+				"upgrade",
+				"--install",
+				"--wait",
 				"--create-namespace",
-				"--set", "debug=true",
-				operatorName,
+				operatorChartName,
 				e2eCfg.OperatorChart,
 			)).To(Succeed())
 
 			By("Waiting for eks operator deployment to be available")
 			Eventually(func() bool {
-				return isDeploymentReady(cattleSystemNamespace, operatorName)
+				return isDeploymentReady(cattleSystemNamespace, deploymentName)
 			}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 		}
 		// As we are not bootstrapping rancher in the tests (going to the first login page, setting new password and rancher-url)
@@ -299,6 +303,18 @@ var _ = AfterSuite(func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(os.WriteFile(filepath.Join(e2eCfg.ArtifactsDir, "rancher-cluster-"+rancherCluster.Name+".yaml"), redactSensitiveData([]byte(output)), 0644)).To(Succeed())
 	}
+
+	By("Getting EKS operator deployment")
+
+	deployment := &appsv1.Deployment{}
+	Expect(cl.Get(ctx, types.NamespacedName{
+		Name:      deploymentName,
+		Namespace: cattleSystemNamespace,
+	}, deployment)).To(Succeed())
+
+	output, err := yaml.Marshal(deployment)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(e2eCfg.ArtifactsDir, deployment.Name+".yaml"), redactSensitiveData([]byte(output)), 0644)).To(Succeed())
 
 	By("Cleaning up Rancher Clusters")
 
