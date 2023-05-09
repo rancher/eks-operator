@@ -3,7 +3,6 @@ TARGETS := $(shell ls scripts)
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BIN_DIR := $(abspath $(ROOT_DIR)/bin)
 GO_INSTALL = ./scripts/go_install.sh
-KUBE_VERSION?="v1.25.8"
 CLUSTER_NAME?="eks-operator-e2e"
 GIT_COMMIT?=$(shell git rev-parse HEAD)
 GIT_COMMIT_SHORT?=$(shell git rev-parse --short HEAD)
@@ -106,7 +105,7 @@ charts:
 
 .PHONY: setup-kind
 setup-kind:
-	KUBE_VERSION=${KUBE_VERSION} CLUSTER_NAME=$(CLUSTER_NAME) $(ROOT_DIR)/scripts/setup-kind-cluster.sh
+	$(ROOT_DIR)/scripts/setup-kind-cluster.sh
 
 .PHONY: e2e-tests
 e2e-tests: $(GINKGO) charts

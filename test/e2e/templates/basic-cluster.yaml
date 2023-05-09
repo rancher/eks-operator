@@ -6,7 +6,7 @@ spec:
   amazonCredentialSecret: default:aws-credentials
   imported: false
   kmsKey: ""
-  kubernetesVersion: "1.25"
+  kubernetesVersion: "1.26"
   loggingTypes: []
   nodeGroups:
   - desiredSize: 2
@@ -26,7 +26,7 @@ spec:
     subnets: []
     tags: {}
     userData: ""
-    version: "1.25"
+    version: "1.26"
   privateAccess: false
   publicAccess: true
   publicAccessSources: []
