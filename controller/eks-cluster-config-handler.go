@@ -10,7 +10,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -349,7 +348,7 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 
 	if config.Status.Phase == eksConfigActivePhase && len(config.Status.TemplateVersionsToDelete) != 0 {
 		// If there are any launch template versions that need to be cleaned up, we do it now.
-		deleteLaunchTemplateVersions(config.Status.ManagedLaunchTemplateID, aws.StringSlice(config.Status.TemplateVersionsToDelete), h.awsServices.ec2)
+		awsservices.DeleteLaunchTemplateVersions(h.awsServices.ec2, config.Status.ManagedLaunchTemplateID, aws.StringSlice(config.Status.TemplateVersionsToDelete))
 		config = config.DeepCopy()
 		config.Status.TemplateVersionsToDelete = nil
 		return h.eksCC.UpdateStatus(config)
@@ -360,7 +359,7 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 		return config, err
 	}
 
-	return h.updateUpstreamClusterState(upstreamSpec, config, clusterARN, nodegroupARNs, h.awsServices.eks, h.awsServices.ec2, h.awsServices.cloudformation)
+	return h.updateUpstreamClusterState(upstreamSpec, config, clusterARN, nodegroupARNs)
 }
 
 func validateUpdate(config *eksv1.EKSClusterConfig) error {
@@ -916,8 +915,7 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 // updateUpstreamClusterState compares the upstream spec with the config spec, then updates the upstream EKS cluster to
 // match the config spec. Function often returns after a single update because once the cluster is in updating phase in EKS,
 // no more updates will be accepted until the current update is finished.
-func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfigSpec, config *eksv1.EKSClusterConfig, clusterARN string, ngARNs map[string]string, eksService services.EKSServiceInterface,
-	ec2Service services.EC2ServiceInterface, svc services.CloudFormationServiceInterface) (*eksv1.EKSClusterConfig, error) {
+func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfigSpec, config *eksv1.EKSClusterConfig, clusterARN string, ngARNs map[string]string) (*eksv1.EKSClusterConfig, error) {
 	// check kubernetes version for update
 	if config.Spec.KubernetesVersion != nil {
 		if aws.StringValue(upstreamSpec.KubernetesVersion) != aws.StringValue(config.Spec.KubernetesVersion) {
@@ -1046,28 +1044,33 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		if _, ok := upstreamNgs[aws.StringValue(ng.NodegroupName)]; ok {
 			continue
 		}
-		_, err := h.awsServices.ec2.DescribeLaunchTemplates(&ec2.DescribeLaunchTemplatesInput{
-			LaunchTemplateIds: []*string{aws.String(config.Status.ManagedLaunchTemplateID)},
-		})
-		if config.Status.ManagedLaunchTemplateID == "" || doesNotExist(err) {
-			lt, err := createLaunchTemplate(config.Spec.DisplayName, ec2Service)
-			if err != nil {
-				return config, err
-			}
-			config.Status.ManagedLaunchTemplateID = aws.StringValue(lt.ID)
-		} else if err != nil {
-			return config, err
+		if err := awsservices.CreateLaunchTemplate(awsservices.CreateLaunchTemplateOptions{
+			EC2Service: h.awsServices.ec2,
+			Config:     config,
+		}); err != nil {
+			return config, fmt.Errorf("error getting or creating launch template: %w", err)
 		}
 		// in this case update is set right away because creating the
 		// nodegroup may not be immediate
 		if config.Status.Phase != eksConfigUpdatingPhase {
 			config.Status.Phase = eksConfigUpdatingPhase
-			config, err = h.eksCC.UpdateStatus(config)
+			config, err := h.eksCC.UpdateStatus(config)
 			if err != nil {
 				return config, err
 			}
 		}
-		ltVersion, generatedNodeRole, err := createNodeGroup(config, ng, eksService, ec2Service, svc)
+
+		ltVersion, generatedNodeRole, err := awsservices.CreateNodeGroup(awsservices.CreateNodeGroupOptions{
+			EC2Service:            h.awsServices.ec2,
+			CloudFormationService: h.awsServices.cloudformation,
+			EKSService:            h.awsServices.eks,
+			Config:                config,
+			NodeGroup:             ng,
+		})
+
+		if err != nil {
+			return config, fmt.Errorf("error creating nodegroup: %w", err)
+		}
 
 		// if a generated node role has not been set on the Status yet and it
 		// was just generated, set it
@@ -1087,7 +1090,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		if _, ok := ngs[aws.StringValue(ng.NodegroupName)]; ok {
 			continue
 		}
-		templateVersionToDelete, _, err := deleteNodeGroup(config, ng, eksService)
+		templateVersionToDelete, _, err := deleteNodeGroup(config, ng, h.awsServices.eks)
 		if err != nil {
 			return config, err
 		}
@@ -1141,7 +1144,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 			if lt == nil && config.Status.ManagedLaunchTemplateID == aws.StringValue(upstreamNg.LaunchTemplate.ID) {
 				// In this case, Rancher is managing the launch template, so we check to see if we need a new version.
-				lt, err = newLaunchTemplateVersionIfNeeded(config, upstreamNg, ng, ec2Service)
+				lt, err = newLaunchTemplateVersionIfNeeded(config, upstreamNg, ng, h.awsServices.ec2)
 				if err != nil {
 					return config, err
 				}
@@ -1170,12 +1173,12 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 		if ngVersionInput.Version != nil || ngVersionInput.LaunchTemplate != nil {
 			updateNodegroupProperties = true
-			_, err := eksService.UpdateNodegroupVersion(ngVersionInput)
+			_, err := h.awsServices.eks.UpdateNodegroupVersion(ngVersionInput)
 			if err != nil {
 				if version, ok := templateVersionsToAdd[aws.StringValue(ng.NodegroupName)]; ok {
 					// If there was an error updating the node group and a Rancher-managed launch template version was created,
 					// then the version that caused the issue needs to be deleted to prevent bad versions from piling up.
-					deleteLaunchTemplateVersions(config.Status.ManagedLaunchTemplateID, []*string{aws.String(version)}, ec2Service)
+					awsservices.DeleteLaunchTemplateVersions(h.awsServices.ec2, config.Status.ManagedLaunchTemplateID, []*string{aws.String(version)})
 				}
 				return config, err
 			}
@@ -1185,7 +1188,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 		if sendUpdateNodegroupConfig {
 			updateNodegroupProperties = true
-			_, err := eksService.UpdateNodegroupConfig(&updateNodegroupConfig)
+			_, err := h.awsServices.eks.UpdateNodegroupConfig(&updateNodegroupConfig)
 			if err != nil {
 				return config, err
 			}
@@ -1194,7 +1197,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 		if ng.Tags != nil {
 			if untags := utils.GetKeysToDelete(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); untags != nil {
-				_, err := eksService.UntagResource(&eks.UntagResourceInput{
+				_, err := h.awsServices.eks.UntagResource(&eks.UntagResourceInput{
 					ResourceArn: aws.String(ngARNs[aws.StringValue(ng.NodegroupName)]),
 					TagKeys:     untags,
 				})
@@ -1205,7 +1208,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			}
 
 			if tags := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); tags != nil {
-				_, err := eksService.TagResource(&eks.TagResourceInput{
+				_, err := h.awsServices.eks.TagResource(&eks.TagResourceInput{
 					ResourceArn: aws.String(ngARNs[aws.StringValue(ng.NodegroupName)]),
 					Tags:        tags,
 				})
@@ -1262,7 +1265,7 @@ func (h *Handler) importCluster(config *eksv1.EKSClusterConfig) (*eksv1.EKSClust
 	}
 
 	launchTemplatesOutput, err := h.awsServices.ec2.DescribeLaunchTemplates(&ec2.DescribeLaunchTemplatesInput{
-		LaunchTemplateNames: []*string{aws.String(fmt.Sprintf(launchTemplateNameFormat, config.Spec.DisplayName))},
+		LaunchTemplateNames: []*string{aws.String(fmt.Sprintf(awsservices.LaunchTemplateNameFormat, config.Spec.DisplayName))},
 	})
 	if err == nil && len(launchTemplatesOutput.LaunchTemplates) > 0 {
 		config.Status.ManagedLaunchTemplateID = aws.StringValue(launchTemplatesOutput.LaunchTemplates[0].LaunchTemplateId)
@@ -1405,13 +1408,6 @@ func getLoggingTypesToEnable(loggingTypes []string, upstreamLoggingTypes []strin
 	}
 
 	return nil
-}
-
-func getEC2ServiceEndpoint(region string) string {
-	if p, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), region); ok {
-		return fmt.Sprintf("%s.%s", ec2.ServiceName, p.DNSSuffix())
-	}
-	return "ec2.amazonaws.com"
 }
 
 func deleteStack(svc services.CloudFormationServiceInterface, newStyleName, oldStyleName string) error {
