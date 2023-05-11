@@ -43,6 +43,7 @@ type EKSClusterConfigSpec struct {
 	KmsKey                 *string           `json:"kmsKey" norman:"noupdate,pointer"`
 	PublicAccess           *bool             `json:"publicAccess"`
 	PrivateAccess          *bool             `json:"privateAccess"`
+	EBSCSIDriver           *bool             `json:"ebsCSIDriver"`
 	PublicAccessSources    []string          `json:"publicAccessSources"`
 	LoggingTypes           []string          `json:"loggingTypes"`
 	Subnets                []string          `json:"subnets" norman:"noupdate"`

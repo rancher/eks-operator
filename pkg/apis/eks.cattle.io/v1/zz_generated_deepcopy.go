@@ -121,6 +121,11 @@ func (in *EKSClusterConfigSpec) DeepCopyInto(out *EKSClusterConfigSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.EBSCSIDriver != nil {
+		in, out := &in.EBSCSIDriver, &out.EBSCSIDriver
+		*out = new(bool)
+		**out = **in
+	}
 	if in.PublicAccessSources != nil {
 		in, out := &in.PublicAccessSources, &out.PublicAccessSources
 		*out = make([]string, len(*in))
