@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 )
 
@@ -25,11 +24,6 @@ func doesNotExist(err error) bool {
 	}
 
 	return false
-}
-
-func launchTemplateVersionDoesNotExist(errorCode string) bool {
-	return errorCode == ec2.LaunchTemplateErrorCodeLaunchTemplateVersionDoesNotExist ||
-		errorCode == ec2.LaunchTemplateErrorCodeLaunchTemplateIdDoesNotExist
 }
 
 func notFound(err error) bool {
