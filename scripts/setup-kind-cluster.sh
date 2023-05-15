@@ -2,7 +2,7 @@
 
 set -e
 
-KUBE_VERSION="${KUBE_VERSION:-v1.26.3}"
+KUBE_VERSION="${KUBE_VERSION:-v1.25.8}"
 CLUSTER_NAME="${CLUSTER_NAME:-eks-operator-e2e}"
 
 if ! kind get clusters | grep "$CLUSTER_NAME"; then

@@ -2,7 +2,7 @@ module github.com/rancher/eks-operator
 
 go 1.19
 
-replace k8s.io/client-go => k8s.io/client-go v0.26.4
+replace k8s.io/client-go => k8s.io/client-go v0.25.4
 
 require (
 	github.com/aws/aws-sdk-go v1.44.262
@@ -18,10 +18,10 @@ require (
 	github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.2
-	k8s.io/api v0.26.4
-	k8s.io/apiextensions-apiserver v0.26.4
-	k8s.io/apimachinery v0.26.4
-	k8s.io/apiserver v0.26.4
+	k8s.io/api v0.25.4
+	k8s.io/apiextensions-apiserver v0.25.4
+	k8s.io/apimachinery v0.25.4
+	k8s.io/apiserver v0.25.4
 	k8s.io/client-go v12.0.0+incompatible
 	sigs.k8s.io/controller-runtime v0.12.3
 	sigs.k8s.io/yaml v1.3.0
