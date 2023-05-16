@@ -39,7 +39,6 @@ const (
 	eksConfigActivePhase     = "active"
 	eksConfigUpdatingPhase   = "updating"
 	eksConfigImportingPhase  = "importing"
-	allOpen                  = "0.0.0.0/0"
 	eksClusterConfigKind     = "EKSClusterConfig"
 )
 
@@ -287,10 +286,10 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 		return config, err
 	}
 
-	clusterState, err := h.awsServices.eks.DescribeCluster(
-		&eks.DescribeClusterInput{
-			Name: aws.String(config.Spec.DisplayName),
-		})
+	clusterState, err := awsservices.GetClusterState(awsservices.GetClusterStatusOpts{
+		EKSService: h.awsServices.eks,
+		Config:     config,
+	})
 	if err != nil {
 		return config, err
 	}
@@ -706,10 +705,10 @@ func newAWSSession(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterCon
 func (h *Handler) waitForCreationComplete(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
 	var err error
 
-	state, err := h.awsServices.eks.DescribeCluster(
-		&eks.DescribeClusterInput{
-			Name: aws.String(config.Spec.DisplayName),
-		})
+	state, err := awsservices.GetClusterState(awsservices.GetClusterStatusOpts{
+		EKSService: h.awsServices.eks,
+		Config:     config,
+	})
 	if err != nil {
 		return config, err
 	}
@@ -835,8 +834,9 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 
 			if managedTemplateID == aws.StringValue(ngToAdd.LaunchTemplate.ID) {
 				// If this is a rancher-managed launch template, then we move the data from the launch template to the node group.
-				launchTemplateRequestOutput, err := ec2Service.DescribeLaunchTemplateVersions(&ec2.DescribeLaunchTemplateVersionsInput{
-					LaunchTemplateId: ngToAdd.LaunchTemplate.ID,
+				launchTemplateRequestOutput, err := awsservices.GetLaunchTemplateVersions(awsservices.GetLaunchTemplateVersionsOpts{
+					EC2Service:       ec2Service,
+					LaunchTemplateID: ngToAdd.LaunchTemplate.ID,
 					Versions:         []*string{ng.Nodegroup.LaunchTemplate.Version},
 				})
 				if err != nil || len(launchTemplateRequestOutput.LaunchTemplateVersions) == 0 {
@@ -918,97 +918,72 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfigSpec, config *eksv1.EKSClusterConfig, clusterARN string, ngARNs map[string]string) (*eksv1.EKSClusterConfig, error) {
 	// check kubernetes version for update
 	if config.Spec.KubernetesVersion != nil {
-		if aws.StringValue(upstreamSpec.KubernetesVersion) != aws.StringValue(config.Spec.KubernetesVersion) {
-			logrus.Infof("updating kubernetes version for cluster [%s]", config.Name)
-			_, err := h.awsServices.eks.UpdateClusterVersion(&eks.UpdateClusterVersionInput{
-				Name:    aws.String(config.Spec.DisplayName),
-				Version: config.Spec.KubernetesVersion,
-			})
-			if err != nil {
-				return config, err
-			}
+		updated, err := awsservices.UpdateClusterVersion(awsservices.UpdateClusterVersionOpts{
+			EKSService:          h.awsServices.eks,
+			Config:              config,
+			UpstreamClusterSpec: upstreamSpec,
+		})
+		if err != nil {
+			return config, fmt.Errorf("error updating cluster version: %w", err)
+		}
+		if updated {
 			return h.enqueueUpdate(config)
 		}
 	}
 
 	// check tags for update
 	if config.Spec.Tags != nil {
-		if updateTags := utils.GetKeyValuesToUpdate(config.Spec.Tags, upstreamSpec.Tags); updateTags != nil {
-			_, err := h.awsServices.eks.TagResource(
-				&eks.TagResourceInput{
-					ResourceArn: aws.String(clusterARN),
-					Tags:        updateTags,
-				})
-			if err != nil {
-				return config, err
-			}
+		updated, err := awsservices.UpdateResourceTags(awsservices.UpdateResourceTagsOpts{
+			EKSService:   h.awsServices.eks,
+			Tags:         config.Spec.Tags,
+			UpstreamTags: upstreamSpec.Tags,
+			ResourceARN:  clusterARN,
+		})
+		if err != nil {
+			return config, fmt.Errorf("error updating cluster tags: %w", err)
 		}
-
-		if updateUntags := utils.GetKeysToDelete(config.Spec.Tags, upstreamSpec.Tags); updateUntags != nil {
-			_, err := h.awsServices.eks.UntagResource(
-				&eks.UntagResourceInput{
-					ResourceArn: aws.String(clusterARN),
-					TagKeys:     updateUntags,
-				})
-			if err != nil {
-				return config, err
-			}
+		if updated {
+			return h.enqueueUpdate(config)
 		}
 	}
 
 	if config.Spec.LoggingTypes != nil {
 		// check logging for update
-		if loggingTypesUpdate := getLoggingTypesUpdate(config.Spec.LoggingTypes, upstreamSpec.LoggingTypes); loggingTypesUpdate != nil {
-			_, err := h.awsServices.eks.UpdateClusterConfig(
-				&eks.UpdateClusterConfigInput{
-					Name:    aws.String(config.Spec.DisplayName),
-					Logging: loggingTypesUpdate,
-				},
-			)
-			if err != nil {
-				return config, err
-			}
+		updated, err := awsservices.UpdateClusterLoggingTypes(awsservices.UpdateLoggingTypesOpts{
+			EKSService:          h.awsServices.eks,
+			Config:              config,
+			UpstreamClusterSpec: upstreamSpec,
+		})
+		if err != nil {
+			return config, fmt.Errorf("error updating logging types: %w", err)
+		}
+		if updated {
 			return h.enqueueUpdate(config)
 		}
 	}
 
-	publicAccessUpdate := config.Spec.PublicAccess != nil && aws.BoolValue(upstreamSpec.PublicAccess) != aws.BoolValue(config.Spec.PublicAccess)
-	privateAccessUpdate := config.Spec.PrivateAccess != nil && aws.BoolValue(upstreamSpec.PrivateAccess) != aws.BoolValue(config.Spec.PrivateAccess)
-	if publicAccessUpdate || privateAccessUpdate {
-		// public and private access updates need to be sent together. When they are sent one at a time
-		// the request may be denied due to having both public and private access disabled.
-		_, err := h.awsServices.eks.UpdateClusterConfig(
-			&eks.UpdateClusterConfigInput{
-				Name: aws.String(config.Spec.DisplayName),
-				ResourcesVpcConfig: &eks.VpcConfigRequest{
-					EndpointPublicAccess:  config.Spec.PublicAccess,
-					EndpointPrivateAccess: config.Spec.PrivateAccess,
-				},
-			},
-		)
-		if err != nil {
-			return config, err
-		}
+	updated, err := awsservices.UpdateClusterAccess(awsservices.UpdateClusterAccessOpts{
+		EKSService:          h.awsServices.eks,
+		Config:              config,
+		UpstreamClusterSpec: upstreamSpec,
+	})
+	if err != nil {
+		return config, fmt.Errorf("error updating cluster access config: %w", err)
+	}
+	if updated {
 		return h.enqueueUpdate(config)
 	}
 
 	if config.Spec.PublicAccessSources != nil {
-		// check public access CIDRs for update (public access sources)
-		filteredSpecPublicAccessSources := filterPublicAccessSources(config.Spec.PublicAccessSources)
-		filteredUpstreamPublicAccessSources := filterPublicAccessSources(upstreamSpec.PublicAccessSources)
-		if !utils.CompareStringSliceElements(filteredSpecPublicAccessSources, filteredUpstreamPublicAccessSources) {
-			_, err := h.awsServices.eks.UpdateClusterConfig(
-				&eks.UpdateClusterConfigInput{
-					Name: aws.String(config.Spec.DisplayName),
-					ResourcesVpcConfig: &eks.VpcConfigRequest{
-						PublicAccessCidrs: getPublicAccessCidrs(config.Spec.PublicAccessSources),
-					},
-				},
-			)
-			if err != nil {
-				return config, err
-			}
-
+		updated, err := awsservices.UpdateClusterPublicAccessSources(awsservices.UpdateClusterPublicAccessSourcesOpts{
+			EKSService:          h.awsServices.eks,
+			Config:              config,
+			UpstreamClusterSpec: upstreamSpec,
+		})
+		if err != nil {
+			return config, fmt.Errorf("error updating cluster public access sources: %w", err)
+		}
+		if updated {
 			return h.enqueueUpdate(config)
 		}
 	}
@@ -1173,13 +1148,14 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 		if ngVersionInput.Version != nil || ngVersionInput.LaunchTemplate != nil {
 			updateNodegroupProperties = true
-			_, err := h.awsServices.eks.UpdateNodegroupVersion(ngVersionInput)
-			if err != nil {
-				if version, ok := templateVersionsToAdd[aws.StringValue(ng.NodegroupName)]; ok {
-					// If there was an error updating the node group and a Rancher-managed launch template version was created,
-					// then the version that caused the issue needs to be deleted to prevent bad versions from piling up.
-					awsservices.DeleteLaunchTemplateVersions(h.awsServices.ec2, config.Status.ManagedLaunchTemplateID, []*string{aws.String(version)})
-				}
+			if err := awsservices.UpdateNodegroupVersion(awsservices.UpdateNodegroupVersionOpts{
+				EKSService:     h.awsServices.eks,
+				EC2Service:     h.awsServices.ec2,
+				Config:         config,
+				NodeGroup:      &ng,
+				NGVersionInput: ngVersionInput,
+				LTVersions:     templateVersionsToAdd,
+			}); err != nil {
 				return config, err
 			}
 			continue
@@ -1196,26 +1172,15 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		}
 
 		if ng.Tags != nil {
-			if untags := utils.GetKeysToDelete(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); untags != nil {
-				_, err := h.awsServices.eks.UntagResource(&eks.UntagResourceInput{
-					ResourceArn: aws.String(ngARNs[aws.StringValue(ng.NodegroupName)]),
-					TagKeys:     untags,
-				})
-				if err != nil {
-					return config, err
-				}
-				updateNodegroupProperties = true
-			}
-
-			if tags := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Tags), aws.StringValueMap(upstreamNg.Tags)); tags != nil {
-				_, err := h.awsServices.eks.TagResource(&eks.TagResourceInput{
-					ResourceArn: aws.String(ngARNs[aws.StringValue(ng.NodegroupName)]),
-					Tags:        tags,
-				})
-				if err != nil {
-					return config, err
-				}
-				updateNodegroupProperties = true
+			var err error // initialize error here because we assign returned value to updateNodegroupProperties
+			updateNodegroupProperties, err = awsservices.UpdateResourceTags(awsservices.UpdateResourceTagsOpts{
+				EKSService:   h.awsServices.eks,
+				Tags:         aws.StringValueMap(ng.Tags),
+				UpstreamTags: aws.StringValueMap(upstreamNg.Tags),
+				ResourceARN:  ngARNs[aws.StringValue(ng.NodegroupName)],
+			})
+			if err != nil {
+				return config, fmt.Errorf("error updating cluster tags: %w", err)
 			}
 		}
 	}
@@ -1250,10 +1215,10 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 // importCluster cluster returns a spec representing the upstream state of the cluster matching to the
 // given config's displayName and region.
 func (h *Handler) importCluster(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
-	clusterState, err := h.awsServices.eks.DescribeCluster(
-		&eks.DescribeClusterInput{
-			Name: aws.String(config.Spec.DisplayName),
-		})
+	clusterState, err := awsservices.GetClusterState(awsservices.GetClusterStatusOpts{
+		EKSService: h.awsServices.eks,
+		Config:     config,
+	})
 	if err != nil {
 		return config, err
 	}
@@ -1336,80 +1301,6 @@ func getParameterValueFromOutput(key string, outputs []*cloudformation.Output) s
 	return ""
 }
 
-func getPublicAccessCidrs(publicAccessCidrs []string) []*string {
-	if len(publicAccessCidrs) == 0 {
-		return aws.StringSlice([]string{"0.0.0.0/0"})
-	}
-
-	return aws.StringSlice(publicAccessCidrs)
-}
-
-func getLoggingTypesUpdate(loggingTypes []string, upstreamLoggingTypes []string) *eks.Logging {
-	loggingUpdate := &eks.Logging{}
-
-	if loggingTypesToDisable := getLoggingTypesToDisable(loggingTypes, upstreamLoggingTypes); loggingTypesToDisable != nil {
-		loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToDisable)
-	}
-
-	if loggingTypesToEnable := getLoggingTypesToEnable(loggingTypes, upstreamLoggingTypes); loggingTypesToEnable != nil {
-		loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToEnable)
-	}
-
-	if len(loggingUpdate.ClusterLogging) > 0 {
-		return loggingUpdate
-	}
-
-	return nil
-}
-
-func getLoggingTypesToDisable(loggingTypes []string, upstreamLoggingTypes []string) *eks.LogSetup {
-	loggingTypesMap := make(map[string]bool)
-
-	for _, val := range loggingTypes {
-		loggingTypesMap[val] = true
-	}
-
-	var loggingTypesToDisable []string
-	for _, val := range upstreamLoggingTypes {
-		if !loggingTypesMap[val] {
-			loggingTypesToDisable = append(loggingTypesToDisable, val)
-		}
-	}
-
-	if len(loggingTypesToDisable) > 0 {
-		return &eks.LogSetup{
-			Enabled: aws.Bool(false),
-			Types:   aws.StringSlice(loggingTypesToDisable),
-		}
-	}
-
-	return nil
-}
-
-func getLoggingTypesToEnable(loggingTypes []string, upstreamLoggingTypes []string) *eks.LogSetup {
-	upstreamLoggingTypesMap := make(map[string]bool)
-
-	for _, val := range upstreamLoggingTypes {
-		upstreamLoggingTypesMap[val] = true
-	}
-
-	var loggingTypesToEnable []string
-	for _, val := range loggingTypes {
-		if !upstreamLoggingTypesMap[val] {
-			loggingTypesToEnable = append(loggingTypesToEnable, val)
-		}
-	}
-
-	if len(loggingTypesToEnable) > 0 {
-		return &eks.LogSetup{
-			Enabled: aws.Bool(true),
-			Types:   aws.StringSlice(loggingTypesToEnable),
-		}
-	}
-
-	return nil
-}
-
 func deleteStack(svc services.CloudFormationServiceInterface, newStyleName, oldStyleName string) error {
 	name := newStyleName
 	_, err := svc.DescribeStacks(&cloudformation.DescribeStacksInput{
@@ -1427,14 +1318,4 @@ func deleteStack(svc services.CloudFormationServiceInterface, newStyleName, oldS
 	}
 
 	return nil
-}
-
-func filterPublicAccessSources(sources []string) []string {
-	if len(sources) == 0 {
-		return nil
-	}
-	if len(sources) == 1 && sources[0] == allOpen {
-		return nil
-	}
-	return sources
 }
