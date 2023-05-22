@@ -16,7 +16,7 @@ require (
 	github.com/rancher/rancher/pkg/apis v0.0.0-20230317204402-a49d36c7e628
 	github.com/rancher/wrangler v1.1.0
 	github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.2
 	github.com/stretchr/testify v1.8.3
 	k8s.io/api v0.25.4
 	k8s.io/apiextensions-apiserver v0.25.4
