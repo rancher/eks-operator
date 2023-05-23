@@ -1,8 +1,14 @@
 package eks
 
 import (
+	"crypto/sha1"
+	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/iam"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/templates"
@@ -30,6 +37,8 @@ const (
 	launchTemplateTagKey     = "rancher-managed-template"
 	launchTemplateTagValue   = "do-not-modify-or-delete"
 	defaultStorageDeviceName = "/dev/xvda"
+
+	defaultAudienceOpenIDConnect = "sts.amazonaws.com"
 )
 
 type CreateClusterOptions struct {
@@ -41,8 +50,7 @@ type CreateClusterOptions struct {
 func CreateCluster(opts *CreateClusterOptions) error {
 	createClusterInput := newClusterInput(opts.Config, opts.RoleARN)
 
-	_, err := opts.EKSService.CreateCluster(createClusterInput)
-	return err
+	return opts.EKSService.CreateCluster(createClusterInput)
 }
 
 func newClusterInput(config *eksv1.EKSClusterConfig, roleARN string) *eks.CreateClusterInput {
@@ -462,4 +470,73 @@ func getParameterValueFromOutput(key string, outputs []*cloudformation.Output) s
 	}
 
 	return ""
+}
+
+// ConfigureOIDCProvider creates a new Open ID Connect Provider associated with the cluster
+// if there are no providers available
+func ConfigureOIDCProvider(config *eksv1.EKSClusterConfig, iamService services.IAMServiceInterface, eksService services.EKSServiceInterface) error {
+	output, err := iamService.ListOIDCProviders(&iam.ListOpenIDConnectProvidersInput{})
+	if err != nil {
+		return fmt.Errorf("error listing oidc providers: %v", err)
+	}
+	clusterOutput, err := eksService.DescribeCluster(&eks.DescribeClusterInput{
+		Name: aws.String(config.Spec.DisplayName),
+	})
+	id := path.Base(*clusterOutput.Cluster.Identity.Oidc.Issuer)
+
+	for _, prov := range output.OpenIDConnectProviderList {
+		if strings.Contains(*prov.Arn, id) {
+			return nil
+		}
+	}
+
+	thumbprint, err := getIssuerThumbprint(*clusterOutput.Cluster.Identity.Oidc.Issuer)
+	if err != nil {
+		return fmt.Errorf("error getting server certificate tumbprints for OIDC: %v", err)
+	}
+	input := &iam.CreateOpenIDConnectProviderInput{
+		ClientIDList:   []*string{aws.String(defaultAudienceOpenIDConnect)},
+		ThumbprintList: []*string{&thumbprint},
+		Url:            clusterOutput.Cluster.Identity.Oidc.Issuer,
+		Tags:           []*iam.Tag{},
+	}
+	_, err = iamService.CreateOIDCProvider(input)
+	if err != nil {
+		return fmt.Errorf("creating OIDC provider: %v", err)
+	}
+
+	return nil
+}
+
+func getIssuerThumbprint(issuer string) (string, error) {
+	issuerURL, err := url.Parse(issuer)
+	if err != nil {
+		return "", fmt.Errorf("parsing issuer url: %w", err)
+	}
+	if issuerURL.Port() == "" {
+		issuerURL.Host += ":443"
+	}
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+			},
+			Proxy: http.ProxyFromEnvironment,
+		},
+	}
+	resp, err := client.Get(issuerURL.String())
+	if err != nil {
+		return "", fmt.Errorf("querying oidc issuer endpoint %s: %w", issuerURL.String(), err)
+	}
+	defer resp.Body.Close()
+
+	if resp.TLS == nil || len(resp.TLS.PeerCertificates) == 0 {
+		return "", errors.New("unable to get oidc issuers cert")
+	}
+
+	root := resp.TLS.PeerCertificates[len(resp.TLS.PeerCertificates)-1]
+
+	return fmt.Sprintf("%x", sha1.Sum(root.Raw)), nil
 }

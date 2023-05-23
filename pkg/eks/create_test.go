@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -1021,5 +1022,81 @@ var _ = Describe("CreateNodeGroup", func() {
 
 		Expect(launchTemplateVersion).To(Equal("1"))
 		Expect(generatedNodeRole).To(Equal("test"))
+	})
+})
+
+var _ = Describe("installEBSCSIDriver", func() {
+	var (
+		mockController           *gomock.Controller
+		eksServiceMock           *mock_services.MockEKSServiceInterface
+		iamServiceMock           *mock_services.MockIAMServiceInterface
+		createClusterOptions     *CreateClusterOptions
+		oidcListProvidersOutput  *iam.ListOpenIDConnectProvidersOutput
+		oidcCreateProviderOutput *iam.CreateOpenIDConnectProviderOutput
+		eksClusterOutput         *eks.DescribeClusterOutput
+		defaultAWSRegion         string
+	)
+
+	BeforeEach(func() {
+		mockController = gomock.NewController(GinkgoT())
+		eksServiceMock = mock_services.NewMockEKSServiceInterface(mockController)
+		iamServiceMock = mock_services.NewMockIAMServiceInterface(mockController)
+		createClusterOptions = &CreateClusterOptions{
+			EKSService: eksServiceMock,
+			RoleARN:    "test",
+			Config:     &eksv1.EKSClusterConfig{},
+		}
+		defaultAWSRegion = "us-east-1" // must use a default region to get OIDC thumbprint
+		oidcListProvidersOutput = &iam.ListOpenIDConnectProvidersOutput{}
+		oidcCreateProviderOutput = &iam.CreateOpenIDConnectProviderOutput{
+			OpenIDConnectProviderArn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.regions.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455"),
+		}
+		eksClusterOutput = &eks.DescribeClusterOutput{
+			Cluster: &eks.Cluster{
+				Identity: &eks.Identity{
+					Oidc: &eks.OIDC{
+						Issuer: aws.String(fmt.Sprintf("https://oidc.eks.%v.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455", defaultAWSRegion)),
+					},
+				},
+			},
+		}
+	})
+
+	AfterEach(func() {
+		mockController.Finish()
+	})
+
+	It("should successfully create oidc provider", func() {
+		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/BBBAAACCCDDDEEEFFF11122233344455")},
+		}
+		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
+		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().CreateOIDCProvider(gomock.Any()).Return(oidcCreateProviderOutput, nil)
+		Expect(ConfigureOIDCProvider(createClusterOptions.Config, iamServiceMock, eksServiceMock)).To(Succeed())
+	})
+
+	It("should successfully use existing oidc provider", func() {
+		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455")},
+		}
+		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
+		Expect(ConfigureOIDCProvider(createClusterOptions.Config, iamServiceMock, eksServiceMock)).To(Succeed())
+	})
+
+	It("should fail to list oidc providers", func() {
+		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(nil, fmt.Errorf("failed to list oidc providers"))
+		Expect(ConfigureOIDCProvider(createClusterOptions.Config, iamServiceMock, eksServiceMock)).ToNot(Succeed())
+	})
+
+	It("should fail to create oidc provider", func() {
+		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/BBBAAACCCDDDEEEFFF11122233344455")},
+		}
+		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
+		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().CreateOIDCProvider(gomock.Any()).Return(nil, fmt.Errorf("failed to create oidc provider"))
+		Expect(ConfigureOIDCProvider(createClusterOptions.Config, iamServiceMock, eksServiceMock)).ToNot(Succeed())
 	})
 })

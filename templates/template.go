@@ -257,4 +257,36 @@ Outputs:
       Name: !Sub "${AWS::StackName}-RoleArn"
 
 `
+	EBSCSIDriverTemplate = `---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon EKS EBS CSI Driver Role'
+
+
+Resources:
+
+  AWSEBSCSIDriverRoleForAmazonEKS:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Federated:
+			- !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCProvider}"
+          Action: sts:AssumeRoleWithWebIdentity
+		  Condition:
+		    StringEquals:
+			- !Sub "oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCProvider}:aud": "sts.amazonaws.com",
+			- !Sub "oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCProvider}:sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+
+Outputs:
+
+  RoleArn:
+    Description: The role that EKS will for enabling the EBS CSI driver
+    Value: !GetAtt AWSEBSCSIDriverRoleForAmazonEKS.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RoleArn"
+
+`
 )
