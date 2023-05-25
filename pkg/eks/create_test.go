@@ -1030,7 +1030,8 @@ var _ = Describe("installEBSCSIDriver", func() {
 		mockController           *gomock.Controller
 		eksServiceMock           *mock_services.MockEKSServiceInterface
 		iamServiceMock           *mock_services.MockIAMServiceInterface
-		createClusterOptions     *CreateClusterOptions
+		cfServiceMock            *mock_services.MockCloudFormationServiceInterface
+		enableEBSCSIDriverInput  *EnableEBSCSIDriverInput
 		oidcListProvidersOutput  *iam.ListOpenIDConnectProvidersOutput
 		oidcCreateProviderOutput *iam.CreateOpenIDConnectProviderOutput
 		eksClusterOutput         *eks.DescribeClusterOutput
@@ -1041,9 +1042,10 @@ var _ = Describe("installEBSCSIDriver", func() {
 		mockController = gomock.NewController(GinkgoT())
 		eksServiceMock = mock_services.NewMockEKSServiceInterface(mockController)
 		iamServiceMock = mock_services.NewMockIAMServiceInterface(mockController)
-		createClusterOptions = &CreateClusterOptions{
+		enableEBSCSIDriverInput = &EnableEBSCSIDriverInput{
 			EKSService: eksServiceMock,
-			RoleARN:    "test",
+			IAMService: iamServiceMock,
+			CFService:  cfServiceMock,
 			Config:     &eksv1.EKSClusterConfig{},
 		}
 		defaultAWSRegion = "us-east-1" // must use a default region to get OIDC thumbprint
@@ -1073,7 +1075,7 @@ var _ = Describe("installEBSCSIDriver", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
 		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().CreateOIDCProvider(gomock.Any()).Return(oidcCreateProviderOutput, nil)
-		Expect(ConfigureOIDCProvider(createClusterOptions.Config, iamServiceMock, eksServiceMock)).To(Succeed())
+		Expect(ConfigureOIDCProvider(*enableEBSCSIDriverInput)).To(Succeed())
 	})
 
 	It("should successfully use existing oidc provider", func() {
@@ -1082,12 +1084,12 @@ var _ = Describe("installEBSCSIDriver", func() {
 		}
 		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
-		Expect(ConfigureOIDCProvider(createClusterOptions.Config, iamServiceMock, eksServiceMock)).To(Succeed())
+		Expect(ConfigureOIDCProvider(*enableEBSCSIDriverInput)).To(Succeed())
 	})
 
 	It("should fail to list oidc providers", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(nil, fmt.Errorf("failed to list oidc providers"))
-		Expect(ConfigureOIDCProvider(createClusterOptions.Config, iamServiceMock, eksServiceMock)).ToNot(Succeed())
+		Expect(ConfigureOIDCProvider(*enableEBSCSIDriverInput)).ToNot(Succeed())
 	})
 
 	It("should fail to create oidc provider", func() {
@@ -1097,6 +1099,6 @@ var _ = Describe("installEBSCSIDriver", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
 		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().CreateOIDCProvider(gomock.Any()).Return(nil, fmt.Errorf("failed to create oidc provider"))
-		Expect(ConfigureOIDCProvider(createClusterOptions.Config, iamServiceMock, eksServiceMock)).ToNot(Succeed())
+		Expect(ConfigureOIDCProvider(*enableEBSCSIDriverInput)).ToNot(Succeed())
 	})
 })

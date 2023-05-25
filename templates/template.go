@@ -262,6 +262,13 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Amazon EKS EBS CSI Driver Role'
 
 
+Parameters:
+
+  AmazonEBSCSIDriverPolicyArn:
+    Type: String
+    Default: arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+    Description: The ARN of the managed policy
+
 Resources:
 
   AWSEBSCSIDriverRoleForAmazonEKS:
@@ -273,16 +280,20 @@ Resources:
         - Effect: Allow
           Principal:
             Federated:
-			- !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCProvider}"
+            - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.eks.{.Region}.amazonaws.com/id/{.ProviderID}"
           Action: sts:AssumeRoleWithWebIdentity
-		  Condition:
-		    StringEquals:
-			- !Sub "oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCProvider}:aud": "sts.amazonaws.com",
-			- !Sub "oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCProvider}:sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          Condition:
+            StringEquals: {
+              "oidc.eks.{{.Region}}.amazonaws.com/id/{{.ProviderID}}:sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa",
+              "oidc.eks.{{.Region}}.amazonaws.com/id/{{.ProviderID}}:aud": "sts.amazonaws.com"
+            }
+      Path: "/"
+      ManagedPolicyArns:
+      - !Ref AmazonEBSCSIDriverPolicyArn
 
 Outputs:
 
-  RoleArn:
+  EBSCSIDriverRole:
     Description: The role that EKS will for enabling the EBS CSI driver
     Value: !GetAtt AWSEBSCSIDriverRoleForAmazonEKS.Arn
     Export:

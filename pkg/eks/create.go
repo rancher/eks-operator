@@ -1,11 +1,14 @@
 package eks
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -39,6 +42,7 @@ const (
 	defaultStorageDeviceName = "/dev/xvda"
 
 	defaultAudienceOpenIDConnect = "sts.amazonaws.com"
+	ebsCSIAddonName              = "aws-ebs-csi-driver"
 )
 
 type CreateClusterOptions struct {
@@ -314,7 +318,11 @@ func CreateNodeGroup(opts *CreateNodeGroupOptions) (string, string, error) {
 	return aws.StringValue(launchTemplateVersion), generatedNodeRole, err
 }
 
-func CreateNewLaunchTemplateVersion(ec2Service services.EC2ServiceInterface, launchTemplateID string, group eksv1.NodeGroup) (*eksv1.LaunchTemplate, error) {
+func CreateNewLaunchTemplateVersion(
+	ec2Service services.EC2ServiceInterface,
+	launchTemplateID string,
+	group eksv1.NodeGroup,
+) (*eksv1.LaunchTemplate, error) {
 	launchTemplate, err := buildLaunchTemplateData(ec2Service, group)
 	if err != nil {
 		return nil, err
@@ -337,7 +345,10 @@ func CreateNewLaunchTemplateVersion(ec2Service services.EC2ServiceInterface, lau
 	}, nil
 }
 
-func buildLaunchTemplateData(ec2Service services.EC2ServiceInterface, group eksv1.NodeGroup) (*ec2.RequestLaunchTemplateData, error) {
+func buildLaunchTemplateData(
+	ec2Service services.EC2ServiceInterface,
+	group eksv1.NodeGroup,
+) (*ec2.RequestLaunchTemplateData, error) {
 	var imageID *string
 	if aws.StringValue(group.ImageID) != "" {
 		imageID = group.ImageID
@@ -346,7 +357,10 @@ func buildLaunchTemplateData(ec2Service services.EC2ServiceInterface, group eksv
 	userdata := group.UserData
 	if aws.StringValue(userdata) != "" {
 		if !strings.Contains(*userdata, "Content-Type: multipart/mixed") {
-			return nil, fmt.Errorf("userdata for nodegroup [%s] is not of mime time multipart/mixed", aws.StringValue(group.NodegroupName))
+			return nil, fmt.Errorf(
+				"userdata for nodegroup [%s] is not of mime time multipart/mixed",
+				aws.StringValue(group.NodegroupName),
+			)
 		}
 		*userdata = base64.StdEncoding.EncodeToString([]byte(*userdata))
 	}
@@ -472,20 +486,38 @@ func getParameterValueFromOutput(key string, outputs []*cloudformation.Output) s
 	return ""
 }
 
+// EnableEBSCSIDriverInput holds the options for installing the EBS CSI driver
+type EnableEBSCSIDriverInput struct {
+	EKSService     services.EKSServiceInterface
+	IAMService     services.IAMServiceInterface
+	CFService      services.CloudFormationServiceInterface
+	Config         *eksv1.EKSClusterConfig
+	OIDCProviderID string
+	DriverRoleARN  string
+}
+
+// EnableEBSCSIDriver manages the EBS CSI driver installation, including the creation of the OIDC Provider,
+// the IAM role and the validation and installation of the EKS add-on
+func EnableEBSCSIDriver(opts EnableEBSCSIDriverInput) {}
+
 // ConfigureOIDCProvider creates a new Open ID Connect Provider associated with the cluster
 // if there are no providers available
-func ConfigureOIDCProvider(config *eksv1.EKSClusterConfig, iamService services.IAMServiceInterface, eksService services.EKSServiceInterface) error {
-	output, err := iamService.ListOIDCProviders(&iam.ListOpenIDConnectProvidersInput{})
+// func ConfigureOIDCProvider(config *eksv1.EKSClusterConfig, iamService services.IAMServiceInterface, eksService services.EKSServiceInterface) error {
+func ConfigureOIDCProvider(opts EnableEBSCSIDriverInput) error {
+	output, err := opts.IAMService.ListOIDCProviders(&iam.ListOpenIDConnectProvidersInput{})
 	if err != nil {
 		return fmt.Errorf("error listing oidc providers: %v", err)
 	}
-	clusterOutput, err := eksService.DescribeCluster(&eks.DescribeClusterInput{
-		Name: aws.String(config.Spec.DisplayName),
+	clusterOutput, err := opts.EKSService.DescribeCluster(&eks.DescribeClusterInput{
+		Name: aws.String(opts.Config.Spec.DisplayName),
 	})
 	id := path.Base(*clusterOutput.Cluster.Identity.Oidc.Issuer)
 
 	for _, prov := range output.OpenIDConnectProviderList {
 		if strings.Contains(*prov.Arn, id) {
+			// TODO: review this and how to proceed with creation of OIDC provider
+			// how to pass the OIDC provider ID to the EBS CSI driver?
+			opts.OIDCProviderID = path.Base(*prov.Arn)
 			return nil
 		}
 	}
@@ -500,7 +532,7 @@ func ConfigureOIDCProvider(config *eksv1.EKSClusterConfig, iamService services.I
 		Url:            clusterOutput.Cluster.Identity.Oidc.Issuer,
 		Tags:           []*iam.Tag{},
 	}
-	_, err = iamService.CreateOIDCProvider(input)
+	_, err = opts.IAMService.CreateOIDCProvider(input)
 	if err != nil {
 		return fmt.Errorf("creating OIDC provider: %v", err)
 	}
@@ -539,4 +571,81 @@ func getIssuerThumbprint(issuer string) (string, error) {
 	root := resp.TLS.PeerCertificates[len(resp.TLS.PeerCertificates)-1]
 
 	return fmt.Sprintf("%x", sha1.Sum(root.Raw)), nil
+}
+
+// CreateEBSCSIDriverRole creates an IAM role for the EKS cluster to interact with
+// EBS through the previously created Open ID Connect provider
+func CreateEBSCSIDriverRole(opts EnableEBSCSIDriverInput) (string, error) {
+	templateData := struct {
+		Region     string
+		ProviderID string
+	}{
+		Region:     opts.Config.Spec.Region,
+		ProviderID: opts.OIDCProviderID,
+	}
+	tmpl, err := template.New("ebsrole").Parse(templates.EBSCSIDriverTemplate)
+	if err != nil {
+		return "", fmt.Errorf("parsing ebs role template: %v", err)
+	}
+	buf := &bytes.Buffer{}
+	if execErr := tmpl.Execute(buf, templateData); execErr != nil {
+		return "", fmt.Errorf("executing ebs role template: %v", err)
+	}
+	finalTemplate := buf.String()
+
+	output, err := CreateStack(CreateStackOptions{
+		CloudFormationService: opts.CFService,
+		StackName:             fmt.Sprintf("%s-ebs-csi-driver-role", opts.Config.Spec.DisplayName),
+		DisplayName:           opts.Config.Spec.DisplayName,
+		TemplateBody:          finalTemplate,
+		Capabilities:          []string{cloudformation.CapabilityCapabilityIam},
+		Parameters:            []*cloudformation.Parameter{},
+	})
+	if err != nil {
+		// If there was an error creating the driver role stack, return an empty role arn and the error
+		return "", fmt.Errorf("creating ebs csi driver role: %v", err)
+	}
+	createdRoleArn := getParameterValueFromOutput("EBSCSIDriverRole", output.Stacks[0].Outputs)
+
+	return createdRoleArn, nil
+}
+
+func checkEBSAddon(opts EnableEBSCSIDriverInput) (string, error) {
+	input := eks.DescribeAddonInput{
+		AddonName:   aws.String(ebsCSIAddonName),
+		ClusterName: aws.String(opts.Config.Spec.DisplayName),
+	}
+
+	output, err := opts.EKSService.DescribeAddon(&input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() == eks.ErrCodeResourceNotFoundException {
+				log.Println("EBS CSI driver addon not found: got resource not found exception")
+				return "", nil
+			}
+		}
+	}
+	if output == nil {
+		log.Println("EBS CSI driver addon not found")
+		return "", nil
+	}
+	log.Println("EBS CSI driver addon found:", *output.Addon.AddonArn)
+
+	return *output.Addon.AddonArn, nil
+}
+
+func installEBSAddon(opts EnableEBSCSIDriverInput) error {
+	input := eks.CreateAddonInput{
+		AddonName:             aws.String(ebsCSIAddonName),
+		ClusterName:           aws.String(opts.Config.Spec.DisplayName),
+		ServiceAccountRoleArn: aws.String(opts.DriverRoleARN),
+	}
+
+	output, err := opts.EKSService.CreateAddon(&input)
+	if err != nil {
+		return fmt.Errorf("cannot install EBS CSI driver addon: %v", err)
+	}
+	fmt.Println("installed addon EBS CSI driver:", *output.Addon.AddonArn)
+
+	return nil
 }

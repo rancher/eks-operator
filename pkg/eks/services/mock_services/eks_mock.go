@@ -243,3 +243,33 @@ func (mr *MockEKSServiceInterfaceMockRecorder) UpdateNodegroupVersion(input inte
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNodegroupVersion", reflect.TypeOf((*MockEKSServiceInterface)(nil).UpdateNodegroupVersion), input)
 }
+
+// CreateAddon mocks base method.
+func (m *MockEKSServiceInterface) CreateAddon(input *eks.CreateAddonInput) (*eks.CreateAddonOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAddon", input)
+	ret0, _ := ret[0].(*eks.CreateAddonOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateAddon indicates an expected call of UpdateNodegroupVersion.
+func (mr *MockEKSServiceInterfaceMockRecorder) CreateAddon(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAddon", reflect.TypeOf((*MockEKSServiceInterface)(nil).CreateAddon), input)
+}
+
+// DescribeAddon mocks base method.
+func (m *MockEKSServiceInterface) DescribeAddon(input *eks.DescribeAddonInput) (*eks.DescribeAddonOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeAddon", input)
+	ret0, _ := ret[0].(*eks.DescribeAddonOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeAddon indicates an expected call of UpdateNodegroupVersion.
+func (mr *MockEKSServiceInterfaceMockRecorder) DescribeAddon(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeAddon", reflect.TypeOf((*MockEKSServiceInterface)(nil).DescribeAddon), input)
+}
