@@ -34,6 +34,21 @@ func (m *MockIAMServiceInterface) EXPECT() *MockIAMServiceInterfaceMockRecorder 
 	return m.recorder
 }
 
+// CreateOIDCProvider mocks base method.
+func (m *MockIAMServiceInterface) CreateOIDCProvider(input *iam.CreateOpenIDConnectProviderInput) (*iam.CreateOpenIDConnectProviderOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateOIDCProvider", input)
+	ret0, _ := ret[0].(*iam.CreateOpenIDConnectProviderOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateOIDCProvider indicates an expected call of CreateOIDCProvider.
+func (mr *MockIAMServiceInterfaceMockRecorder) CreateOIDCProvider(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOIDCProvider", reflect.TypeOf((*MockIAMServiceInterface)(nil).CreateOIDCProvider), input)
+}
+
 // GetRole mocks base method.
 func (m *MockIAMServiceInterface) GetRole(input *iam.GetRoleInput) (*iam.GetRoleOutput, error) {
 	m.ctrl.T.Helper()
@@ -62,19 +77,4 @@ func (m *MockIAMServiceInterface) ListOIDCProviders(input *iam.ListOpenIDConnect
 func (mr *MockIAMServiceInterfaceMockRecorder) ListOIDCProviders(input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOIDCProviders", reflect.TypeOf((*MockIAMServiceInterface)(nil).ListOIDCProviders), input)
-}
-
-// CreateOIDCProvider mocks base method.
-func (m *MockIAMServiceInterface) CreateOIDCProvider(input *iam.CreateOpenIDConnectProviderInput) (*iam.CreateOpenIDConnectProviderOutput, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOIDCProvider", input)
-	ret0, _ := ret[0].(*iam.CreateOpenIDConnectProviderOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CreateOIDCProvider indicates an expected call of CreateOIDCProvider.
-func (mr *MockIAMServiceInterfaceMockRecorder) CreateOIDCProvider(input interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOIDCProvider", reflect.TypeOf((*MockIAMServiceInterface)(nil).CreateOIDCProvider), input)
 }

@@ -443,16 +443,20 @@ func (h *Handler) create(config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (
 		}
 	}
 
-	// Test new boolean option for enabling EBS CSI driver
 	if aws.BoolValue(config.Spec.EBSCSIDriver) {
 		logrus.Infof("EBSCSIDriver is set to true: %v", config.Spec.EBSCSIDriver)
 		ebsCSIDriverInput := awsservices.EnableEBSCSIDriverInput{
-			EKSService: h.awsServices.eks,
-			IAMService: h.awsServices.iam,
-			CFService:  h.awsServices.cloudformation,
+			EKSService: awsSVCs.eks,
+			IAMService: awsSVCs.iam,
+			CFService:  awsSVCs.cloudformation,
 			Config:     config,
+			// TODO: make this configurable?
+			AddonVersion: "latest",
 		}
-		awsservices.EnableEBSCSIDriver(ebsCSIDriverInput)
+		err := awsservices.EnableEBSCSIDriver(ebsCSIDriverInput)
+		if err != nil {
+			return config, fmt.Errorf("error enabling EBS CSI driver: %w", err)
+		}
 	}
 
 	// If a user edits a cluster at the exact right (or wrong) time, then the

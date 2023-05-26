@@ -85,3 +85,11 @@ issues:
     - revive
     text: "var-naming: don't use an underscore in package name"
     path: 'mock(\w+)/doc.go$'
+  - path: 'pkg/eks/create.go$'
+    text: "weak cryptographic primitive"
+    linters:
+      - gosec
+  - path: 'pkg/eks/create.go$'
+    text: "TLS InsecureSkipVerify set true."
+    linters:
+      - gosec
