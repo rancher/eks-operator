@@ -495,18 +495,36 @@ func EnableEBSCSIDriver(opts EnableEBSCSIDriverInput) error {
 	if err != nil {
 		return fmt.Errorf("could not create ebs csi driver role: %v", err)
 	}
-	installedArn, err := checkEBSAddon(opts.EKSService, opts.Config)
+	_, err = installEBSAddon(opts.EKSService, opts.Config, roleArn, opts.AddonVersion)
 	if err != nil {
-		return fmt.Errorf("could not check if ebs csi driver addon is installed: %v", err)
-	}
-	if installedArn == "" {
-		_, err = installEBSAddon(opts.EKSService, opts.Config, roleArn, opts.AddonVersion)
-		if err != nil {
-			return fmt.Errorf("failed to install ebs csi driver addon: %v", err)
-		}
+		return fmt.Errorf("failed to install ebs csi driver addon: %v", err)
 	}
 
 	return nil
+}
+
+// CheckEBSAddon checks if the EBS CSI driver add-on is installed. If it is, it will return
+// the ARN of the add-on. If it is not, it will return an empty string. Otherwise, it will return an error
+func CheckEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
+	input := eks.DescribeAddonInput{
+		AddonName:   aws.String(ebsCSIAddonName),
+		ClusterName: aws.String(config.Spec.DisplayName),
+	}
+
+	output, err := eksService.DescribeAddon(&input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() == eks.ErrCodeResourceNotFoundException {
+				return "", nil
+			}
+		}
+		return "", err
+	}
+	if output.Addon == nil {
+		return "", nil
+	}
+
+	return *output.Addon.AddonArn, nil
 }
 
 func configureOIDCProvider(iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
@@ -543,7 +561,7 @@ func configureOIDCProvider(iamService services.IAMServiceInterface, eksService s
 		return "", err
 	}
 
-	return *newOIDC.OpenIDConnectProviderArn, nil
+	return path.Base(*newOIDC.OpenIDConnectProviderArn), nil
 }
 
 func getIssuerThumbprint(issuer string) (string, error) {
@@ -611,28 +629,6 @@ func createEBSCSIDriverRole(cfService services.CloudFormationServiceInterface, c
 	createdRoleArn := getParameterValueFromOutput("EBSCSIDriverRole", output.Stacks[0].Outputs)
 
 	return createdRoleArn, nil
-}
-
-func checkEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
-	input := eks.DescribeAddonInput{
-		AddonName:   aws.String(ebsCSIAddonName),
-		ClusterName: aws.String(config.Spec.DisplayName),
-	}
-
-	output, err := eksService.DescribeAddon(&input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == eks.ErrCodeResourceNotFoundException {
-				return "", nil
-			}
-		}
-		return "", err
-	}
-	if output.Addon == nil {
-		return "", nil
-	}
-
-	return *output.Addon.AddonArn, nil
 }
 
 func installEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig, roleArn, version string) (string, error) {

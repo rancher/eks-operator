@@ -280,7 +280,7 @@ Resources:
         - Effect: Allow
           Principal:
             Federated:
-            - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.eks.{.Region}.amazonaws.com/id/{.ProviderID}"
+            - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.eks.{{.Region}}.amazonaws.com/id/{{.ProviderID}}"
           Action: sts:AssumeRoleWithWebIdentity
           Condition:
             StringEquals: {

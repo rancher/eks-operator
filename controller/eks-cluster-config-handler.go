@@ -252,6 +252,14 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 		}
 	}
 
+	if aws.BoolValue(config.Spec.EBSCSIDriver) == true {
+		logrus.Infof("deleting ebs csi driver role for config [%s]", config.Name)
+		err = deleteStack(h.awsServices.cloudformation, getEBSCSIDriverRoleStackName(config.Spec.DisplayName), getEBSCSIDriverRoleStackName(config.Spec.DisplayName))
+		if err != nil {
+			return config, fmt.Errorf("error ebs csi driver role stack: %v", err)
+		}
+	}
+
 	if aws.StringValue(config.Spec.ServiceRole) == "" {
 		logrus.Infof("deleting service role for config [%s]", config.Name)
 		err = deleteStack(awsSVCs.cloudformation, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName))
@@ -1244,6 +1252,28 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		return h.enqueueUpdate(config)
 	}
 
+	// check if ebs csi driver needs to be enabled
+	if aws.BoolValue(config.Spec.EBSCSIDriver) {
+		installedArn, err := awsservices.CheckEBSAddon(h.awsServices.eks, config)
+		if err != nil {
+			return nil, fmt.Errorf("error checking if ebs csi driver addon is installed: %v", err)
+		}
+		if installedArn == "" {
+			logrus.Infof("enabling [ebs csi driver add-on] for cluster [%s]", config.Spec.DisplayName)
+			ebsCSIDriverInput := awsservices.EnableEBSCSIDriverInput{
+				EKSService:   h.awsServices.eks,
+				IAMService:   h.awsServices.iam,
+				CFService:    h.awsServices.cloudformation,
+				Config:       config,
+				AddonVersion: "latest",
+			}
+			err := awsservices.EnableEBSCSIDriver(ebsCSIDriverInput)
+			if err != nil {
+				return config, fmt.Errorf("error enabling ebs csi driver addon: %w", err)
+			}
+		}
+	}
+
 	// no new updates, set to active
 	if config.Status.Phase != eksConfigActivePhase {
 		logrus.Infof("cluster [%s] finished updating", config.Name)
@@ -1333,6 +1363,10 @@ func (h *Handler) enqueueUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClust
 
 func getVPCStackName(name string) string {
 	return name + "-eks-vpc"
+}
+
+func getEBSCSIDriverRoleStackName(name string) string {
+	return name + "-ebs-csi-driver-role"
 }
 
 func getServiceRoleName(name string) string {
