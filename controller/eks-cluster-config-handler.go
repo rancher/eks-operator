@@ -252,33 +252,29 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 		}
 	}
 
-	if aws.BoolValue(config.Spec.EBSCSIDriver) == true {
+	if aws.BoolValue(config.Spec.EBSCSIDriver) {
 		logrus.Infof("deleting ebs csi driver role for config [%s]", config.Name)
-		err = deleteStack(h.awsServices.cloudformation, getEBSCSIDriverRoleStackName(config.Spec.DisplayName), getEBSCSIDriverRoleStackName(config.Spec.DisplayName))
-		if err != nil {
+		if err := deleteStack(awsSVCs.cloudformation, getEBSCSIDriverRoleStackName(config.Spec.DisplayName), getEBSCSIDriverRoleStackName(config.Spec.DisplayName)); err != nil {
 			return config, fmt.Errorf("error ebs csi driver role stack: %v", err)
 		}
 	}
 
 	if aws.StringValue(config.Spec.ServiceRole) == "" {
 		logrus.Infof("deleting service role for config [%s]", config.Name)
-		err = deleteStack(awsSVCs.cloudformation, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName))
-		if err != nil {
+		if err := deleteStack(awsSVCs.cloudformation, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName)); err != nil {
 			return config, fmt.Errorf("error deleting service role stack: %v", err)
 		}
 	}
 
 	if len(config.Spec.Subnets) == 0 {
 		logrus.Infof("deleting vpc, subnets, and security groups for config [%s]", config.Name)
-		err = deleteStack(awsSVCs.cloudformation, getVPCStackName(config.Spec.DisplayName), getVPCStackName(config.Spec.DisplayName))
-		if err != nil {
+		if err := deleteStack(awsSVCs.cloudformation, getVPCStackName(config.Spec.DisplayName), getVPCStackName(config.Spec.DisplayName)); err != nil {
 			return config, fmt.Errorf("error deleting vpc stack: %v", err)
 		}
 	}
 
 	logrus.Infof("deleting node instance role for config [%s]", config.Name)
-	err = deleteStack(awsSVCs.cloudformation, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName))
-	if err != nil {
+	if err := deleteStack(awsSVCs.cloudformation, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName)); err != nil {
 		return config, fmt.Errorf("error deleting worker node stack: %v", err)
 	}
 
@@ -1254,21 +1250,20 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 	// check if ebs csi driver needs to be enabled
 	if aws.BoolValue(config.Spec.EBSCSIDriver) {
-		installedArn, err := awsservices.CheckEBSAddon(h.awsServices.eks, config)
+		installedArn, err := awsservices.CheckEBSAddon(awsSVCs.eks, config)
 		if err != nil {
-			return nil, fmt.Errorf("error checking if ebs csi driver addon is installed: %v", err)
+			return nil, fmt.Errorf("error checking if ebs csi driver addon is installed: %w", err)
 		}
 		if installedArn == "" {
 			logrus.Infof("enabling [ebs csi driver add-on] for cluster [%s]", config.Spec.DisplayName)
 			ebsCSIDriverInput := awsservices.EnableEBSCSIDriverInput{
-				EKSService:   h.awsServices.eks,
-				IAMService:   h.awsServices.iam,
-				CFService:    h.awsServices.cloudformation,
+				EKSService:   awsSVCs.eks,
+				IAMService:   awsSVCs.iam,
+				CFService:    awsSVCs.cloudformation,
 				Config:       config,
 				AddonVersion: "latest",
 			}
-			err := awsservices.EnableEBSCSIDriver(ebsCSIDriverInput)
-			if err != nil {
+			if err := awsservices.EnableEBSCSIDriver(ebsCSIDriverInput); err != nil {
 				return config, fmt.Errorf("error enabling ebs csi driver addon: %w", err)
 			}
 		}

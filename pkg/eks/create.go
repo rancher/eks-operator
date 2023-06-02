@@ -489,42 +489,17 @@ type EnableEBSCSIDriverInput struct {
 func EnableEBSCSIDriver(opts EnableEBSCSIDriverInput) error {
 	oidcID, err := configureOIDCProvider(opts.IAMService, opts.EKSService, opts.Config)
 	if err != nil {
-		return fmt.Errorf("could not configure oidc provider: %v", err)
+		return fmt.Errorf("could not configure oidc provider: %w", err)
 	}
 	roleArn, err := createEBSCSIDriverRole(opts.CFService, opts.Config, oidcID)
 	if err != nil {
-		return fmt.Errorf("could not create ebs csi driver role: %v", err)
+		return fmt.Errorf("could not create ebs csi driver role: %w", err)
 	}
-	_, err = installEBSAddon(opts.EKSService, opts.Config, roleArn, opts.AddonVersion)
-	if err != nil {
-		return fmt.Errorf("failed to install ebs csi driver addon: %v", err)
+	if _, err := installEBSAddon(opts.EKSService, opts.Config, roleArn, opts.AddonVersion); err != nil {
+		return fmt.Errorf("failed to install ebs csi driver addon: %w", err)
 	}
 
 	return nil
-}
-
-// CheckEBSAddon checks if the EBS CSI driver add-on is installed. If it is, it will return
-// the ARN of the add-on. If it is not, it will return an empty string. Otherwise, it will return an error
-func CheckEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
-	input := eks.DescribeAddonInput{
-		AddonName:   aws.String(ebsCSIAddonName),
-		ClusterName: aws.String(config.Spec.DisplayName),
-	}
-
-	output, err := eksService.DescribeAddon(&input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == eks.ErrCodeResourceNotFoundException {
-				return "", nil
-			}
-		}
-		return "", err
-	}
-	if output.Addon == nil {
-		return "", nil
-	}
-
-	return *output.Addon.AddonArn, nil
 }
 
 func configureOIDCProvider(iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
@@ -537,6 +512,9 @@ func configureOIDCProvider(iamService services.IAMServiceInterface, eksService s
 	})
 	if err != nil {
 		return "", err
+	}
+	if clusterOutput == nil {
+		return "", fmt.Errorf("could not find cluster [%s]", config.Spec.DisplayName)
 	}
 	id := path.Base(*clusterOutput.Cluster.Identity.Oidc.Issuer)
 
@@ -615,7 +593,7 @@ func createEBSCSIDriverRole(cfService services.CloudFormationServiceInterface, c
 	}
 	finalTemplate := buf.String()
 
-	output, err := CreateStack(CreateStackOptions{
+	output, err := CreateStack(&CreateStackOptions{
 		CloudFormationService: cfService,
 		StackName:             fmt.Sprintf("%s-ebs-csi-driver-role", config.Spec.DisplayName),
 		DisplayName:           config.Spec.DisplayName,
@@ -644,6 +622,9 @@ func installEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSC
 	addonOutput, err := eksService.CreateAddon(&input)
 	if err != nil {
 		return "", err
+	}
+	if addonOutput == nil {
+		return "", fmt.Errorf("could not create addon [%s] for cluster [%s]", ebsCSIAddonName, config.Spec.DisplayName)
 	}
 
 	return *addonOutput.Addon.AddonArn, nil
