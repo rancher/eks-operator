@@ -21,7 +21,7 @@ type UpdateClusterVersionOpts struct {
 	UpstreamClusterSpec *eksv1.EKSClusterConfigSpec
 }
 
-func UpdateClusterVersion(opts UpdateClusterVersionOpts) (bool, error) {
+func UpdateClusterVersion(opts *UpdateClusterVersionOpts) (bool, error) {
 	updated := false
 	if aws.StringValue(opts.UpstreamClusterSpec.KubernetesVersion) != aws.StringValue(opts.Config.Spec.KubernetesVersion) {
 		logrus.Infof("updating kubernetes version for cluster [%s]", opts.Config.Name)
@@ -46,7 +46,7 @@ type UpdateResourceTagsOpts struct {
 	ResourceARN  string
 }
 
-func UpdateResourceTags(opts UpdateResourceTagsOpts) (bool, error) {
+func UpdateResourceTags(opts *UpdateResourceTagsOpts) (bool, error) {
 	updated := false
 	if updateTags := utils.GetKeyValuesToUpdate(opts.Tags, opts.UpstreamTags); updateTags != nil {
 		_, err := opts.EKSService.TagResource(
@@ -81,7 +81,7 @@ type UpdateLoggingTypesOpts struct {
 	UpstreamClusterSpec *eksv1.EKSClusterConfigSpec
 }
 
-func UpdateClusterLoggingTypes(opts UpdateLoggingTypesOpts) (bool, error) {
+func UpdateClusterLoggingTypes(opts *UpdateLoggingTypesOpts) (bool, error) {
 	updated := false
 	if loggingTypesUpdate := getLoggingTypesUpdate(opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes); loggingTypesUpdate != nil {
 		_, err := opts.EKSService.UpdateClusterConfig(
@@ -105,7 +105,7 @@ type UpdateClusterAccessOpts struct {
 	UpstreamClusterSpec *eksv1.EKSClusterConfigSpec
 }
 
-func UpdateClusterAccess(opts UpdateClusterAccessOpts) (bool, error) {
+func UpdateClusterAccess(opts *UpdateClusterAccessOpts) (bool, error) {
 	updated := false
 
 	publicAccessUpdate := opts.Config.Spec.PublicAccess != nil && aws.BoolValue(opts.UpstreamClusterSpec.PublicAccess) != aws.BoolValue(opts.Config.Spec.PublicAccess)
@@ -137,7 +137,7 @@ type UpdateClusterPublicAccessSourcesOpts struct {
 	UpstreamClusterSpec *eksv1.EKSClusterConfigSpec
 }
 
-func UpdateClusterPublicAccessSources(opts UpdateClusterPublicAccessSourcesOpts) (bool, error) {
+func UpdateClusterPublicAccessSources(opts *UpdateClusterPublicAccessSourcesOpts) (bool, error) {
 	updated := false
 	// check public access CIDRs for update (public access sources)
 
@@ -171,7 +171,7 @@ type UpdateNodegroupVersionOpts struct {
 	LTVersions     map[string]string
 }
 
-func UpdateNodegroupVersion(opts UpdateNodegroupVersionOpts) error {
+func UpdateNodegroupVersion(opts *UpdateNodegroupVersionOpts) error {
 	if _, err := opts.EKSService.UpdateNodegroupVersion(opts.NGVersionInput); err != nil {
 		if version, ok := opts.LTVersions[aws.StringValue(opts.NodeGroup.NodegroupName)]; ok {
 			// If there was an error updating the node group and a Rancher-managed launch template version was created,

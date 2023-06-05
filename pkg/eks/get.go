@@ -15,7 +15,7 @@ type GetClusterStatusOpts struct {
 	Config     *eksv1.EKSClusterConfig
 }
 
-func GetClusterState(opts GetClusterStatusOpts) (*eks.DescribeClusterOutput, error) {
+func GetClusterState(opts *GetClusterStatusOpts) (*eks.DescribeClusterOutput, error) {
 	return opts.EKSService.DescribeCluster(
 		&eks.DescribeClusterInput{
 			Name: aws.String(opts.Config.Spec.DisplayName),
@@ -28,7 +28,7 @@ type GetLaunchTemplateVersionsOpts struct {
 	Versions         []*string
 }
 
-func GetLaunchTemplateVersions(opts GetLaunchTemplateVersionsOpts) (*ec2.DescribeLaunchTemplateVersionsOutput, error) {
+func GetLaunchTemplateVersions(opts *GetLaunchTemplateVersionsOpts) (*ec2.DescribeLaunchTemplateVersionsOutput, error) {
 	if opts.LaunchTemplateID == nil {
 		return nil, fmt.Errorf("launch template ID is nil")
 	}

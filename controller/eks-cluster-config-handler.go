@@ -48,7 +48,6 @@ type Handler struct {
 	eksEnqueue      func(namespace, name string)
 	secrets         wranglerv1.SecretClient
 	secretsCache    wranglerv1.SecretCache
-	awsServices     awsServices
 }
 
 type awsServices struct {
@@ -84,19 +83,20 @@ func (h *Handler) OnEksConfigChanged(_ string, config *eksv1.EKSClusterConfig) (
 		return nil, nil
 	}
 
-	if err := h.newAWSServices(h.secretsCache, config.Spec); err != nil {
+	awsSVCs, err := newAWSServices(h.secretsCache, config.Spec)
+	if err != nil {
 		return config, fmt.Errorf("error creating new AWS services: %w", err)
 	}
 
 	switch config.Status.Phase {
 	case eksConfigImportingPhase:
-		return h.importCluster(config)
+		return h.importCluster(config, awsSVCs)
 	case eksConfigNotCreatedPhase:
-		return h.create(config)
+		return h.create(config, awsSVCs)
 	case eksConfigCreatingPhase:
-		return h.waitForCreationComplete(config)
+		return h.waitForCreationComplete(config, awsSVCs)
 	case eksConfigActivePhase, eksConfigUpdatingPhase:
-		return h.checkAndUpdate(config)
+		return h.checkAndUpdate(config, awsSVCs)
 	}
 
 	return config, nil
@@ -203,6 +203,11 @@ func removeErrorMetadata(message string) (string, error) {
 }
 
 func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
+	awsSVCs, err := newAWSServices(h.secretsCache, config.Spec)
+	if err != nil {
+		return config, fmt.Errorf("error creating new AWS services: %w", err)
+	}
+
 	if config.Spec.Imported {
 		logrus.Infof("cluster [%s] is imported, will not delete EKS cluster", config.Name)
 		return config, nil
@@ -216,10 +221,9 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 	logrus.Infof("deleting cluster [%s]", config.Name)
 
 	logrus.Infof("starting node group deletion for config [%s]", config.Spec.DisplayName)
-	var err error
 	waitingForNodegroupDeletion := true
 	for waitingForNodegroupDeletion {
-		waitingForNodegroupDeletion, err = deleteNodeGroups(config, config.Spec.NodeGroups, h.awsServices.eks)
+		waitingForNodegroupDeletion, err = deleteNodeGroups(config, config.Spec.NodeGroups, awsSVCs.eks)
 		if err != nil {
 			return config, fmt.Errorf("error deleting nodegroups for config [%s]", config.Spec.DisplayName)
 		}
@@ -229,16 +233,16 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 
 	if config.Status.ManagedLaunchTemplateID != "" {
 		logrus.Infof("deleting common launch template for config [%s]", config.Name)
-		deleteLaunchTemplate(config.Status.ManagedLaunchTemplateID, h.awsServices.ec2)
+		deleteLaunchTemplate(config.Status.ManagedLaunchTemplateID, awsSVCs.ec2)
 	}
 
 	logrus.Infof("starting control plane deletion for config [%s]", config.Name)
-	_, err = h.awsServices.eks.DeleteCluster(&eks.DeleteClusterInput{
+	_, err = awsSVCs.eks.DeleteCluster(&eks.DeleteClusterInput{
 		Name: aws.String(config.Spec.DisplayName),
 	})
 	if err != nil {
 		if notFound(err) {
-			_, err = h.awsServices.eks.DeleteCluster(&eks.DeleteClusterInput{
+			_, err = awsSVCs.eks.DeleteCluster(&eks.DeleteClusterInput{
 				Name: aws.String(config.Spec.DisplayName),
 			})
 		}
@@ -250,7 +254,7 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 
 	if aws.StringValue(config.Spec.ServiceRole) == "" {
 		logrus.Infof("deleting service role for config [%s]", config.Name)
-		err = deleteStack(h.awsServices.cloudformation, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName))
+		err = deleteStack(awsSVCs.cloudformation, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName))
 		if err != nil {
 			return config, fmt.Errorf("error deleting service role stack: %v", err)
 		}
@@ -258,14 +262,14 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 
 	if len(config.Spec.Subnets) == 0 {
 		logrus.Infof("deleting vpc, subnets, and security groups for config [%s]", config.Name)
-		err = deleteStack(h.awsServices.cloudformation, getVPCStackName(config.Spec.DisplayName), getVPCStackName(config.Spec.DisplayName))
+		err = deleteStack(awsSVCs.cloudformation, getVPCStackName(config.Spec.DisplayName), getVPCStackName(config.Spec.DisplayName))
 		if err != nil {
 			return config, fmt.Errorf("error deleting vpc stack: %v", err)
 		}
 	}
 
 	logrus.Infof("deleting node instance role for config [%s]", config.Name)
-	err = deleteStack(h.awsServices.cloudformation, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName))
+	err = deleteStack(awsSVCs.cloudformation, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName))
 	if err != nil {
 		return config, fmt.Errorf("error deleting worker node stack: %v", err)
 	}
@@ -273,7 +277,11 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 	return config, err
 }
 
-func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
+func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (*eksv1.EKSClusterConfig, error) {
+	if awsSVCs == nil {
+		return config, fmt.Errorf("aws services not initialized")
+	}
+
 	if err := validateUpdate(config); err != nil {
 		// validation failed, will be considered a failing update until resolved
 		config = config.DeepCopy()
@@ -286,8 +294,8 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 		return config, err
 	}
 
-	clusterState, err := awsservices.GetClusterState(awsservices.GetClusterStatusOpts{
-		EKSService: h.awsServices.eks,
+	clusterState, err := awsservices.GetClusterState(&awsservices.GetClusterStatusOpts{
+		EKSService: awsSVCs.eks,
 		Config:     config,
 	})
 	if err != nil {
@@ -306,7 +314,7 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 		return config, nil
 	}
 
-	ngs, err := h.awsServices.eks.ListNodegroups(
+	ngs, err := awsSVCs.eks.ListNodegroups(
 		&eks.ListNodegroupsInput{
 			ClusterName: aws.String(config.Spec.DisplayName),
 		})
@@ -318,7 +326,7 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 	nodeGroupStates := make([]*eks.DescribeNodegroupOutput, 0, len(ngs.Nodegroups))
 	nodegroupARNs := make(map[string]string)
 	for _, ngName := range ngs.Nodegroups {
-		ng, err := h.awsServices.eks.DescribeNodegroup(
+		ng, err := awsSVCs.eks.DescribeNodegroup(
 			&eks.DescribeNodegroupInput{
 				ClusterName:   aws.String(config.Spec.DisplayName),
 				NodegroupName: ngName,
@@ -347,18 +355,18 @@ func (h *Handler) checkAndUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClus
 
 	if config.Status.Phase == eksConfigActivePhase && len(config.Status.TemplateVersionsToDelete) != 0 {
 		// If there are any launch template versions that need to be cleaned up, we do it now.
-		awsservices.DeleteLaunchTemplateVersions(h.awsServices.ec2, config.Status.ManagedLaunchTemplateID, aws.StringSlice(config.Status.TemplateVersionsToDelete))
+		awsservices.DeleteLaunchTemplateVersions(awsSVCs.ec2, config.Status.ManagedLaunchTemplateID, aws.StringSlice(config.Status.TemplateVersionsToDelete))
 		config = config.DeepCopy()
 		config.Status.TemplateVersionsToDelete = nil
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(config.Spec.DisplayName, config.Status.ManagedLaunchTemplateID, clusterState, nodeGroupStates, h.awsServices.ec2, true)
+	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(config.Spec.DisplayName, config.Status.ManagedLaunchTemplateID, clusterState, nodeGroupStates, awsSVCs.ec2, true)
 	if err != nil {
 		return config, err
 	}
 
-	return h.updateUpstreamClusterState(upstreamSpec, config, clusterARN, nodegroupARNs)
+	return h.updateUpstreamClusterState(upstreamSpec, config, awsSVCs, clusterARN, nodegroupARNs)
 }
 
 func validateUpdate(config *eksv1.EKSClusterConfig) error {
@@ -400,8 +408,12 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 	return nil
 }
 
-func (h *Handler) create(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
-	if err := h.validateCreate(config); err != nil {
+func (h *Handler) create(config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (*eksv1.EKSClusterConfig, error) {
+	if awsSVCs == nil {
+		return config, fmt.Errorf("aws services not initialized")
+	}
+
+	if err := h.validateCreate(config, awsSVCs); err != nil {
 		return config, err
 	}
 
@@ -411,18 +423,18 @@ func (h *Handler) create(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfi
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	config, err := h.generateAndSetNetworking(config)
+	config, err := h.generateAndSetNetworking(config, awsSVCs)
 	if err != nil {
 		return config, fmt.Errorf("error generating and setting networking: %w", err)
 	}
 
-	roleARN, err := h.createOrGetServiceRole(config)
+	roleARN, err := h.createOrGetServiceRole(config, awsSVCs)
 	if err != nil {
 		return config, fmt.Errorf("error creating or getting service role: %w", err)
 	}
 
-	if err := awsservices.CreateCluster(awsservices.CreateClusterOptions{
-		EKSService: h.awsServices.eks,
+	if err := awsservices.CreateCluster(&awsservices.CreateClusterOptions{
+		EKSService: awsSVCs.eks,
 		Config:     config,
 		RoleARN:    roleARN,
 	}); err != nil {
@@ -450,7 +462,11 @@ func (h *Handler) create(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfi
 	return config, err
 }
 
-func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig) error {
+func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, awsSVCs *awsServices) error {
+	if awsSVCs == nil {
+		return fmt.Errorf("aws services not initialized")
+	}
+
 	// Check for existing eksclusterconfigs with the same display name
 	eksConfigs, err := h.eksCC.List(config.Namespace, metav1.ListOptions{})
 	if err != nil {
@@ -465,7 +481,7 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig) error {
 	// validate nodegroup version
 	if !config.Spec.Imported {
 		// Check for existing clusters in EKS with the same display name
-		listOutput, err := h.awsServices.eks.ListClusters(&eks.ListClustersInput{})
+		listOutput, err := awsSVCs.eks.ListClusters(&eks.ListClustersInput{})
 		if err != nil {
 			return fmt.Errorf("error listing clusters: %v", err)
 		}
@@ -574,7 +590,11 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig) error {
 	return nil
 }
 
-func (h *Handler) generateAndSetNetworking(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
+func (h *Handler) generateAndSetNetworking(config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (*eksv1.EKSClusterConfig, error) {
+	if awsSVCs == nil {
+		return nil, fmt.Errorf("aws services not initialized")
+	}
+
 	if len(config.Status.Subnets) != 0 {
 		// networking fields have already been set
 		return config, nil
@@ -589,8 +609,8 @@ func (h *Handler) generateAndSetNetworking(config *eksv1.EKSClusterConfig) (*eks
 		config.Status.NetworkFieldsSource = "provided"
 	} else {
 		logrus.Infof("Bringing up vpc")
-		stack, err := awsservices.CreateStack(awsservices.CreateStackOptions{
-			CloudFormationService: h.awsServices.cloudformation,
+		stack, err := awsservices.CreateStack(&awsservices.CreateStackOptions{
+			CloudFormationService: awsSVCs.cloudformation,
 			StackName:             getVPCStackName(config.Spec.DisplayName),
 			DisplayName:           config.Spec.DisplayName,
 			TemplateBody:          templates.VpcTemplate,
@@ -618,13 +638,13 @@ func (h *Handler) generateAndSetNetworking(config *eksv1.EKSClusterConfig) (*eks
 	return h.eksCC.UpdateStatus(config)
 }
 
-func (h *Handler) createOrGetServiceRole(config *eksv1.EKSClusterConfig) (string, error) {
+func (h *Handler) createOrGetServiceRole(config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (string, error) {
 	var roleARN string
 	if aws.StringValue(config.Spec.ServiceRole) == "" {
 		logrus.Infof("Creating service role")
 
-		stack, err := awsservices.CreateStack(awsservices.CreateStackOptions{
-			CloudFormationService: h.awsServices.cloudformation,
+		stack, err := awsservices.CreateStack(&awsservices.CreateStackOptions{
+			CloudFormationService: awsSVCs.cloudformation,
 			StackName:             getServiceRoleName(config.Spec.DisplayName),
 			DisplayName:           config.Spec.DisplayName,
 			TemplateBody:          templates.ServiceRoleTemplate,
@@ -641,7 +661,7 @@ func (h *Handler) createOrGetServiceRole(config *eksv1.EKSClusterConfig) (string
 		}
 	} else {
 		logrus.Infof("Retrieving existing service role")
-		role, err := h.awsServices.iam.GetRole(&iam.GetRoleInput{
+		role, err := awsSVCs.iam.GetRole(&iam.GetRoleInput{
 			RoleName: config.Spec.ServiceRole,
 		})
 		if err != nil {
@@ -654,18 +674,18 @@ func (h *Handler) createOrGetServiceRole(config *eksv1.EKSClusterConfig) (string
 	return roleARN, nil
 }
 
-func (h *Handler) newAWSServices(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) error {
+func newAWSServices(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (*awsServices, error) {
 	sess, err := newAWSSession(secretsCache, spec)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	h.awsServices.eks = services.NewEKSService(sess)
-	h.awsServices.cloudformation = services.NewCloudFormationService(sess)
-	h.awsServices.iam = services.NewIAMService(sess)
-	h.awsServices.ec2 = services.NewEC2Service(sess)
-
-	return nil
+	return &awsServices{
+		eks:            services.NewEKSService(sess),
+		cloudformation: services.NewCloudFormationService(sess),
+		iam:            services.NewIAMService(sess),
+		ec2:            services.NewEC2Service(sess),
+	}, nil
 }
 
 func newAWSSession(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (*session.Session, error) {
@@ -702,11 +722,15 @@ func newAWSSession(secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterCon
 	return sess, nil
 }
 
-func (h *Handler) waitForCreationComplete(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
+func (h *Handler) waitForCreationComplete(config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (*eksv1.EKSClusterConfig, error) {
+	if awsSVCs == nil {
+		return config, fmt.Errorf("aws services not initialized")
+	}
+
 	var err error
 
-	state, err := awsservices.GetClusterState(awsservices.GetClusterStatusOpts{
-		EKSService: h.awsServices.eks,
+	state, err := awsservices.GetClusterState(&awsservices.GetClusterStatusOpts{
+		EKSService: awsSVCs.eks,
 		Config:     config,
 	})
 	if err != nil {
@@ -834,7 +858,7 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 
 			if managedTemplateID == aws.StringValue(ngToAdd.LaunchTemplate.ID) {
 				// If this is a rancher-managed launch template, then we move the data from the launch template to the node group.
-				launchTemplateRequestOutput, err := awsservices.GetLaunchTemplateVersions(awsservices.GetLaunchTemplateVersionsOpts{
+				launchTemplateRequestOutput, err := awsservices.GetLaunchTemplateVersions(&awsservices.GetLaunchTemplateVersionsOpts{
 					EC2Service:       ec2Service,
 					LaunchTemplateID: ngToAdd.LaunchTemplate.ID,
 					Versions:         []*string{ng.Nodegroup.LaunchTemplate.Version},
@@ -915,11 +939,15 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 // updateUpstreamClusterState compares the upstream spec with the config spec, then updates the upstream EKS cluster to
 // match the config spec. Function often returns after a single update because once the cluster is in updating phase in EKS,
 // no more updates will be accepted until the current update is finished.
-func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfigSpec, config *eksv1.EKSClusterConfig, clusterARN string, ngARNs map[string]string) (*eksv1.EKSClusterConfig, error) {
+func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfigSpec, config *eksv1.EKSClusterConfig, awsSVCs *awsServices, clusterARN string, ngARNs map[string]string) (*eksv1.EKSClusterConfig, error) {
+	if awsSVCs == nil {
+		return config, fmt.Errorf("aws services not initialized")
+	}
+
 	// check kubernetes version for update
 	if config.Spec.KubernetesVersion != nil {
-		updated, err := awsservices.UpdateClusterVersion(awsservices.UpdateClusterVersionOpts{
-			EKSService:          h.awsServices.eks,
+		updated, err := awsservices.UpdateClusterVersion(&awsservices.UpdateClusterVersionOpts{
+			EKSService:          awsSVCs.eks,
 			Config:              config,
 			UpstreamClusterSpec: upstreamSpec,
 		})
@@ -933,8 +961,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 	// check tags for update
 	if config.Spec.Tags != nil {
-		updated, err := awsservices.UpdateResourceTags(awsservices.UpdateResourceTagsOpts{
-			EKSService:   h.awsServices.eks,
+		updated, err := awsservices.UpdateResourceTags(&awsservices.UpdateResourceTagsOpts{
+			EKSService:   awsSVCs.eks,
 			Tags:         config.Spec.Tags,
 			UpstreamTags: upstreamSpec.Tags,
 			ResourceARN:  clusterARN,
@@ -949,8 +977,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 	if config.Spec.LoggingTypes != nil {
 		// check logging for update
-		updated, err := awsservices.UpdateClusterLoggingTypes(awsservices.UpdateLoggingTypesOpts{
-			EKSService:          h.awsServices.eks,
+		updated, err := awsservices.UpdateClusterLoggingTypes(&awsservices.UpdateLoggingTypesOpts{
+			EKSService:          awsSVCs.eks,
 			Config:              config,
 			UpstreamClusterSpec: upstreamSpec,
 		})
@@ -962,8 +990,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		}
 	}
 
-	updated, err := awsservices.UpdateClusterAccess(awsservices.UpdateClusterAccessOpts{
-		EKSService:          h.awsServices.eks,
+	updated, err := awsservices.UpdateClusterAccess(&awsservices.UpdateClusterAccessOpts{
+		EKSService:          awsSVCs.eks,
 		Config:              config,
 		UpstreamClusterSpec: upstreamSpec,
 	})
@@ -975,8 +1003,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 	}
 
 	if config.Spec.PublicAccessSources != nil {
-		updated, err := awsservices.UpdateClusterPublicAccessSources(awsservices.UpdateClusterPublicAccessSourcesOpts{
-			EKSService:          h.awsServices.eks,
+		updated, err := awsservices.UpdateClusterPublicAccessSources(&awsservices.UpdateClusterPublicAccessSourcesOpts{
+			EKSService:          awsSVCs.eks,
 			Config:              config,
 			UpstreamClusterSpec: upstreamSpec,
 		})
@@ -1019,8 +1047,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		if _, ok := upstreamNgs[aws.StringValue(ng.NodegroupName)]; ok {
 			continue
 		}
-		if err := awsservices.CreateLaunchTemplate(awsservices.CreateLaunchTemplateOptions{
-			EC2Service: h.awsServices.ec2,
+		if err := awsservices.CreateLaunchTemplate(&awsservices.CreateLaunchTemplateOptions{
+			EC2Service: awsSVCs.ec2,
 			Config:     config,
 		}); err != nil {
 			return config, fmt.Errorf("error getting or creating launch template: %w", err)
@@ -1035,10 +1063,10 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			}
 		}
 
-		ltVersion, generatedNodeRole, err := awsservices.CreateNodeGroup(awsservices.CreateNodeGroupOptions{
-			EC2Service:            h.awsServices.ec2,
-			CloudFormationService: h.awsServices.cloudformation,
-			EKSService:            h.awsServices.eks,
+		ltVersion, generatedNodeRole, err := awsservices.CreateNodeGroup(&awsservices.CreateNodeGroupOptions{
+			EC2Service:            awsSVCs.ec2,
+			CloudFormationService: awsSVCs.cloudformation,
+			EKSService:            awsSVCs.eks,
 			Config:                config,
 			NodeGroup:             ng,
 		})
@@ -1065,7 +1093,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		if _, ok := ngs[aws.StringValue(ng.NodegroupName)]; ok {
 			continue
 		}
-		templateVersionToDelete, _, err := deleteNodeGroup(config, ng, h.awsServices.eks)
+		templateVersionToDelete, _, err := deleteNodeGroup(config, ng, awsSVCs.eks)
 		if err != nil {
 			return config, err
 		}
@@ -1119,7 +1147,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 			if lt == nil && config.Status.ManagedLaunchTemplateID == aws.StringValue(upstreamNg.LaunchTemplate.ID) {
 				// In this case, Rancher is managing the launch template, so we check to see if we need a new version.
-				lt, err = newLaunchTemplateVersionIfNeeded(config, upstreamNg, ng, h.awsServices.ec2)
+				lt, err = newLaunchTemplateVersionIfNeeded(config, upstreamNg, ng, awsSVCs.ec2)
 				if err != nil {
 					return config, err
 				}
@@ -1148,9 +1176,9 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 		if ngVersionInput.Version != nil || ngVersionInput.LaunchTemplate != nil {
 			updateNodegroupProperties = true
-			if err := awsservices.UpdateNodegroupVersion(awsservices.UpdateNodegroupVersionOpts{
-				EKSService:     h.awsServices.eks,
-				EC2Service:     h.awsServices.ec2,
+			if err := awsservices.UpdateNodegroupVersion(&awsservices.UpdateNodegroupVersionOpts{
+				EKSService:     awsSVCs.eks,
+				EC2Service:     awsSVCs.ec2,
 				Config:         config,
 				NodeGroup:      &ng,
 				NGVersionInput: ngVersionInput,
@@ -1164,7 +1192,7 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 		if sendUpdateNodegroupConfig {
 			updateNodegroupProperties = true
-			_, err := h.awsServices.eks.UpdateNodegroupConfig(&updateNodegroupConfig)
+			_, err := awsSVCs.eks.UpdateNodegroupConfig(&updateNodegroupConfig)
 			if err != nil {
 				return config, err
 			}
@@ -1173,8 +1201,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 		if ng.Tags != nil {
 			var err error // initialize error here because we assign returned value to updateNodegroupProperties
-			updateNodegroupProperties, err = awsservices.UpdateResourceTags(awsservices.UpdateResourceTagsOpts{
-				EKSService:   h.awsServices.eks,
+			updateNodegroupProperties, err = awsservices.UpdateResourceTags(&awsservices.UpdateResourceTagsOpts{
+				EKSService:   awsSVCs.eks,
 				Tags:         aws.StringValueMap(ng.Tags),
 				UpstreamTags: aws.StringValueMap(upstreamNg.Tags),
 				ResourceARN:  ngARNs[aws.StringValue(ng.NodegroupName)],
@@ -1214,9 +1242,13 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 
 // importCluster cluster returns a spec representing the upstream state of the cluster matching to the
 // given config's displayName and region.
-func (h *Handler) importCluster(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
-	clusterState, err := awsservices.GetClusterState(awsservices.GetClusterStatusOpts{
-		EKSService: h.awsServices.eks,
+func (h *Handler) importCluster(config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (*eksv1.EKSClusterConfig, error) {
+	if awsSVCs == nil {
+		return config, fmt.Errorf("aws services not initialized")
+	}
+
+	clusterState, err := awsservices.GetClusterState(&awsservices.GetClusterStatusOpts{
+		EKSService: awsSVCs.eks,
 		Config:     config,
 	})
 	if err != nil {
@@ -1229,7 +1261,7 @@ func (h *Handler) importCluster(config *eksv1.EKSClusterConfig) (*eksv1.EKSClust
 		}
 	}
 
-	launchTemplatesOutput, err := h.awsServices.ec2.DescribeLaunchTemplates(&ec2.DescribeLaunchTemplatesInput{
+	launchTemplatesOutput, err := awsSVCs.ec2.DescribeLaunchTemplates(&ec2.DescribeLaunchTemplatesInput{
 		LaunchTemplateNames: []*string{aws.String(fmt.Sprintf(awsservices.LaunchTemplateNameFormat, config.Spec.DisplayName))},
 	})
 	if err == nil && len(launchTemplatesOutput.LaunchTemplates) > 0 {
