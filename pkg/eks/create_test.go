@@ -40,12 +40,12 @@ var _ = Describe("CreateCluster", func() {
 
 	It("should successfully create a cluster", func() {
 		eksServiceMock.EXPECT().CreateCluster(gomock.Any()).Return(nil, nil)
-		Expect(CreateCluster(*clustercCreateOptions)).To(Succeed())
+		Expect(CreateCluster(clustercCreateOptions)).To(Succeed())
 	})
 
 	It("should fail to create a cluster", func() {
 		eksServiceMock.EXPECT().CreateCluster(gomock.Any()).Return(nil, errors.New("error creating cluster"))
-		Expect(CreateCluster(*clustercCreateOptions)).ToNot(Succeed())
+		Expect(CreateCluster(clustercCreateOptions)).ToNot(Succeed())
 	})
 })
 
@@ -185,7 +185,7 @@ var _ = Describe("CreateStack", func() {
 				},
 			}, nil)
 
-		describeStacksOutput, err := CreateStack(*stackCreationOptions)
+		describeStacksOutput, err := CreateStack(stackCreationOptions)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(describeStacksOutput).ToNot(BeNil())
@@ -194,7 +194,7 @@ var _ = Describe("CreateStack", func() {
 	It("should fail to create a stack if CreateStack returns error", func() {
 		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, errors.New("error"))
 
-		_, err := CreateStack(*stackCreationOptions)
+		_, err := CreateStack(stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -207,7 +207,7 @@ var _ = Describe("CreateStack", func() {
 			},
 		).Return(&cloudformation.DescribeStacksOutput{}, nil)
 
-		_, err := CreateStack(*stackCreationOptions)
+		_, err := CreateStack(stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -222,7 +222,7 @@ var _ = Describe("CreateStack", func() {
 				},
 			}, nil)
 
-		_, err := CreateStack(*stackCreationOptions)
+		_, err := CreateStack(stackCreationOptions)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -230,7 +230,7 @@ var _ = Describe("CreateStack", func() {
 		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
 		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(nil, errors.New("error"))
 
-		_, err := CreateStack(*stackCreationOptions)
+		_, err := CreateStack(stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -259,7 +259,7 @@ var _ = Describe("CreateStack", func() {
 				},
 			}, nil)
 
-		_, err := CreateStack(*stackCreationOptions)
+		_, err := CreateStack(stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(createFailedStatus))
 	})
@@ -289,7 +289,7 @@ var _ = Describe("CreateStack", func() {
 				},
 			}, nil)
 
-		_, err := CreateStack(*stackCreationOptions)
+		_, err := CreateStack(stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(rollbackInProgressStatus))
 	})
@@ -395,7 +395,7 @@ var _ = Describe("CreateLaunchTemplate", func() {
 			},
 		).Return(nil, nil)
 
-		Expect(CreateLaunchTemplate(*createLaunchTemplateOpts)).To(Succeed())
+		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).To(Succeed())
 		Expect(createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID).To(Equal("testID"))
 	})
 
@@ -414,7 +414,7 @@ var _ = Describe("CreateLaunchTemplate", func() {
 			},
 		).Return(nil, errors.New("does not exist"))
 
-		Expect(CreateLaunchTemplate(*createLaunchTemplateOpts)).To(Succeed())
+		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).To(Succeed())
 		Expect(createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID).To(Equal("testID"))
 	})
 
@@ -425,12 +425,12 @@ var _ = Describe("CreateLaunchTemplate", func() {
 			},
 		).Return(nil, nil)
 
-		Expect(CreateLaunchTemplate(*createLaunchTemplateOpts)).To(Succeed())
+		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).To(Succeed())
 	})
 
 	It("should fail to create a launch template if DescribeLaunchTemplates returns error", func() {
 		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(gomock.Any()).Return(nil, errors.New("error"))
-		Expect(CreateLaunchTemplate(*createLaunchTemplateOpts)).ToNot(Succeed())
+		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).ToNot(Succeed())
 	})
 
 	It("should fail to create a launch template if CreateLaunchTemplate return error", func() {
@@ -439,7 +439,7 @@ var _ = Describe("CreateLaunchTemplate", func() {
 
 		ec2ServiceMock.EXPECT().CreateLaunchTemplate(gomock.Any()).Return(nil, errors.New("error"))
 
-		Expect(CreateLaunchTemplate(*createLaunchTemplateOpts)).ToNot(Succeed())
+		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).ToNot(Succeed())
 	})
 })
 
@@ -729,7 +729,7 @@ var _ = Describe("CreateNodeGroup", func() {
 			NodeRole:      aws.String("test"),
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(*createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -762,7 +762,7 @@ var _ = Describe("CreateNodeGroup", func() {
 
 		eksServiceMock.EXPECT().CreateNodegroup(gomock.Any()).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(*createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -789,7 +789,7 @@ var _ = Describe("CreateNodeGroup", func() {
 
 		eksServiceMock.EXPECT().CreateNodegroup(gomock.Any()).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(*createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -829,7 +829,7 @@ var _ = Describe("CreateNodeGroup", func() {
 		eksServiceMock.EXPECT().CreateNodegroup(gomock.Any()).Return(nil, errors.New("error"))
 		ec2ServiceMock.EXPECT().DeleteLaunchTemplateVersions(gomock.Any()).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(*createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
 		Expect(err).To(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -847,7 +847,7 @@ var _ = Describe("CreateNodeGroup", func() {
 			},
 		}, nil)
 
-		_, _, err := CreateNodeGroup(*createNodeGroupOpts)
+		_, _, err := CreateNodeGroup(createNodeGroupOpts)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -906,7 +906,7 @@ var _ = Describe("CreateNodeGroup", func() {
 			NodeRole:      aws.String("test"),
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(*createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -962,7 +962,7 @@ var _ = Describe("CreateNodeGroup", func() {
 			AmiType:       aws.String(eks.AMITypesAl2X8664Gpu),
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(*createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -1016,7 +1016,7 @@ var _ = Describe("CreateNodeGroup", func() {
 			AmiType:       aws.String(eks.AMITypesAl2X8664),
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(*createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))

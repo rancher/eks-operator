@@ -38,7 +38,7 @@ type CreateClusterOptions struct {
 	RoleARN    string
 }
 
-func CreateCluster(opts CreateClusterOptions) error {
+func CreateCluster(opts *CreateClusterOptions) error {
 	createClusterInput := newClusterInput(opts.Config, opts.RoleARN)
 
 	_, err := opts.EKSService.CreateCluster(createClusterInput)
@@ -84,7 +84,7 @@ type CreateStackOptions struct {
 	Parameters            []*cloudformation.Parameter
 }
 
-func CreateStack(opts CreateStackOptions) (*cloudformation.DescribeStacksOutput, error) {
+func CreateStack(opts *CreateStackOptions) (*cloudformation.DescribeStacksOutput, error) {
 	_, err := opts.CloudFormationService.CreateStack(&cloudformation.CreateStackInput{
 		StackName:    aws.String(opts.StackName),
 		TemplateBody: aws.String(opts.TemplateBody),
@@ -154,7 +154,7 @@ type CreateLaunchTemplateOptions struct {
 	Config     *eksv1.EKSClusterConfig
 }
 
-func CreateLaunchTemplate(opts CreateLaunchTemplateOptions) error {
+func CreateLaunchTemplate(opts *CreateLaunchTemplateOptions) error {
 	_, err := opts.EC2Service.DescribeLaunchTemplates(&ec2.DescribeLaunchTemplatesInput{
 		LaunchTemplateIds: []*string{aws.String(opts.Config.Status.ManagedLaunchTemplateID)},
 	})
@@ -212,7 +212,7 @@ type CreateNodeGroupOptions struct {
 	NodeGroup eksv1.NodeGroup
 }
 
-func CreateNodeGroup(opts CreateNodeGroupOptions) (string, string, error) {
+func CreateNodeGroup(opts *CreateNodeGroupOptions) (string, string, error) {
 	var err error
 	capacityType := eks.CapacityTypesOnDemand
 	if aws.BoolValue(opts.NodeGroup.RequestSpotInstances) {
@@ -274,7 +274,7 @@ func CreateNodeGroup(opts CreateNodeGroupOptions) (string, string, error) {
 	if aws.StringValue(opts.NodeGroup.NodeRole) == "" {
 		if opts.Config.Status.GeneratedNodeRole == "" {
 			finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(opts.Config.Spec.Region))
-			output, err := CreateStack(CreateStackOptions{
+			output, err := CreateStack(&CreateStackOptions{
 				CloudFormationService: opts.CloudFormationService,
 				StackName:             fmt.Sprintf("%s-node-instance-role", opts.Config.Spec.DisplayName),
 				DisplayName:           opts.Config.Spec.DisplayName,

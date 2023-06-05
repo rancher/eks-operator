@@ -51,21 +51,21 @@ var _ = Describe("UpdateClusterVersion", func() {
 				Version: updateClusterVersionOptions.Config.Spec.KubernetesVersion,
 			},
 		).Return(nil, nil)
-		updated, err := UpdateClusterVersion(*updateClusterVersionOptions)
+		updated, err := UpdateClusterVersion(updateClusterVersionOptions)
 		Expect(updated).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should not update cluster version if version didn't change", func() {
 		updateClusterVersionOptions.UpstreamClusterSpec.KubernetesVersion = aws.String("test1")
-		updated, err := UpdateClusterVersion(*updateClusterVersionOptions)
+		updated, err := UpdateClusterVersion(updateClusterVersionOptions)
 		Expect(updated).To(BeFalse())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should return error if update cluster version failed", func() {
 		eksServiceMock.EXPECT().UpdateClusterVersion(gomock.Any()).Return(nil, errors.New("error updating cluster version"))
-		updated, err := UpdateClusterVersion(*updateClusterVersionOptions)
+		updated, err := UpdateClusterVersion(updateClusterVersionOptions)
 		Expect(updated).To(BeFalse())
 		Expect(err).To(HaveOccurred())
 	})
@@ -115,7 +115,7 @@ var _ = Describe("UpdateResourceTags", func() {
 				TagKeys:     []*string{aws.String("test3")},
 			},
 		).Return(nil, nil)
-		updated, err := UpdateResourceTags(*updateResourceTagsOpts)
+		updated, err := UpdateResourceTags(updateResourceTagsOpts)
 		Expect(updated).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -133,7 +133,7 @@ var _ = Describe("UpdateResourceTags", func() {
 				},
 			},
 		).Return(nil, nil)
-		updated, err := UpdateResourceTags(*updateResourceTagsOpts)
+		updated, err := UpdateResourceTags(updateResourceTagsOpts)
 		Expect(updated).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -149,7 +149,7 @@ var _ = Describe("UpdateResourceTags", func() {
 				TagKeys:     []*string{aws.String("test3")},
 			},
 		).Return(nil, nil)
-		updated, err := UpdateResourceTags(*updateResourceTagsOpts)
+		updated, err := UpdateResourceTags(updateResourceTagsOpts)
 		Expect(updated).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -163,14 +163,14 @@ var _ = Describe("UpdateResourceTags", func() {
 			"test1": "test1",
 			"test2": "test2",
 		}
-		updated, err := UpdateResourceTags(*updateResourceTagsOpts)
+		updated, err := UpdateResourceTags(updateResourceTagsOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should return error if update cluster tags failed", func() {
 		eksServiceMock.EXPECT().TagResource(gomock.Any()).Return(nil, errors.New("error tagging resource"))
-		updated, err := UpdateResourceTags(*updateResourceTagsOpts)
+		updated, err := UpdateResourceTags(updateResourceTagsOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).To(HaveOccurred())
 	})
@@ -178,7 +178,7 @@ var _ = Describe("UpdateResourceTags", func() {
 	It("should return error if untag cluster tags failed", func() {
 		eksServiceMock.EXPECT().TagResource(gomock.Any()).Return(nil, nil)
 		eksServiceMock.EXPECT().UntagResource(gomock.Any()).Return(nil, errors.New("error untagging resource"))
-		updated, err := UpdateResourceTags(*updateResourceTagsOpts)
+		updated, err := UpdateResourceTags(updateResourceTagsOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).To(HaveOccurred())
 	})
@@ -229,21 +229,21 @@ var _ = Describe("UpdateLoggingTypes", func() {
 				},
 			},
 		).Return(nil, nil)
-		updated, err := UpdateClusterLoggingTypes(*updateLoggingTypesOpts)
+		updated, err := UpdateClusterLoggingTypes(updateLoggingTypesOpts)
 		Expect(updated).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should not update cluster logging types if logging types didn't change", func() {
 		updateLoggingTypesOpts.UpstreamClusterSpec.LoggingTypes = []string{"test1", "test2", "test3-enabled"}
-		updated, err := UpdateClusterLoggingTypes(*updateLoggingTypesOpts)
+		updated, err := UpdateClusterLoggingTypes(updateLoggingTypesOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should return error if update cluster logging types failed", func() {
 		eksServiceMock.EXPECT().UpdateClusterConfig(gomock.Any()).Return(nil, errors.New("error updating cluster config"))
-		updated, err := UpdateClusterLoggingTypes(*updateLoggingTypesOpts)
+		updated, err := UpdateClusterLoggingTypes(updateLoggingTypesOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).To(HaveOccurred())
 	})
@@ -288,7 +288,7 @@ var _ = Describe("UpdateClusterAccess", func() {
 				},
 			},
 		).Return(nil, nil)
-		updated, err := UpdateClusterAccess(*updateClusterAccessOpts)
+		updated, err := UpdateClusterAccess(updateClusterAccessOpts)
 		Expect(updated).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -296,14 +296,14 @@ var _ = Describe("UpdateClusterAccess", func() {
 	It("should not update cluster access if access didn't change", func() {
 		updateClusterAccessOpts.UpstreamClusterSpec.PrivateAccess = aws.Bool(true)
 		updateClusterAccessOpts.UpstreamClusterSpec.PublicAccess = aws.Bool(true)
-		updated, err := UpdateClusterAccess(*updateClusterAccessOpts)
+		updated, err := UpdateClusterAccess(updateClusterAccessOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should return error if update cluster access failed", func() {
 		eksServiceMock.EXPECT().UpdateClusterConfig(gomock.Any()).Return(nil, errors.New("error updating cluster config"))
-		updated, err := UpdateClusterAccess(*updateClusterAccessOpts)
+		updated, err := UpdateClusterAccess(updateClusterAccessOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).To(HaveOccurred())
 	})
@@ -345,21 +345,21 @@ var _ = Describe("UpdateClusterPublicAccessSources", func() {
 				},
 			},
 		).Return(nil, nil)
-		updated, err := UpdateClusterPublicAccessSources(*updateClusterPublicAccessSourcesOpts)
+		updated, err := UpdateClusterPublicAccessSources(updateClusterPublicAccessSourcesOpts)
 		Expect(updated).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should not update cluster public access sources if public access sources didn't change", func() {
 		updateClusterPublicAccessSourcesOpts.UpstreamClusterSpec.PublicAccessSources = []string{"test1", "test2"}
-		updated, err := UpdateClusterPublicAccessSources(*updateClusterPublicAccessSourcesOpts)
+		updated, err := UpdateClusterPublicAccessSources(updateClusterPublicAccessSourcesOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should return error if update cluster public access sources failed", func() {
 		eksServiceMock.EXPECT().UpdateClusterConfig(gomock.Any()).Return(nil, errors.New("error updating cluster config"))
-		updated, err := UpdateClusterPublicAccessSources(*updateClusterPublicAccessSourcesOpts)
+		updated, err := UpdateClusterPublicAccessSources(updateClusterPublicAccessSourcesOpts)
 		Expect(updated).To(BeFalse())
 		Expect(err).To(HaveOccurred())
 	})
@@ -398,12 +398,12 @@ var _ = Describe("UpdateNodegroupVersion", func() {
 
 	It("should update node group version", func() {
 		eksServiceMock.EXPECT().UpdateNodegroupVersion(updateNodegroupVersionOpts.NGVersionInput).Return(nil, nil)
-		Expect(UpdateNodegroupVersion(*updateNodegroupVersionOpts)).To(Succeed())
+		Expect(UpdateNodegroupVersion(updateNodegroupVersionOpts)).To(Succeed())
 	})
 
 	It("should delete launch template version if update fails", func() {
 		eksServiceMock.EXPECT().UpdateNodegroupVersion(updateNodegroupVersionOpts.NGVersionInput).Return(nil, errors.New("error"))
 		ec2ServiceMock.EXPECT().DeleteLaunchTemplateVersions(gomock.Any()).Return(nil, nil)
-		Expect(UpdateNodegroupVersion(*updateNodegroupVersionOpts)).To(HaveOccurred())
+		Expect(UpdateNodegroupVersion(updateNodegroupVersionOpts)).To(HaveOccurred())
 	})
 })
