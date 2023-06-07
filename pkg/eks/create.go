@@ -486,7 +486,7 @@ type EnableEBSCSIDriverInput struct {
 
 // EnableEBSCSIDriver manages the installation of the EBS CSI driver for EKS, including the
 // creation of the OIDC Provider, the IAM role and the validation and installation of the EKS add-on
-func EnableEBSCSIDriver(opts EnableEBSCSIDriverInput) error {
+func EnableEBSCSIDriver(opts *EnableEBSCSIDriverInput) error {
 	oidcID, err := configureOIDCProvider(opts.IAMService, opts.EKSService, opts.Config)
 	if err != nil {
 		return fmt.Errorf("could not configure oidc provider: %w", err)
