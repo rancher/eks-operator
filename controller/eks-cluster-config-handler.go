@@ -1140,12 +1140,15 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			ClusterName:   aws.String(config.Spec.DisplayName),
 		}
 
+		// rancherManagedLaunchTemplate is true if user did not specify a custom launch template
+		rancherManagedLaunchTemplate := false
 		if upstreamNg.LaunchTemplate != nil {
 			upstreamTemplateVersion := aws.Int64Value(upstreamNg.LaunchTemplate.Version)
 			var err error
 			lt := ng.LaunchTemplate
 
 			if lt == nil && config.Status.ManagedLaunchTemplateID == aws.StringValue(upstreamNg.LaunchTemplate.ID) {
+				rancherManagedLaunchTemplate = true
 				// In this case, Rancher is managing the launch template, so we check to see if we need a new version.
 				lt, err = newLaunchTemplateVersionIfNeeded(config, upstreamNg, ng, awsSVCs.ec2)
 				if err != nil {
@@ -1168,7 +1171,9 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 			}
 		}
 
-		if ng.Version != nil {
+		// a node group created from a custom launch template can only be updated with a new version of the launch template
+		// that uses an AMI with the desired kubernetes version, hence, only update on version mismatch if the node group was created with a rancher-managed launch template
+		if ng.Version != nil && rancherManagedLaunchTemplate {
 			if aws.StringValue(upstreamNg.Version) != desiredNgVersions[aws.StringValue(ng.NodegroupName)] {
 				ngVersionInput.Version = aws.String(desiredNgVersions[aws.StringValue(ng.NodegroupName)])
 			}
