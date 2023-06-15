@@ -33,8 +33,9 @@ find ./packages/rancher-eks-operator/ -type f -exec sed -i -e "s/version: ${PREV
 if [ "${REPLACE}" == "true" ]; then
     sed -i -e "s/${PREV_CHART_VERSION}+up${PREV_EKS_OPERATOR_VERSION}/${NEW_CHART_VERSION}+up${NEW_EKS_OPERATOR_VERSION}/g" release.yaml
 else
-    sed -i -e "s/${PREV_CHART_VERSION}+up${PREV_EKS_OPERATOR_VERSION}/${PREV_CHART_VERSION}+up${PREV_EKS_OPERATOR_VERSION}\n${NEW_CHART_VERSION}+up${NEW_EKS_OPERATOR_VERSION}/g" release.yaml
-    if grep -qv "rancher-eks-operator:" release.yaml; then
+    sed -i -e "s/${PREV_CHART_VERSION}+up${PREV_EKS_OPERATOR_VERSION}/${PREV_CHART_VERSION}+up${PREV_EKS_OPERATOR_VERSION}\n  - ${NEW_CHART_VERSION}+up${NEW_EKS_OPERATOR_VERSION}/g" release.yaml
+    isChartPresent=$(cat release.yaml | grep -c "rancher-eks-operator:")
+    if [ $isChartPresent -eq 0 ]; then
 
         cat <<< "rancher-eks-operator:
 - ${PREV_CHART_VERSION}+up${PREV_EKS_OPERATOR_VERSION}
