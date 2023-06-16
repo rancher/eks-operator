@@ -2,6 +2,7 @@ package eks
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -104,5 +105,59 @@ var _ = Describe("GetLaunchTemplateVersions", func() {
 		getLaunchTemplateOptions.Versions = nil
 		_, err := GetLaunchTemplateVersions(getLaunchTemplateOptions)
 		Expect(err).To(HaveOccurred())
+	})
+
+	var _ = Describe("GetEBSCSIAddon", func() {
+		var (
+			mockController            *gomock.Controller
+			eksServiceMock            *mock_services.MockEKSServiceInterface
+			iamServiceMock            *mock_services.MockIAMServiceInterface
+			cloudFormationServiceMock *mock_services.MockCloudFormationServiceInterface
+			eksDescribeAddonOutput    *eks.DescribeAddonOutput
+			enableEBSCSIDriverInput   *EnableEBSCSIDriverInput
+		)
+
+		BeforeEach(func() {
+			mockController = gomock.NewController(GinkgoT())
+			eksServiceMock = mock_services.NewMockEKSServiceInterface(mockController)
+			iamServiceMock = mock_services.NewMockIAMServiceInterface(mockController)
+			cloudFormationServiceMock = mock_services.NewMockCloudFormationServiceInterface(mockController)
+			enableEBSCSIDriverInput = &EnableEBSCSIDriverInput{
+				EKSService: eksServiceMock,
+				IAMService: iamServiceMock,
+				CFService:  cloudFormationServiceMock,
+				Config:     &eksv1.EKSClusterConfig{},
+			}
+		})
+
+		AfterEach(func() {
+			mockController.Finish()
+		})
+		It("should detect that addon is already installed", func() {
+			eksDescribeAddonOutput = &eks.DescribeAddonOutput{
+				Addon: &eks.Addon{
+					AddonArn: aws.String("arn:aws::ebs-csi-driver"),
+				},
+			}
+			eksServiceMock.EXPECT().DescribeAddon(gomock.Any()).Return(eksDescribeAddonOutput, nil)
+			addonArn, err := CheckEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+			Expect(err).To(Succeed())
+			Expect(addonArn).To(Equal("arn:aws::ebs-csi-driver"))
+		})
+
+		It("should detect that addon is not installed", func() {
+			eksDescribeAddonOutput = &eks.DescribeAddonOutput{}
+			eksServiceMock.EXPECT().DescribeAddon(gomock.Any()).Return(eksDescribeAddonOutput, nil)
+			addonArn, err := CheckEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+			Expect(err).To(Succeed())
+			Expect(addonArn).To(Equal(""))
+		})
+
+		It("should fail to check if addon is not installed", func() {
+			eksDescribeAddonOutput = &eks.DescribeAddonOutput{}
+			eksServiceMock.EXPECT().DescribeAddon(gomock.Any()).Return(nil, fmt.Errorf("failed to describe addon"))
+			_, err := CheckEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+			Expect(err).ToNot(Succeed())
+		})
 	})
 })

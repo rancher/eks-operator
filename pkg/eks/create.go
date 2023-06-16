@@ -1,8 +1,15 @@
 package eks
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"html/template"
+	"net/http"
+	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/iam"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/templates"
@@ -30,6 +38,9 @@ const (
 	launchTemplateTagKey     = "rancher-managed-template"
 	launchTemplateTagValue   = "do-not-modify-or-delete"
 	defaultStorageDeviceName = "/dev/xvda"
+
+	defaultAudienceOpenIDConnect = "sts.amazonaws.com"
+	ebsCSIAddonName              = "aws-ebs-csi-driver"
 )
 
 type CreateClusterOptions struct {
@@ -464,4 +475,159 @@ func getParameterValueFromOutput(key string, outputs []*cloudformation.Output) s
 	}
 
 	return ""
+}
+
+// EnableEBSCSIDriverInput holds the options for enabling the EBS CSI driver
+type EnableEBSCSIDriverInput struct {
+	EKSService   services.EKSServiceInterface
+	IAMService   services.IAMServiceInterface
+	CFService    services.CloudFormationServiceInterface
+	Config       *eksv1.EKSClusterConfig
+	AddonVersion string
+}
+
+// EnableEBSCSIDriver manages the installation of the EBS CSI driver for EKS, including the
+// creation of the OIDC Provider, the IAM role and the validation and installation of the EKS add-on
+func EnableEBSCSIDriver(opts *EnableEBSCSIDriverInput) error {
+	oidcID, err := configureOIDCProvider(opts.IAMService, opts.EKSService, opts.Config)
+	if err != nil {
+		return fmt.Errorf("could not configure oidc provider: %w", err)
+	}
+	roleArn, err := createEBSCSIDriverRole(opts.CFService, opts.Config, oidcID)
+	if err != nil {
+		return fmt.Errorf("could not create ebs csi driver role: %w", err)
+	}
+	if _, err := installEBSAddon(opts.EKSService, opts.Config, roleArn, opts.AddonVersion); err != nil {
+		return fmt.Errorf("failed to install ebs csi driver addon: %w", err)
+	}
+
+	return nil
+}
+
+func configureOIDCProvider(iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
+	output, err := iamService.ListOIDCProviders(&iam.ListOpenIDConnectProvidersInput{})
+	if err != nil {
+		return "", err
+	}
+	clusterOutput, err := eksService.DescribeCluster(&eks.DescribeClusterInput{
+		Name: aws.String(config.Spec.DisplayName),
+	})
+	if err != nil {
+		return "", err
+	}
+	if clusterOutput == nil {
+		return "", fmt.Errorf("could not find cluster [%s]", config.Spec.DisplayName)
+	}
+	id := path.Base(*clusterOutput.Cluster.Identity.Oidc.Issuer)
+
+	for _, prov := range output.OpenIDConnectProviderList {
+		if strings.Contains(*prov.Arn, id) {
+			return "", nil
+		}
+	}
+
+	thumbprint, err := getIssuerThumbprint(*clusterOutput.Cluster.Identity.Oidc.Issuer)
+	if err != nil {
+		return "", err
+	}
+	input := &iam.CreateOpenIDConnectProviderInput{
+		ClientIDList:   []*string{aws.String(defaultAudienceOpenIDConnect)},
+		ThumbprintList: []*string{&thumbprint},
+		Url:            clusterOutput.Cluster.Identity.Oidc.Issuer,
+		Tags:           []*iam.Tag{},
+	}
+	newOIDC, err := iamService.CreateOIDCProvider(input)
+	if err != nil {
+		return "", err
+	}
+
+	return path.Base(*newOIDC.OpenIDConnectProviderArn), nil
+}
+
+func getIssuerThumbprint(issuer string) (string, error) {
+	issuerURL, err := url.Parse(issuer)
+	if err != nil {
+		return "", err
+	}
+	if issuerURL.Port() == "" {
+		issuerURL.Host += ":443"
+	}
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+			},
+			Proxy: http.ProxyFromEnvironment,
+		},
+	}
+	resp, err := client.Get(issuerURL.String())
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.TLS == nil || len(resp.TLS.PeerCertificates) == 0 {
+		return "", err
+	}
+
+	root := resp.TLS.PeerCertificates[len(resp.TLS.PeerCertificates)-1]
+
+	return fmt.Sprintf("%x", sha1.Sum(root.Raw)), nil
+}
+
+func createEBSCSIDriverRole(cfService services.CloudFormationServiceInterface, config *eksv1.EKSClusterConfig, oidcID string) (string, error) {
+	templateData := struct {
+		Region     string
+		ProviderID string
+	}{
+		Region:     config.Spec.Region,
+		ProviderID: oidcID,
+	}
+	tmpl, err := template.New("ebsrole").Parse(templates.EBSCSIDriverTemplate)
+	if err != nil {
+		return "", err
+	}
+	buf := &bytes.Buffer{}
+	if execErr := tmpl.Execute(buf, templateData); execErr != nil {
+		return "", err
+	}
+	finalTemplate := buf.String()
+
+	output, err := CreateStack(&CreateStackOptions{
+		CloudFormationService: cfService,
+		StackName:             fmt.Sprintf("%s-ebs-csi-driver-role", config.Spec.DisplayName),
+		DisplayName:           config.Spec.DisplayName,
+		TemplateBody:          finalTemplate,
+		Capabilities:          []string{cloudformation.CapabilityCapabilityIam},
+		Parameters:            []*cloudformation.Parameter{},
+	})
+	if err != nil {
+		return "", err
+	}
+	createdRoleArn := getParameterValueFromOutput("EBSCSIDriverRole", output.Stacks[0].Outputs)
+
+	return createdRoleArn, nil
+}
+
+func installEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig, roleArn, version string) (string, error) {
+	input := eks.CreateAddonInput{
+		AddonName:             aws.String(ebsCSIAddonName),
+		ClusterName:           aws.String(config.Spec.DisplayName),
+		ServiceAccountRoleArn: aws.String(roleArn),
+	}
+	if version != "latest" {
+		input.AddonVersion = aws.String(version)
+	}
+
+	addonOutput, err := eksService.CreateAddon(&input)
+	if err != nil {
+		return "", err
+	}
+	if addonOutput == nil {
+		return "", fmt.Errorf("could not create addon [%s] for cluster [%s]", ebsCSIAddonName, config.Spec.DisplayName)
+	}
+
+	return *addonOutput.Addon.AddonArn, nil
 }

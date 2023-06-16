@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -136,16 +137,16 @@ var _ = Describe("newClusterInput", func() {
 
 var _ = Describe("CreateStack", func() {
 	var (
-		mockController             *gomock.Controller
-		cloudFormationsServiceMock *mock_services.MockCloudFormationServiceInterface
-		stackCreationOptions       *CreateStackOptions
+		mockController            *gomock.Controller
+		cloudFormationServiceMock *mock_services.MockCloudFormationServiceInterface
+		stackCreationOptions      *CreateStackOptions
 	)
 
 	BeforeEach(func() {
 		mockController = gomock.NewController(GinkgoT())
-		cloudFormationsServiceMock = mock_services.NewMockCloudFormationServiceInterface(mockController)
+		cloudFormationServiceMock = mock_services.NewMockCloudFormationServiceInterface(mockController)
 		stackCreationOptions = &CreateStackOptions{
-			CloudFormationService: cloudFormationsServiceMock,
+			CloudFormationService: cloudFormationServiceMock,
 			StackName:             "test",
 			DisplayName:           "test",
 			TemplateBody:          "test-body",
@@ -159,7 +160,7 @@ var _ = Describe("CreateStack", func() {
 	})
 
 	It("should successfully create a stack", func() {
-		cloudFormationsServiceMock.EXPECT().CreateStack(&cloudformation.CreateStackInput{
+		cloudFormationServiceMock.EXPECT().CreateStack(&cloudformation.CreateStackInput{
 			StackName:    &stackCreationOptions.StackName,
 			TemplateBody: &stackCreationOptions.TemplateBody,
 			Capabilities: aws.StringSlice(stackCreationOptions.Capabilities),
@@ -172,7 +173,7 @@ var _ = Describe("CreateStack", func() {
 			},
 		}).Return(nil, nil)
 
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(
 			&cloudformation.DescribeStacksInput{
 				StackName: &stackCreationOptions.StackName,
 			},
@@ -192,16 +193,16 @@ var _ = Describe("CreateStack", func() {
 	})
 
 	It("should fail to create a stack if CreateStack returns error", func() {
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, errors.New("error"))
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, errors.New("error"))
 
 		_, err := CreateStack(stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to create a stack if DescribeStacks returns no stacks", func() {
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
 
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(
 			&cloudformation.DescribeStacksInput{
 				StackName: &stackCreationOptions.StackName,
 			},
@@ -212,8 +213,8 @@ var _ = Describe("CreateStack", func() {
 	})
 
 	It("should fail to create a stack if stack already exists", func() {
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, awserr.New(cloudformation.ErrCodeAlreadyExistsException, "", nil))
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, awserr.New(cloudformation.ErrCodeAlreadyExistsException, "", nil))
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -227,16 +228,16 @@ var _ = Describe("CreateStack", func() {
 	})
 
 	It("should fail to create a stack if DescribeStack return errors", func() {
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(nil, errors.New("error"))
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(nil, errors.New("error"))
 
 		_, err := CreateStack(stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to create a stack if stack status is CREATE_FAILED", func() {
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -244,7 +245,7 @@ var _ = Describe("CreateStack", func() {
 					},
 				},
 			}, nil)
-		cloudFormationsServiceMock.EXPECT().DescribeStackEvents(
+		cloudFormationServiceMock.EXPECT().DescribeStackEvents(
 			&cloudformation.DescribeStackEventsInput{
 				StackName: &stackCreationOptions.StackName,
 			},
@@ -265,8 +266,8 @@ var _ = Describe("CreateStack", func() {
 	})
 
 	It("should fail to create a stack if stack status is ROLLBACK_IN_PROGRESS", func() {
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -274,7 +275,7 @@ var _ = Describe("CreateStack", func() {
 					},
 				},
 			}, nil)
-		cloudFormationsServiceMock.EXPECT().DescribeStackEvents(
+		cloudFormationServiceMock.EXPECT().DescribeStackEvents(
 			&cloudformation.DescribeStackEventsInput{
 				StackName: &stackCreationOptions.StackName,
 			},
@@ -617,22 +618,22 @@ var _ = Describe("createNewLaunchTemplateVersion", func() {
 
 var _ = Describe("CreateNodeGroup", func() {
 	var (
-		mockController             *gomock.Controller
-		eksServiceMock             *mock_services.MockEKSServiceInterface
-		ec2ServiceMock             *mock_services.MockEC2ServiceInterface
-		cloudFormationsServiceMock *mock_services.MockCloudFormationServiceInterface
-		createNodeGroupOpts        *CreateNodeGroupOptions
+		mockController            *gomock.Controller
+		eksServiceMock            *mock_services.MockEKSServiceInterface
+		ec2ServiceMock            *mock_services.MockEC2ServiceInterface
+		cloudFormationServiceMock *mock_services.MockCloudFormationServiceInterface
+		createNodeGroupOpts       *CreateNodeGroupOptions
 	)
 
 	BeforeEach(func() {
 		mockController = gomock.NewController(GinkgoT())
 		eksServiceMock = mock_services.NewMockEKSServiceInterface(mockController)
 		ec2ServiceMock = mock_services.NewMockEC2ServiceInterface(mockController)
-		cloudFormationsServiceMock = mock_services.NewMockCloudFormationServiceInterface(mockController)
+		cloudFormationServiceMock = mock_services.NewMockCloudFormationServiceInterface(mockController)
 		createNodeGroupOpts = &CreateNodeGroupOptions{
 			EC2Service:            ec2ServiceMock,
 			EKSService:            eksServiceMock,
-			CloudFormationService: cloudFormationsServiceMock,
+			CloudFormationService: cloudFormationServiceMock,
 
 			Config: &eksv1.EKSClusterConfig{
 				Spec: eksv1.EKSClusterConfigSpec{
@@ -693,9 +694,9 @@ var _ = Describe("CreateNodeGroup", func() {
 			},
 		}, nil)
 
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
 
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -743,9 +744,9 @@ var _ = Describe("CreateNodeGroup", func() {
 			Name:    aws.String("test"),
 		}
 
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
 
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -811,8 +812,8 @@ var _ = Describe("CreateNodeGroup", func() {
 				},
 			},
 		}, nil)
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -870,9 +871,9 @@ var _ = Describe("CreateNodeGroup", func() {
 			},
 		}, nil)
 
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
 
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -925,9 +926,9 @@ var _ = Describe("CreateNodeGroup", func() {
 			},
 		}, nil)
 
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
 
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -979,9 +980,9 @@ var _ = Describe("CreateNodeGroup", func() {
 			},
 		}, nil)
 
-		cloudFormationsServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
 
-		cloudFormationsServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{
 					{
@@ -1021,5 +1022,135 @@ var _ = Describe("CreateNodeGroup", func() {
 
 		Expect(launchTemplateVersion).To(Equal("1"))
 		Expect(generatedNodeRole).To(Equal("test"))
+	})
+})
+
+var _ = Describe("installEBSCSIDriver", func() {
+	var (
+		mockController            *gomock.Controller
+		eksServiceMock            *mock_services.MockEKSServiceInterface
+		iamServiceMock            *mock_services.MockIAMServiceInterface
+		cloudFormationServiceMock *mock_services.MockCloudFormationServiceInterface
+		enableEBSCSIDriverInput   *EnableEBSCSIDriverInput
+		oidcListProvidersOutput   *iam.ListOpenIDConnectProvidersOutput
+		oidcCreateProviderOutput  *iam.CreateOpenIDConnectProviderOutput
+		eksClusterOutput          *eks.DescribeClusterOutput
+		eksCreateAddonOutput      *eks.CreateAddonOutput
+		defaultAWSRegion          string
+	)
+
+	BeforeEach(func() {
+		mockController = gomock.NewController(GinkgoT())
+		eksServiceMock = mock_services.NewMockEKSServiceInterface(mockController)
+		iamServiceMock = mock_services.NewMockIAMServiceInterface(mockController)
+		cloudFormationServiceMock = mock_services.NewMockCloudFormationServiceInterface(mockController)
+		enableEBSCSIDriverInput = &EnableEBSCSIDriverInput{
+			EKSService: eksServiceMock,
+			IAMService: iamServiceMock,
+			CFService:  cloudFormationServiceMock,
+			Config:     &eksv1.EKSClusterConfig{},
+		}
+		defaultAWSRegion = "us-east-1" // must use a default region to get OIDC thumbprint
+		oidcListProvidersOutput = &iam.ListOpenIDConnectProvidersOutput{}
+		oidcCreateProviderOutput = &iam.CreateOpenIDConnectProviderOutput{
+			OpenIDConnectProviderArn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.regions.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455"),
+		}
+		eksClusterOutput = &eks.DescribeClusterOutput{
+			Cluster: &eks.Cluster{
+				Identity: &eks.Identity{
+					Oidc: &eks.OIDC{
+						Issuer: aws.String(fmt.Sprintf("https://oidc.eks.%v.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455", defaultAWSRegion)),
+					},
+				},
+			},
+		}
+	})
+
+	AfterEach(func() {
+		mockController.Finish()
+	})
+
+	It("should successfully create oidc provider", func() {
+		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/BBBAAACCCDDDEEEFFF11122233344455")},
+		}
+		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
+		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().CreateOIDCProvider(gomock.Any()).Return(oidcCreateProviderOutput, nil)
+		_, err := configureOIDCProvider(enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		Expect(err).To(Succeed())
+	})
+
+	It("should successfully use existing oidc provider", func() {
+		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455")},
+		}
+		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
+		_, err := configureOIDCProvider(enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		Expect(err).To(Succeed())
+	})
+
+	It("should fail to list oidc providers", func() {
+		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(nil, fmt.Errorf("failed to list oidc providers"))
+		_, err := configureOIDCProvider(enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		Expect(err).ToNot(Succeed())
+	})
+
+	It("should fail to create oidc provider", func() {
+		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/BBBAAACCCDDDEEEFFF11122233344455")},
+		}
+		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
+		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().CreateOIDCProvider(gomock.Any()).Return(nil, fmt.Errorf("failed to create oidc provider"))
+		_, err := configureOIDCProvider(enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		Expect(err).ToNot(Succeed())
+	})
+
+	It("should successfully create driver iam role", func() {
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+			&cloudformation.DescribeStacksOutput{
+				Stacks: []*cloudformation.Stack{
+					{
+						StackStatus: aws.String(createCompleteStatus),
+						Outputs: []*cloudformation.Output{
+							{
+								OutputKey:   aws.String("EBSCSIDriverRole"),
+								OutputValue: aws.String("test"),
+							},
+						},
+					},
+				},
+			}, nil)
+		_, err := createEBSCSIDriverRole(enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "")
+		Expect(err).To(Succeed())
+	})
+
+	It("should fail to create driver iam role", func() {
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(nil, fmt.Errorf("failed to describe stack"))
+		_, err := createEBSCSIDriverRole(enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "")
+		Expect(err).ToNot(Succeed())
+	})
+
+	It("should successfully install addon", func() {
+		eksCreateAddonOutput = &eks.CreateAddonOutput{
+			Addon: &eks.Addon{
+				AddonArn: aws.String("arn:aws::ebs-csi-driver"),
+			},
+		}
+		eksServiceMock.EXPECT().CreateAddon(gomock.Any()).Return(eksCreateAddonOutput, nil)
+		addonArn, err := installEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config, "roleArn", "latest")
+		Expect(err).To(Succeed())
+		Expect(addonArn).To(Equal("arn:aws::ebs-csi-driver"))
+	})
+
+	It("should fail to install addon", func() {
+		eksCreateAddonOutput = &eks.CreateAddonOutput{}
+		eksServiceMock.EXPECT().CreateAddon(gomock.Any()).Return(nil, fmt.Errorf("failed to create addon"))
+		_, err := installEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config, "roleArn", "latest")
+		Expect(err).ToNot(Succeed())
 	})
 })

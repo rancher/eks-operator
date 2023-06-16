@@ -20,6 +20,8 @@ type EKSServiceInterface interface {
 	UpdateNodegroupVersion(input *eks.UpdateNodegroupVersionInput) (*eks.UpdateNodegroupVersionOutput, error)
 	TagResource(input *eks.TagResourceInput) (*eks.TagResourceOutput, error)
 	UntagResource(input *eks.UntagResourceInput) (*eks.UntagResourceOutput, error)
+	CreateAddon(input *eks.CreateAddonInput) (*eks.CreateAddonOutput, error)
+	DescribeAddon(input *eks.DescribeAddonInput) (*eks.DescribeAddonOutput, error)
 }
 
 type eksService struct {
@@ -86,4 +88,12 @@ func (c *eksService) UntagResource(input *eks.UntagResourceInput) (*eks.UntagRes
 
 func (c *eksService) UpdateNodegroupVersion(input *eks.UpdateNodegroupVersionInput) (*eks.UpdateNodegroupVersionOutput, error) {
 	return c.svc.UpdateNodegroupVersion(input)
+}
+
+func (c *eksService) CreateAddon(input *eks.CreateAddonInput) (*eks.CreateAddonOutput, error) {
+	return c.svc.CreateAddon(input)
+}
+
+func (c *eksService) DescribeAddon(input *eks.DescribeAddonInput) (*eks.DescribeAddonOutput, error) {
+	return c.svc.DescribeAddon(input)
 }

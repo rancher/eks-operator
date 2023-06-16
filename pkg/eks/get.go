@@ -1,9 +1,11 @@
 package eks
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
@@ -42,4 +44,27 @@ func GetLaunchTemplateVersions(opts *GetLaunchTemplateVersionsOpts) (*ec2.Descri
 			LaunchTemplateId: opts.LaunchTemplateID,
 			Versions:         opts.Versions,
 		})
+}
+
+// CheckEBSAddon checks if the EBS CSI driver add-on is installed. If it is, it will return
+// the ARN of the add-on. If it is not, it will return an empty string. Otherwise, it will return an error
+func CheckEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
+	input := eks.DescribeAddonInput{
+		AddonName:   aws.String(ebsCSIAddonName),
+		ClusterName: aws.String(config.Spec.DisplayName),
+	}
+
+	output, err := eksService.DescribeAddon(&input)
+	if err != nil {
+		var genericAWSErr awserr.Error
+		if errors.As(err, &genericAWSErr) && genericAWSErr.Code() == eks.ErrCodeResourceNotFoundException {
+			return "", nil
+		}
+		return "", err
+	}
+	if output.Addon == nil {
+		return "", nil
+	}
+
+	return *output.Addon.AddonArn, nil
 }
