@@ -30,7 +30,7 @@ jobs:
           echo "commit_date=$COMMITDATE" >> $GITHUB_OUTPUT
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v4.4.0
+        uses: docker/metadata-action@v4.6.0
         with:
           images: |
             ${{ env.REPO }}
