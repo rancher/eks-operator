@@ -108,6 +108,14 @@ func CreateTagSpecs(instanceTags map[string]*string) []*ec2.LaunchTemplateTagSpe
 			ResourceType: aws.String(ec2.ResourceTypeInstance),
 			Tags:         tags,
 		},
+		{
+			ResourceType: aws.String(ec2.ResourceTypeVolume),
+			Tags:         tags,
+		},
+		{
+			ResourceType: aws.String(ec2.ResourceTypeSpotInstancesRequest),
+			Tags:         tags,
+		},
 	}
 }
 

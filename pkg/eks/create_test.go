@@ -1023,6 +1023,72 @@ var _ = Describe("CreateNodeGroup", func() {
 		Expect(launchTemplateVersion).To(Equal("1"))
 		Expect(generatedNodeRole).To(Equal("test"))
 	})
+	It("set resource tags", func() {
+		createNodeGroupOpts.NodeGroup.ResourceTags = map[string]*string{
+			"tag1": aws.String("val1"),
+		}
+
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+				LaunchTemplateName: aws.String("test"),
+				LaunchTemplateId:   aws.String("test"),
+				VersionNumber:      aws.Int64(1),
+			},
+		}, nil)
+
+		ec2ServiceMock.EXPECT().DescribeImages(gomock.Any()).Return(&ec2.DescribeImagesOutput{
+			Images: []*ec2.Image{
+				{
+					RootDeviceName: aws.String("test"),
+				},
+			},
+		}, nil)
+
+		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+
+		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+			&cloudformation.DescribeStacksOutput{
+				Stacks: []*cloudformation.Stack{
+					{
+						StackStatus: aws.String(createCompleteStatus),
+						Outputs: []*cloudformation.Output{
+							{
+								OutputKey:   aws.String("NodeInstanceRole"),
+								OutputValue: aws.String("test"),
+							},
+						},
+					},
+				},
+			}, nil)
+
+		eksServiceMock.EXPECT().CreateNodegroup(&eks.CreateNodegroupInput{
+			ClusterName:   aws.String(createNodeGroupOpts.Config.Spec.DisplayName),
+			NodegroupName: createNodeGroupOpts.NodeGroup.NodegroupName,
+			Labels:        createNodeGroupOpts.NodeGroup.Labels,
+			ScalingConfig: &eks.NodegroupScalingConfig{
+				DesiredSize: createNodeGroupOpts.NodeGroup.DesiredSize,
+				MaxSize:     createNodeGroupOpts.NodeGroup.MaxSize,
+				MinSize:     createNodeGroupOpts.NodeGroup.MinSize,
+			},
+			CapacityType: aws.String(eks.CapacityTypesSpot),
+			LaunchTemplate: &eks.LaunchTemplateSpecification{
+				Id:      aws.String("test"),
+				Version: aws.String("1"),
+			},
+			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
+			Subnets:       aws.StringSlice(createNodeGroupOpts.NodeGroup.Subnets),
+			NodeRole:      aws.String("test"),
+			Tags: map[string]*string{
+				"tag1": aws.String("val1"),
+			},
+		}).Return(nil, nil)
+
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(launchTemplateVersion).To(Equal("1"))
+		Expect(generatedNodeRole).To(Equal("test"))
+	})
 })
 
 var _ = Describe("installEBSCSIDriver", func() {

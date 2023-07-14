@@ -243,6 +243,10 @@ func CreateNodeGroup(opts *CreateNodeGroupOptions) (string, string, error) {
 
 	lt := opts.NodeGroup.LaunchTemplate
 
+	if len(opts.NodeGroup.ResourceTags) > 0 {
+		nodeGroupCreateInput.Tags = opts.NodeGroup.ResourceTags
+	}
+
 	if lt == nil {
 		// In this case, the user has not specified their own launch template.
 		// If the cluster doesn't have a launch template associated with it, then we create one.
