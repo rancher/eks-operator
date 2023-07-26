@@ -1,0 +1,68 @@
+name: Nightly
+on:
+  schedule:
+    - cron: '0 1 * * *'
+jobs:
+  nightly_image:
+    env:
+        REPO_BASE: ttl.sh/eks-operator-nightly
+        TAG: 1d
+    runs-on: ubuntu-latest
+    outputs:
+      REPO: ${{ steps.setoutputs.outputs.repo}}
+      BUILD_DATE: ${{ steps.setoutputs.outputs.builddate}}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+            fetch-depth: 0
+      - name: Set current date as env variable
+        run: echo "NOW=$(date +'%Y%m%d')" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2.9.1
+      - name: Build and push image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          context: .
+          tags: ${{ env.REPO_BASE}}-${{ env.NOW }}:${{ env.TAG }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: eks-operator
+          file: test/e2e/Dockerfile.e2e
+          build-args: |
+            TAG=${{ env.TAG }}
+            REPO=${{ env.REPO_BASE }}-${{ env.NOW }}
+            COMMIT=${{ github.sha }}
+      - name: Set outputs
+        id: setoutputs
+        run: |
+          echo "repo=${{ env.REPO_BASE }}-${{ env.NOW }}" >> "$GITHUB_OUTPUT"
+          echo "builddate=${{ env.NOW }}" >> "$GITHUB_OUTPUT"
+  nightly_charts:
+    env:
+        REPO: ${{ needs.nightly_image.outputs.REPO }}
+        TAG: 1d
+        BUILD_DATE: ${{ needs.nightly_image.outputs.BUILD_DATE }}
+    runs-on: ubuntu-latest
+    needs: nightly_image
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+            fetch-depth: 0
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+            version: 'v3.12.1'
+      - name: Build charts
+        run: |
+          make charts
+        env:
+            CHART_VERSION: ${{ env.BUILD_DATE }}
+            GIT_TAG: ${{ env.BUILD_DATE }}
+      - name: Push charts
+        run: |
+          helm push bin/rancher-eks-operator-crd-${{ env.BUILD_DATE }}.tgz oci://ttl.sh/eks-operator
+          helm push bin/rancher-eks-operator-${{ env.BUILD_DATE }}.tgz oci://ttl.sh/eks-operator
