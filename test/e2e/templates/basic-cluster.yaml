@@ -1,0 +1,37 @@
+apiVersion: eks.cattle.io/v1
+kind: EKSClusterConfig
+metadata:
+  namespace: default
+spec:
+  amazonCredentialSecret: default:aws-credentials
+  imported: false
+  kmsKey: ""
+  kubernetesVersion: "1.25"
+  loggingTypes: []
+  nodeGroups:
+  - desiredSize: 2
+    diskSize: 20
+    ec2SshKey: ""
+    gpu: false
+    imageId: ""
+    instanceType: t3.medium
+    labels: {}
+    launchTemplate: null
+    maxSize: 2
+    minSize: 2
+    nodegroupName: nodenametest
+    requestSpotInstances: false
+    resourceTags: {}
+    spotInstanceTypes: []
+    subnets: []
+    tags: {}
+    userData: ""
+    version: "1.25"
+  privateAccess: false
+  publicAccess: true
+  publicAccessSources: []
+  secretsEncryption: false
+  securityGroups: []
+  serviceRole: ""
+  subnets: []
+  tags: {}
