@@ -31,7 +31,7 @@ fi
 
 find ./packages/rancher-${OPERATOR}/ -type f -exec sed -i -e "s/${PREV_OPERATOR_VERSION}/${NEW_OPERATOR_VERSION}/g" {} \;
 find ./packages/rancher-${OPERATOR}/ -type f -exec sed -i -e "s/version: ${PREV_CHART_VERSION}/version: ${NEW_CHART_VERSION}/g" {} \;
-find ./packages/rancher-${OPERATOR}/ -type f -exec sed -i -e "s/doNotRelease: false//g" {} \;
+find ./packages/rancher-${OPERATOR}/ -type f -exec sed -i -e "/doNotRelease: false/d" {} \;
 
 if [ "${REPLACE}" == "true" ] && grep -q "rancher-${OPERATOR}:" release.yaml; then
     sed -i -e "s/${PREV_CHART_VERSION}+up${PREV_OPERATOR_VERSION}/${NEW_CHART_VERSION}+up${NEW_OPERATOR_VERSION}/g" release.yaml
