@@ -4,18 +4,37 @@ EKS operator is a Kubernetes CRD controller that controls cluster provisioning i
 
 ## Build
 
-    TAG=master make
+Operator binary can be built using the following command:
 
-## Develop
+```bash
+    make operator
+```
 
-The easiest way to debug and develop the EKS operator is to replace the default operator on a running Rancher instance with your local one.
+After this, you can also downscale operator deployment and run operator from a local binary.
 
-* Run a local Rancher server
-* Provision an EKS cluster
-* Scale the eks-operator deployment to replicas=0 in the Rancher UI
-* Open the eks-operator repo in Goland, set `KUBECONFIG=<kubeconfig_path>` in Run Configuration Environment
-* Run the eks-operator in Debug Mode
-* Set breakpoints
+## Tests
+
+Running unit tests can be done using the following command:
+
+```bash
+    make test
+```
+
+
+### E2E 
+
+We run e2e tests after every merged PR and periodically every 24 hours. They are triggered by a [Github action](.github/workflows/e2e-latest-rancher.yaml)
+
+For running e2e set the following variables and run:
+
+```bash
+    export AWS_ACCESS_KEY_ID="replace_with_your_value"
+    export AWS_SECRET_ACCESS_KEY="replace_with_your_value"
+    export AWS_REGION="replace_with_your_value"
+    make kind-e2e-tests
+```
+
+A Kind cluster will be created, and the e2e tests will be run against it.
 
 ## Release
 
@@ -30,8 +49,8 @@ A KEv2 operator should be released if
 #### How do I release?
 
 Tag the latest commit on the `master` branch. For example, if latest tag is:
-* `v1.1.6-rc1` you should tag `v1.1.6-rc2`.
-* `v1.1.6` you should tag `v1.1.7-rc1`.
+* `v1.0.8-rc1` you should tag `v1.0.8-rc2`.
+* `v1.0.8` you should tag `v1.0.9-rc1`.
 
 ```bash
 # Get the latest upstream changes
@@ -39,7 +58,7 @@ Tag the latest commit on the `master` branch. For example, if latest tag is:
 git pull upstream master --tags
 
 # Export the tag of the release to be cut, e.g.:
-export RELEASE_TAG=v1.1.6-rc2
+export RELEASE_TAG=v1.0.8-rc2
 
 # Create tags locally
 git tag -s -a ${RELEASE_TAG} -m ${RELEASE_TAG}
@@ -49,11 +68,13 @@ git tag -s -a ${RELEASE_TAG} -m ${RELEASE_TAG}
 git push upstream ${RELEASE_TAG}
 ```
 
-Submit a [rancher/charts PR](https://github.com/rancher/charts/pull/2242) to update the operator and operator-crd chart versions.
-Submit a [rancher/rancher PR](https://github.com/rancher/rancher/pull/39745) to update the bundled chart.
+After pushing the release tag, you need to run 2 Github actions. You can find them in the Actions tab of the repo:
+
+* `Update EKS operator in rancher/rancher` - This action will update the EKS operator in rancher/rancher repo. It will bump go dependencies.
+* `Update EKS Operator in rancher/charts` - This action will update the EKS operator in rancher/charts repo. It will bump the chart version.
 
 #### How do I unRC?
 
 UnRC is the process of removing the rc from a KEv2 operator tag and means the released version is stable and ready for use. Release the KEv2 operator but instead of bumping the rc, remove the rc. For example, if the latest release of EKS operator is:
-* `v1.1.6-rc1`, release the next version without the rc which would be `v1.1.6`.
-* `v1.1.6`, that has no rc so release that version or `v1.1.7` if updates are available.
+* `v1.0.8-rc1`, release the next version without the rc which would be `v1.0.8`.
+* `v1.0.8`, that has no rc so release that version or `v1.0.9` if updates are available.
