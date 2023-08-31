@@ -1061,7 +1061,8 @@ func (h *Handler) updateUpstreamClusterState(upstreamSpec *eksv1.EKSClusterConfi
 		// nodegroup may not be immediate
 		if config.Status.Phase != eksConfigUpdatingPhase {
 			config.Status.Phase = eksConfigUpdatingPhase
-			config, err := h.eksCC.UpdateStatus(config)
+			var err error
+			config, err = h.eksCC.UpdateStatus(config)
 			if err != nil {
 				return config, err
 			}
