@@ -11,6 +11,9 @@ on:
       AWS_REGION:
         description: "AWS Region"
         required: true
+      SLACK_WEBHOOK_URL:
+        description: WebHook URL to use for Slack
+        required: true
 jobs:
   e2e-tests:
     env:
@@ -85,4 +88,31 @@ jobs:
           name: ci-artifacts
           path: _artifacts
           if-no-files-found: ignore
-
+      - name: Send failed status to slack
+        if: failure() && github.event_name == 'schedule'
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "AKS Operator E2E test run failed."
+                    },
+                    "accessory": {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":github:",
+                         "emoji": true
+                        },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
