@@ -885,6 +885,9 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 				}
 				launchTemplateData := launchTemplateRequestOutput.LaunchTemplateVersions[0].LaunchTemplateData
 
+				if len(launchTemplateData.BlockDeviceMappings) == 0 {
+					return nil, "", fmt.Errorf("launch template for node group [%s] in cluster [%s] is malformed", aws.StringValue(ngToAdd.NodegroupName), upstreamSpec.DisplayName)
+				}
 				ngToAdd.DiskSize = launchTemplateData.BlockDeviceMappings[0].Ebs.VolumeSize
 				ngToAdd.Ec2SshKey = launchTemplateData.KeyName
 				ngToAdd.ImageID = launchTemplateData.ImageId
