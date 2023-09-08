@@ -28,18 +28,12 @@ func main() {
 				},
 				GenerateTypes: true,
 			},
-			// Optionally you can use wrangler-api project which
-			// has a lot of common kubernetes APIs already generated.
-			// In this controller we will use wrangler-api for apps api group
-			"": {
+			corev1.GroupName: {
 				Types: []interface{}{
 					corev1.Pod{},
 					corev1.Node{},
 					corev1.Secret{},
 				},
-				InformersPackage: "k8s.io/client-go/informers",
-				ClientSetPackage: "k8s.io/client-go/kubernetes",
-				ListersPackage:   "k8s.io/client-go/listers",
 			},
 		},
 	})
