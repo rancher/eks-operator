@@ -22,7 +22,7 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v2.10.0
       - name: Build and push image
-        uses: docker/build-push-action@v4.1.1
+        uses: docker/build-push-action@v4.2.1
         with:
           context: .
           tags: ${{ env.REPO_BASE}}-${{ env.NOW }}:${{ env.TAG }}
