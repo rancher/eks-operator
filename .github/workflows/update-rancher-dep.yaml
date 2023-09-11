@@ -24,13 +24,13 @@ jobs:
   create-rancher-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{github.event.inputs.ref}}
           path: eks-operator
       - name: Checkout rancher/rancher
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           repository: rancher/rancher
