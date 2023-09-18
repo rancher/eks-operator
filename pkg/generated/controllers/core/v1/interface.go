@@ -20,6 +20,7 @@ package v1
 
 import (
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -45,12 +46,14 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) Node() NodeController {
-	return NewNodeController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, "nodes", false, c.controllerFactory)
+func (v *version) Node() NodeController {
+	return generic.NewNonNamespacedController[*v1.Node, *v1.NodeList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, "nodes", v.controllerFactory)
 }
-func (c *version) Pod() PodController {
-	return NewPodController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, "pods", true, c.controllerFactory)
+
+func (v *version) Pod() PodController {
+	return generic.NewController[*v1.Pod, *v1.PodList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, "pods", true, v.controllerFactory)
 }
-func (c *version) Secret() SecretController {
-	return NewSecretController(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}, "secrets", true, c.controllerFactory)
+
+func (v *version) Secret() SecretController {
+	return generic.NewController[*v1.Secret, *v1.SecretList](schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}, "secrets", true, v.controllerFactory)
 }
