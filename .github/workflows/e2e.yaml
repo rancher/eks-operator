@@ -99,7 +99,7 @@ jobs:
                   "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "AKS Operator E2E test run failed."
+                      "text": "EKS Operator E2E test run failed."
                     },
                     "accessory": {
                       "type": "button",
