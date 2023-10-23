@@ -483,6 +483,7 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, awsSVCs *awsSer
 	}
 
 	// validate nodegroup version
+	nodeP := map[string]bool{}
 	if !config.Spec.Imported {
 		// Check for existing clusters in EKS with the same display name
 		listOutput, err := awsSVCs.eks.ListClusters(&eks.ListClustersInput{})
@@ -547,6 +548,13 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, awsSVCs *awsSer
 					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Name)
 				}
 			}
+			if ng.NodegroupName == nil {
+				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Name)
+			}
+			if nodeP[*ng.NodegroupName] {
+				return fmt.Errorf("NodePool names must be unique within the [%s] cluster to avoid duplication", config.Name)
+			}
+			nodeP[*ng.NodegroupName] = true
 			if ng.Version == nil {
 				return fmt.Errorf(cannotBeNilError, "version", *ng.NodegroupName, config.Name)
 			}
