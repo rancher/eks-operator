@@ -120,7 +120,7 @@ charts:
 
 .PHONY: setup-kind
 setup-kind:
-	$(ROOT_DIR)/scripts/setup-kind-cluster.sh
+	CLUSTER_NAME=$(CLUSTER_NAME) $(ROOT_DIR)/scripts/setup-kind-cluster.sh
 
 .PHONY: e2e-tests
 e2e-tests: $(GINKGO) charts
@@ -148,6 +148,6 @@ docker-build-e2e:
 		--build-arg "COMMITDATE=${COMMITDATE}" \
 		-t ${REPO}:${TAG} .
 
-.PHOHY: delete-kind-cluster
-delete-kind-cluster: ## Delete the kind-cluster
+.PHOHY: delete-local-kind-cluster
+delete-local-kind-cluster: ## Delete the local kind cluster
 	kind delete cluster --name=$(CLUSTER_NAME)
