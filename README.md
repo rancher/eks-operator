@@ -10,6 +10,14 @@ Operator binary can be built using the following command:
     make operator
 ```
 
+## Deploy operator from source
+
+You can use the following command to deploy a Kind cluster with Rancher manager and operator:
+
+```bash
+    make kind-deploy-operator
+```
+
 After this, you can also downscale operator deployment and run operator from a local binary.
 
 ## Tests
@@ -19,7 +27,6 @@ Running unit tests can be done using the following command:
 ```bash
     make test
 ```
-
 
 ### E2E 
 
@@ -35,6 +42,12 @@ For running e2e set the following variables and run:
 ```
 
 A Kind cluster will be created, and the e2e tests will be run against it.
+
+To cleanup an environment and delete the Kind cluster, run:
+
+```bash
+    make delete-kind-cluster
+```
 
 ## Release
 
