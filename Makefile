@@ -39,6 +39,8 @@ else
 	KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use --use-env -p path $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION))
 endif
 
+default: operator
+
 .dapper:
 	@echo Downloading dapper
 	@curl -sL https://releases.rancher.com/dapper/latest/dapper-`uname -s`-`uname -m` > .dapper.tmp
@@ -127,12 +129,15 @@ e2e-tests: $(GINKGO) charts
 	export CONFIG_PATH=$(E2E_CONF_FILE) && \
 	export OPERATOR_CHART=$(OPERATOR_CHART) && \
 	export CRD_CHART=$(CRD_CHART) && \
-	cd $(ROOT_DIR)/test && $(GINKGO) -r -v ./e2e
+	cd $(ROOT_DIR)/test && $(GINKGO) $(ONLY_DEPLOY) -r -v ./e2e
 
 .PHONY: kind-e2e-tests
 kind-e2e-tests: docker-build-e2e setup-kind
 	kind load docker-image --name $(CLUSTER_NAME) ${REPO}:${TAG}
 	$(MAKE) e2e-tests
+
+kind-deploy-operator:
+	ONLY_DEPLOY="--label-filter=\"do-nothing\"" $(MAKE) kind-e2e-tests
 
 .PHONY: docker-build-e2e
 docker-build-e2e:
@@ -142,3 +147,7 @@ docker-build-e2e:
 		--build-arg "COMMIT=${GIT_COMMIT}" \
 		--build-arg "COMMITDATE=${COMMITDATE}" \
 		-t ${REPO}:${TAG} .
+
+.PHOHY: delete-local-kind-cluster
+delete-local-kind-cluster: ## Delete the local kind cluster
+	kind delete cluster --name=$(CLUSTER_NAME)
