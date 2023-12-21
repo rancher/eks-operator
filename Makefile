@@ -118,7 +118,7 @@ charts:
 
 .PHONY: setup-kind
 setup-kind:
-	$(ROOT_DIR)/scripts/setup-kind-cluster.sh
+	CLUSTER_NAME=$(CLUSTER_NAME) $(ROOT_DIR)/scripts/setup-kind-cluster.sh
 
 .PHONY: e2e-tests
 e2e-tests: $(GINKGO) charts
