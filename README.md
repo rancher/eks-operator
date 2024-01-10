@@ -1,3 +1,5 @@
+[![Nightly e2e tests](https://github.com/rancher/eks-operator/actions/workflows/e2e-latest-rancher.yaml/badge.svg?branch=main)](https://github.com/rancher/eks-operator/actions/workflows/e2e-latest-rancher.yaml)
+
 # rancher/eks-operator
 
 EKS operator is a Kubernetes CRD controller that controls cluster provisioning in Elastic Kubernetes Service using an EKSClusterConfig defined by a Custom Resource Definition.
