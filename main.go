@@ -8,11 +8,11 @@ import (
 
 	"github.com/rancher/eks-operator/controller"
 	eksv1 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io"
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
-	core3 "github.com/rancher/wrangler/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/pkg/kubeconfig"
-	"github.com/rancher/wrangler/pkg/signals"
-	"github.com/rancher/wrangler/pkg/start"
+	"github.com/rancher/wrangler/v2/pkg/generated/controllers/apps"
+	core3 "github.com/rancher/wrangler/v2/pkg/generated/controllers/core"
+	"github.com/rancher/wrangler/v2/pkg/kubeconfig"
+	"github.com/rancher/wrangler/v2/pkg/signals"
+	"github.com/rancher/wrangler/v2/pkg/start"
 	"github.com/sirupsen/logrus"
 )
 
