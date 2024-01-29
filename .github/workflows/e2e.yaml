@@ -82,7 +82,7 @@ jobs:
           if-no-files-found: ignore
       - name: Send failed status to slack
         if: failure() && github.event_name == 'schedule'
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@v1.25.0
         with:
           payload: |
             {
