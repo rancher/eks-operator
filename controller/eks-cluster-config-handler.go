@@ -547,6 +547,48 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, awsSVCs *awsSer
 				if !aws.BoolValue(ng.RequestSpotInstances) && ng.InstanceType == nil {
 					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Name)
 				}
+				// // Check if the provided instance type is in the list of instance types for Arm64
+				if aws.BoolValue(ng.Arm) && ng.InstanceType == nil {
+					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Name)
+				}
+				// } else if aws.BoolValue(ng.Arm64) && ng.InstanceType != nil {
+				// 	// Create an AWS session
+				// 	sess, err := session.NewSession(&aws.Config{
+				// 		Region: aws.String("us-west-2"), // Replace with your desired region
+				// 	})
+				// 	if err != nil {
+				// 		return fmt.Errorf("error creating AWS session: %v", err)
+				// 	}
+
+				// 	// Create an EC2 service client
+				// 	ec2Svc := ec2.New(sess)
+
+				// 	// Retrieve the available instance types for Arm64
+				// 	arm64InstanceTypes, err := ec2Svc.DescribeInstanceTypes(&ec2.DescribeInstanceTypesInput{
+				// 		Filters: []*ec2.Filter{
+				// 			{
+				// 				Name:   aws.String("processor-info.supported-architecture"),
+				// 				Values: []*string{aws.String("arm64")},
+				// 			},
+				// 		},
+				// 	})
+				// 	if err != nil {
+				// 		return fmt.Errorf("error retrieving Arm64 instance types: %v", err)
+				// 	}
+
+				// 	// Check if the provided instance type is in the list of Arm64 instance types
+				// 	found := false
+				// 	for _, instanceType := range arm64InstanceTypes.InstanceTypes {
+				// 		if aws.StringValue(ng.InstanceType) == aws.StringValue(instanceType.InstanceType) {
+				// 			found = true
+				// 			break
+				// 		}
+				// 	}
+
+				// 	if !found {
+				// 		return fmt.Errorf("provided instance type [%s] is not available for Arm64", aws.StringValue(ng.InstanceType))
+				// 	}
+				// }
 			}
 			if ng.NodegroupName == nil {
 				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Name)
@@ -933,6 +975,8 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 			ngToAdd.Gpu = aws.Bool(true)
 		} else if aws.StringValue(ng.Nodegroup.AmiType) == eks.AMITypesAl2X8664 {
 			ngToAdd.Gpu = aws.Bool(false)
+		} else if aws.StringValue(ng.Nodegroup.AmiType) == eks.AMITypesAl2Arm64 {
+			ngToAdd.Arm = aws.Bool(true)
 		}
 		upstreamSpec.NodeGroups = append(upstreamSpec.NodeGroups, ngToAdd)
 	}

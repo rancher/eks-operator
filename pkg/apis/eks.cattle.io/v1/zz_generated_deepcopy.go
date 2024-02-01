@@ -248,6 +248,11 @@ func (in *NodeGroup) DeepCopyInto(out *NodeGroup) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.Arm != nil {
+		in, out := &in.Arm, &out.Arm
+		*out = new(bool)
+		**out = **in
+	}
 	if in.ImageID != nil {
 		in, out := &in.ImageID, &out.ImageID
 		*out = new(string)

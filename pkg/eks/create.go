@@ -273,6 +273,8 @@ func CreateNodeGroup(opts *CreateNodeGroupOptions) (string, string, error) {
 	if aws.StringValue(opts.NodeGroup.ImageID) == "" {
 		if opts.NodeGroup.LaunchTemplate != nil {
 			nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesCustom)
+		} else if arm := opts.NodeGroup.Arm; aws.BoolValue(arm) {
+			nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesAl2Arm64)
 		} else if gpu := opts.NodeGroup.Gpu; aws.BoolValue(gpu) {
 			nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesAl2X8664Gpu)
 		} else {

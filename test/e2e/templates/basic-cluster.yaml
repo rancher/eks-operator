@@ -13,8 +13,9 @@ spec:
     diskSize: 20
     ec2SshKey: ""
     gpu: false
+    arm: true
     imageId: ""
-    instanceType: t3.medium
+    instanceType: a1.large
     labels: {}
     launchTemplate: null
     maxSize: 2

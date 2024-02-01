@@ -68,6 +68,7 @@ type EKSClusterConfigStatus struct {
 
 type NodeGroup struct {
 	Gpu                  *bool              `json:"gpu"`
+	Arm                  *bool              `json:"arm"`
 	ImageID              *string            `json:"imageId" norman:"pointer"`
 	NodegroupName        *string            `json:"nodegroupName" norman:"required,pointer" wrangler:"required"`
 	DiskSize             *int64             `json:"diskSize"`
