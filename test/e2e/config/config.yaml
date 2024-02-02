@@ -8,6 +8,6 @@ artifactsDir: ../../_artifacts
 certManagerVersion: v1.11.1
 certManagerChartURL: https://charts.jetstack.io/charts/cert-manager-${CERT_MANAGER_VERSION}.tgz
 
-rancherVersion: 2.7.9
+rancherVersion: 2.8.0
 rancherChartURL: https://releases.rancher.com/server-charts/latest/rancher-${RANCHER_VERSION}.tgz
 

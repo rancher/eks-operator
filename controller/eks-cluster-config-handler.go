@@ -547,6 +547,9 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, awsSVCs *awsSer
 				if !aws.BoolValue(ng.RequestSpotInstances) && ng.InstanceType == nil {
 					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Name)
 				}
+				if aws.BoolValue(ng.Arm) && ng.InstanceType == nil {
+					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Name)
+				}
 			}
 			if ng.NodegroupName == nil {
 				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Name)
@@ -933,6 +936,8 @@ func BuildUpstreamClusterState(name, managedTemplateID string, clusterState *eks
 			ngToAdd.Gpu = aws.Bool(true)
 		} else if aws.StringValue(ng.Nodegroup.AmiType) == eks.AMITypesAl2X8664 {
 			ngToAdd.Gpu = aws.Bool(false)
+		} else if aws.StringValue(ng.Nodegroup.AmiType) == eks.AMITypesAl2Arm64 {
+			ngToAdd.Arm = aws.Bool(true)
 		}
 		upstreamSpec.NodeGroups = append(upstreamSpec.NodeGroups, ngToAdd)
 	}
