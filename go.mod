@@ -1,11 +1,8 @@
 module github.com/rancher/eks-operator
 
-go 1.20
+go 1.21
 
-replace (
-	github.com/rancher/wrangler => github.com/rancher/wrangler v1.1.1-0.20230831050635-df1bd5aae9df
-	k8s.io/client-go => k8s.io/client-go v0.27.5
-)
+replace k8s.io/client-go => k8s.io/client-go v0.27.5
 
 require (
 	github.com/aws/aws-sdk-go v1.49.13
@@ -18,8 +15,8 @@ require (
 	github.com/rancher-sandbox/ele-testhelpers v0.0.0-20221213084338-a8ffdd2b87e3
 	github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29
 	github.com/rancher/rancher/pkg/apis v0.0.0-20240126142034-676c3eb3dfa5
-	github.com/rancher/wrangler v1.1.1
 	github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e
+	github.com/rancher/wrangler/v2 v2.0.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	k8s.io/api v0.27.9
@@ -76,6 +73,7 @@ require (
 	github.com/rancher/gke-operator v1.3.0-rc2 // indirect
 	github.com/rancher/norman v0.0.0-20230831160711-5de27f66385d // indirect
 	github.com/rancher/rke v1.5.0 // indirect
+	github.com/rancher/wrangler v1.1.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
