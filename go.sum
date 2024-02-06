@@ -16,8 +16,8 @@ github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/asaskevich/govalidator v0.0.0-20180720115003-f9ffefc3facf/go.mod h1:lB+ZfQJz7igIIfQNfa7Ml4HSf2uFQQRzpGGRXenZAgY=
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a/go.mod h1:lB+ZfQJz7igIIfQNfa7Ml4HSf2uFQQRzpGGRXenZAgY=
-github.com/aws/aws-sdk-go v1.49.16 h1:KAQwhLg296hfffRdh+itA9p7Nx/3cXS/qOa3uF9ssig=
-github.com/aws/aws-sdk-go v1.49.16/go.mod h1:LF8svs817+Nz+DmiMQKTO3ubZ/6IaTpq3TjupRn3Eqk=
+github.com/aws/aws-sdk-go v1.50.11 h1:BxUqMbkzKzzQ6FXLlZFNFkFjHnv6utbc4PItVs5SvaE=
+github.com/aws/aws-sdk-go v1.50.11/go.mod h1:LF8svs817+Nz+DmiMQKTO3ubZ/6IaTpq3TjupRn3Eqk=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
@@ -369,10 +369,10 @@ github.com/rancher/lasso v0.0.0-20240123150939-7055397d6dfa h1:eRhvQJjIpPxJunlS3
 github.com/rancher/lasso v0.0.0-20240123150939-7055397d6dfa/go.mod h1:utdskbIL7kdVvPCUFPEJQDWJwPHGFpUCRfVkX2G2Xxg=
 github.com/rancher/norman v0.0.0-20230831160711-5de27f66385d h1:Ft/iTH91TlE2oBGmpkdO4I8o8cvUmCnytdwu52a/tN4=
 github.com/rancher/norman v0.0.0-20230831160711-5de27f66385d/go.mod h1:Sm2Xqai+aecgmJ86ygyEe+TdPMLkauEpykSstBAu4Ko=
-github.com/rancher/rancher/pkg/apis v0.0.0-20240126142034-676c3eb3dfa5 h1:jD+7kKVo0LV0laE1BatrFug7gf7LPKTiw5fkZIlD/F8=
-github.com/rancher/rancher/pkg/apis v0.0.0-20240126142034-676c3eb3dfa5/go.mod h1:mICP2oVXAVO2z0Pfzvj7P0MTLpUtM9cQIeh6CAjD4K0=
-github.com/rancher/rke v1.5.0 h1:M/YryKnBs7IwzMGA2kh1EiypVQkme6o9KSg0hlllQa4=
-github.com/rancher/rke v1.5.0/go.mod h1:wZaVWzW46OTuGvyxgRHXGUyJ/QP0zOkKESO9hBOwTaY=
+github.com/rancher/rancher/pkg/apis v0.0.0-20230915232223-a9ea4ce4a5ba h1:GTSOFeKvAsgm21b6ko+XcuH3skZzuYTYyfIbFx/QNQ8=
+github.com/rancher/rancher/pkg/apis v0.0.0-20230915232223-a9ea4ce4a5ba/go.mod h1:CygL4GxLAJpxMRpqImc8+wH4zW+0kNVYW+nb0IsJ04A=
+github.com/rancher/rke v1.5.0-rc5 h1:lJMlkT7OmMsV6TkcV+7Xp3v8Hh6v0z8JHovrec+RqCw=
+github.com/rancher/rke v1.5.0-rc5/go.mod h1:sYHjxydLD8yiFna4LMqbxjYvRse1lZI+ltr+fC07S38=
 github.com/rancher/wrangler v0.6.2-0.20200427172034-da9b142ae061/go.mod h1:n5Du/gGD7WoiqnEo0SHnPirDIp1V9Zu+6guc8lXS2dk=
 github.com/rancher/wrangler v1.1.1 h1:wmqUwqc2M7ADfXnBCJTFkTB5ZREWpD78rnZMzmxwMvM=
 github.com/rancher/wrangler v1.1.1/go.mod h1:ioVbKupzcBOdzsl55MvEDN0R1wdGggj8iNCYGFI5JvM=
@@ -742,8 +742,8 @@ k8s.io/kube-aggregator v0.18.0/go.mod h1:ateewQ5QbjMZF/dihEFXwaEwoA4v/mayRvzfmvb
 k8s.io/kube-openapi v0.0.0-20200121204235-bf4fb3bd569c/go.mod h1:GRQhZsXIAJ1xR0C9bd8UpWHZ5plfAS9fzPjJuQ6JL3E=
 k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 h1:LyMgNKD2P8Wn1iAwQU5OhxCKlKJy0sHc+PcDwFB24dQ=
 k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9/go.mod h1:wZK2AVp1uHCp4VamDVgBP2COHZjqD1T68Rf0CM3YjSM=
-k8s.io/kubernetes v1.27.9 h1:aN3arQtT15QHn3CGZ47egfySPKmSozkj+yZTEF2QLJs=
-k8s.io/kubernetes v1.27.9/go.mod h1:bwTXvXbv/nV1D6JnLy4zAcPfChls2+aGL3an0inNbXM=
+k8s.io/kubernetes v1.15.0-alpha.0 h1:gIwzzIgt0BX8fznDZRxdZv2837cEmVetI54aUfzkPk8=
+k8s.io/kubernetes v1.15.0-alpha.0/go.mod h1:ocZa8+6APFNC2tX1DZASIbocyYT5jHzqFVsY5aoB7Jk=
 k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89/go.mod h1:sZAwmy6armz5eXlNoLmJcl4F1QuKu7sr+mFQ0byX7Ew=
 k8s.io/utils v0.0.0-20210802155522-efc7438f0176/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
 k8s.io/utils v0.0.0-20230406110748-d93618cff8a2/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
