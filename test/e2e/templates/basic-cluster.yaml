@@ -13,6 +13,7 @@ spec:
     diskSize: 20
     ec2SshKey: ""
     gpu: false
+    arm: false
     imageId: ""
     instanceType: t3.medium
     labels: {}
