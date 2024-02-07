@@ -50,7 +50,7 @@ jobs:
       - name: Run release script
         run: ./eks-operator/.github/scripts/update-rancher-charts.sh ${{github.event.inputs.prev_eks_operator}} ${{github.event.inputs.new_eks_operator}} ${{github.event.inputs.prev_chart}}  ${{github.event.inputs.new_chart}}  ${{github.event.inputs.should_replace}}
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{secrets.CI_BOT_TOKEN}}
           push-to-fork: highlander-ci-bot/charts
