@@ -66,8 +66,9 @@ var _ = Describe("BasicCluster", func() {
 
 		nodeGroup := eksv1.NodeGroup{
 			NodegroupName:        aws.String("ng1"),
+			Arm:                  aws.Bool(true),
 			DiskSize:             aws.Int64(20),
-			InstanceType:         aws.String("t3.medium"),
+			InstanceType:         aws.String("a1.large"),
 			DesiredSize:          aws.Int64(1),
 			MaxSize:              aws.Int64(10),
 			MinSize:              aws.Int64(1),
