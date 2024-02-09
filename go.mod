@@ -1,6 +1,8 @@
 module github.com/rancher/eks-operator
 
-go 1.20
+go 1.21
+
+toolchain go1.21.6
 
 replace k8s.io/client-go => k8s.io/client-go v0.28.6
 
