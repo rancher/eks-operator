@@ -626,16 +626,16 @@ func (h *Handler) generateAndSetNetworking(config *eksv1.EKSClusterConfig, awsSV
 		}
 
 		virtualNetworkString := getParameterValueFromOutput("VpcId", stack.Stacks[0].Outputs)
-		subnetIdsString := getParameterValueFromOutput("SubnetIds", stack.Stacks[0].Outputs)
+		subnetIDsString := getParameterValueFromOutput("SubnetIds", stack.Stacks[0].Outputs)
 
-		if subnetIdsString == "" {
+		if subnetIDsString == "" {
 			return config, fmt.Errorf("no subnet ids were returned")
 		}
 
 		config = config.DeepCopy()
 		// copy generated field to status
 		config.Status.VirtualNetwork = virtualNetworkString
-		config.Status.Subnets = strings.Split(subnetIdsString, ",")
+		config.Status.Subnets = strings.Split(subnetIDsString, ",")
 		config.Status.NetworkFieldsSource = "generated"
 	}
 
