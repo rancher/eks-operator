@@ -2,8 +2,6 @@ module github.com/rancher/eks-operator
 
 go 1.21
 
-toolchain go1.21.6
-
 replace (
 	github.com/rancher/wrangler => github.com/rancher/wrangler v1.1.1-0.20230831050635-df1bd5aae9df
 	k8s.io/client-go => k8s.io/client-go v0.28.6
