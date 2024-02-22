@@ -4,4 +4,3 @@ bin/
 dist/
 .dapper
 _artifacts/
-vendor/

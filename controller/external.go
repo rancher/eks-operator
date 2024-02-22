@@ -6,7 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/eks"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
-	wranglerv1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	wranglerv1 "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
 )
 
 // StartAWSSessions starts AWS sessions.
