@@ -22,7 +22,7 @@ import (
 	ekscontrollers "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/templates"
 	"github.com/rancher/eks-operator/utils"
-	wranglerv1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	wranglerv1 "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
