@@ -1,14 +1,17 @@
 TARGETS := $(shell ls scripts)
-
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BIN_DIR := $(abspath $(ROOT_DIR)/bin)
 GO_INSTALL = ./scripts/go_install.sh
 CLUSTER_NAME?="eks-operator-e2e"
+GIT_BRANCH?=$(shell git branch --show-current)
 GIT_COMMIT?=$(shell git rev-parse HEAD)
 GIT_COMMIT_SHORT?=$(shell git rev-parse --short HEAD)
+GIT_TAG?=v9.0.0
+ifneq ($(GIT_BRANCH), main)
 GIT_TAG?=$(shell git describe --abbrev=0 --tags 2>/dev/null || echo "v0.0.0" )
+endif
 TAG?=${GIT_TAG}-${GIT_COMMIT_SHORT}
-REPO?=ghcr.io/rancher/eks-operator
+REPO?=docker.io/rancher/eks-operator
 E2E_CONF_FILE ?= $(ROOT_DIR)/test/e2e/config/config.yaml
 CHART_VERSION?=$(subst v,,$(GIT_TAG))
 RAWCOMMITDATE=$(shell git log -n1 --format="%at")
@@ -25,7 +28,7 @@ MOCKGEN_VER := v1.6.0
 MOCKGEN_BIN := mockgen
 MOCKGEN := $(BIN_DIR)/$(MOCKGEN_BIN)-$(MOCKGEN_VER)
 
-GINKGO_VER := v2.13.2
+GINKGO_VER := v2.15.0
 GINKGO_BIN := ginkgo
 GINKGO := $(BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 
