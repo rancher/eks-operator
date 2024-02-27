@@ -27,7 +27,7 @@ jobs:
       - name: Export tag
         id: export_tag
         run: |
-          TAG=`git describe --abbrev=0 --tags 2>/dev/null || echo "v0.0.0"`
+          TAG=v0.0.0
           COMMITDATE=`date -d @$(git log -n1 --format="%at") "+%FT%TZ"`
           echo "operator_tag=$TAG" >> $GITHUB_OUTPUT
           echo "commit_date=$COMMITDATE" >> $GITHUB_OUTPUT
