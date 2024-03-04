@@ -19,10 +19,10 @@ require (
 	github.com/rancher/wrangler/v2 v2.1.3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
-	k8s.io/api v0.28.6
-	k8s.io/apiextensions-apiserver v0.28.6
-	k8s.io/apimachinery v0.28.6
-	k8s.io/apiserver v0.28.6
+	k8s.io/api v0.28.7
+	k8s.io/apiextensions-apiserver v0.28.7
+	k8s.io/apimachinery v0.28.7
+	k8s.io/apiserver v0.28.7
 	k8s.io/client-go v12.0.0+incompatible
 	sigs.k8s.io/controller-runtime v0.15.3
 	sigs.k8s.io/yaml v1.4.0
@@ -30,7 +30,7 @@ require (
 
 require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	k8s.io/component-base v0.28.6 // indirect
+	k8s.io/component-base v0.28.7 // indirect
 )
 
 require (
@@ -92,7 +92,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/code-generator v0.28.6 // indirect
+	k8s.io/code-generator v0.28.7 // indirect
 	k8s.io/gengo v0.0.0-20230306165830-ab3349d207d4 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
