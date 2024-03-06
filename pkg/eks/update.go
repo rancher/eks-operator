@@ -1,10 +1,12 @@
 package eks
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/utils"
@@ -21,11 +23,11 @@ type UpdateClusterVersionOpts struct {
 	UpstreamClusterSpec *eksv1.EKSClusterConfigSpec
 }
 
-func UpdateClusterVersion(opts *UpdateClusterVersionOpts) (bool, error) {
+func UpdateClusterVersion(ctx context.Context, opts *UpdateClusterVersionOpts) (bool, error) {
 	updated := false
-	if aws.StringValue(opts.UpstreamClusterSpec.KubernetesVersion) != aws.StringValue(opts.Config.Spec.KubernetesVersion) {
+	if aws.ToString(opts.UpstreamClusterSpec.KubernetesVersion) != aws.ToString(opts.Config.Spec.KubernetesVersion) {
 		logrus.Infof("updating kubernetes version for cluster [%s]", opts.Config.Name)
-		_, err := opts.EKSService.UpdateClusterVersion(&eks.UpdateClusterVersionInput{
+		_, err := opts.EKSService.UpdateClusterVersion(ctx, &eks.UpdateClusterVersionInput{
 			Name:    aws.String(opts.Config.Spec.DisplayName),
 			Version: opts.Config.Spec.KubernetesVersion,
 		})
@@ -46,10 +48,10 @@ type UpdateResourceTagsOpts struct {
 	ResourceARN  string
 }
 
-func UpdateResourceTags(opts *UpdateResourceTagsOpts) (bool, error) {
+func UpdateResourceTags(ctx context.Context, opts *UpdateResourceTagsOpts) (bool, error) {
 	updated := false
 	if updateTags := utils.GetKeyValuesToUpdate(opts.Tags, opts.UpstreamTags); updateTags != nil {
-		_, err := opts.EKSService.TagResource(
+		_, err := opts.EKSService.TagResource(ctx,
 			&eks.TagResourceInput{
 				ResourceArn: aws.String(opts.ResourceARN),
 				Tags:        updateTags,
@@ -61,7 +63,7 @@ func UpdateResourceTags(opts *UpdateResourceTagsOpts) (bool, error) {
 	}
 
 	if updateUntags := utils.GetKeysToDelete(opts.Tags, opts.UpstreamTags); updateUntags != nil {
-		_, err := opts.EKSService.UntagResource(
+		_, err := opts.EKSService.UntagResource(ctx,
 			&eks.UntagResourceInput{
 				ResourceArn: aws.String(opts.ResourceARN),
 				TagKeys:     updateUntags,
@@ -81,10 +83,10 @@ type UpdateLoggingTypesOpts struct {
 	UpstreamClusterSpec *eksv1.EKSClusterConfigSpec
 }
 
-func UpdateClusterLoggingTypes(opts *UpdateLoggingTypesOpts) (bool, error) {
+func UpdateClusterLoggingTypes(ctx context.Context, opts *UpdateLoggingTypesOpts) (bool, error) {
 	updated := false
 	if loggingTypesUpdate := getLoggingTypesUpdate(opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes); loggingTypesUpdate != nil {
-		_, err := opts.EKSService.UpdateClusterConfig(
+		_, err := opts.EKSService.UpdateClusterConfig(ctx,
 			&eks.UpdateClusterConfigInput{
 				Name:    aws.String(opts.Config.Spec.DisplayName),
 				Logging: loggingTypesUpdate,
@@ -105,18 +107,18 @@ type UpdateClusterAccessOpts struct {
 	UpstreamClusterSpec *eksv1.EKSClusterConfigSpec
 }
 
-func UpdateClusterAccess(opts *UpdateClusterAccessOpts) (bool, error) {
+func UpdateClusterAccess(ctx context.Context, opts *UpdateClusterAccessOpts) (bool, error) {
 	updated := false
 
-	publicAccessUpdate := opts.Config.Spec.PublicAccess != nil && aws.BoolValue(opts.UpstreamClusterSpec.PublicAccess) != aws.BoolValue(opts.Config.Spec.PublicAccess)
-	privateAccessUpdate := opts.Config.Spec.PrivateAccess != nil && aws.BoolValue(opts.UpstreamClusterSpec.PrivateAccess) != aws.BoolValue(opts.Config.Spec.PrivateAccess)
+	publicAccessUpdate := opts.Config.Spec.PublicAccess != nil && aws.ToBool(opts.UpstreamClusterSpec.PublicAccess) != aws.ToBool(opts.Config.Spec.PublicAccess)
+	privateAccessUpdate := opts.Config.Spec.PrivateAccess != nil && aws.ToBool(opts.UpstreamClusterSpec.PrivateAccess) != aws.ToBool(opts.Config.Spec.PrivateAccess)
 	if publicAccessUpdate || privateAccessUpdate {
 		// public and private access updates need to be sent together. When they are sent one at a time
 		// the request may be denied due to having both public and private access disabled.
-		_, err := opts.EKSService.UpdateClusterConfig(
+		_, err := opts.EKSService.UpdateClusterConfig(ctx,
 			&eks.UpdateClusterConfigInput{
 				Name: aws.String(opts.Config.Spec.DisplayName),
-				ResourcesVpcConfig: &eks.VpcConfigRequest{
+				ResourcesVpcConfig: &ekstypes.VpcConfigRequest{
 					EndpointPublicAccess:  opts.Config.Spec.PublicAccess,
 					EndpointPrivateAccess: opts.Config.Spec.PrivateAccess,
 				},
@@ -137,17 +139,17 @@ type UpdateClusterPublicAccessSourcesOpts struct {
 	UpstreamClusterSpec *eksv1.EKSClusterConfigSpec
 }
 
-func UpdateClusterPublicAccessSources(opts *UpdateClusterPublicAccessSourcesOpts) (bool, error) {
+func UpdateClusterPublicAccessSources(ctx context.Context, opts *UpdateClusterPublicAccessSourcesOpts) (bool, error) {
 	updated := false
 	// check public access CIDRs for update (public access sources)
 
 	filteredSpecPublicAccessSources := filterPublicAccessSources(opts.Config.Spec.PublicAccessSources)
 	filteredUpstreamPublicAccessSources := filterPublicAccessSources(opts.UpstreamClusterSpec.PublicAccessSources)
 	if !utils.CompareStringSliceElements(filteredSpecPublicAccessSources, filteredUpstreamPublicAccessSources) {
-		_, err := opts.EKSService.UpdateClusterConfig(
+		_, err := opts.EKSService.UpdateClusterConfig(ctx,
 			&eks.UpdateClusterConfigInput{
 				Name: aws.String(opts.Config.Spec.DisplayName),
-				ResourcesVpcConfig: &eks.VpcConfigRequest{
+				ResourcesVpcConfig: &ekstypes.VpcConfigRequest{
 					PublicAccessCidrs: getPublicAccessCidrs(opts.Config.Spec.PublicAccessSources),
 				},
 			},
@@ -171,12 +173,12 @@ type UpdateNodegroupVersionOpts struct {
 	LTVersions     map[string]string
 }
 
-func UpdateNodegroupVersion(opts *UpdateNodegroupVersionOpts) error {
-	if _, err := opts.EKSService.UpdateNodegroupVersion(opts.NGVersionInput); err != nil {
-		if version, ok := opts.LTVersions[aws.StringValue(opts.NodeGroup.NodegroupName)]; ok {
+func UpdateNodegroupVersion(ctx context.Context, opts *UpdateNodegroupVersionOpts) error {
+	if _, err := opts.EKSService.UpdateNodegroupVersion(ctx, opts.NGVersionInput); err != nil {
+		if version, ok := opts.LTVersions[aws.ToString(opts.NodeGroup.NodegroupName)]; ok {
 			// If there was an error updating the node group and a Rancher-managed launch template version was created,
 			// then the version that caused the issue needs to be deleted to prevent bad versions from piling up.
-			DeleteLaunchTemplateVersions(opts.EC2Service, opts.Config.Status.ManagedLaunchTemplateID, []*string{aws.String(version)})
+			DeleteLaunchTemplateVersions(ctx, opts.EC2Service, opts.Config.Status.ManagedLaunchTemplateID, []*string{aws.String(version)})
 		}
 		return err
 	}
@@ -184,14 +186,16 @@ func UpdateNodegroupVersion(opts *UpdateNodegroupVersionOpts) error {
 	return nil
 }
 
-func getLoggingTypesUpdate(loggingTypes []string, upstreamLoggingTypes []string) *eks.Logging {
-	loggingUpdate := &eks.Logging{}
+func getLoggingTypesUpdate(loggingTypes []string, upstreamLoggingTypes []string) *ekstypes.Logging {
+	loggingUpdate := &ekstypes.Logging{}
 
-	if loggingTypesToDisable := getLoggingTypesToDisable(loggingTypes, upstreamLoggingTypes); loggingTypesToDisable != nil {
+	if len(loggingTypes) > 0 {
+		loggingTypesToDisable := getLoggingTypesToDisable(loggingTypes, upstreamLoggingTypes)
 		loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToDisable)
 	}
 
-	if loggingTypesToEnable := getLoggingTypesToEnable(loggingTypes, upstreamLoggingTypes); loggingTypesToEnable != nil {
+	if len(upstreamLoggingTypes) > 0 {
+		loggingTypesToEnable := getLoggingTypesToEnable(loggingTypes, upstreamLoggingTypes)
 		loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToEnable)
 	}
 
@@ -202,7 +206,7 @@ func getLoggingTypesUpdate(loggingTypes []string, upstreamLoggingTypes []string)
 	return nil
 }
 
-func getLoggingTypesToDisable(loggingTypes []string, upstreamLoggingTypes []string) *eks.LogSetup {
+func getLoggingTypesToDisable(loggingTypes []string, upstreamLoggingTypes []string) ekstypes.LogSetup {
 	loggingTypesMap := make(map[string]bool)
 
 	for _, val := range loggingTypes {
@@ -217,16 +221,16 @@ func getLoggingTypesToDisable(loggingTypes []string, upstreamLoggingTypes []stri
 	}
 
 	if len(loggingTypesToDisable) > 0 {
-		return &eks.LogSetup{
+		return ekstypes.LogSetup{
 			Enabled: aws.Bool(false),
-			Types:   aws.StringSlice(loggingTypesToDisable),
+			Types:   utils.ConvertToLogTypes(loggingTypesToDisable),
 		}
 	}
 
-	return nil
+	return ekstypes.LogSetup{}
 }
 
-func getLoggingTypesToEnable(loggingTypes []string, upstreamLoggingTypes []string) *eks.LogSetup {
+func getLoggingTypesToEnable(loggingTypes []string, upstreamLoggingTypes []string) ekstypes.LogSetup {
 	upstreamLoggingTypesMap := make(map[string]bool)
 
 	for _, val := range upstreamLoggingTypes {
@@ -241,13 +245,13 @@ func getLoggingTypesToEnable(loggingTypes []string, upstreamLoggingTypes []strin
 	}
 
 	if len(loggingTypesToEnable) > 0 {
-		return &eks.LogSetup{
+		return ekstypes.LogSetup{
 			Enabled: aws.Bool(true),
-			Types:   aws.StringSlice(loggingTypesToEnable),
+			Types:   utils.ConvertToLogTypes(loggingTypesToEnable),
 		}
 	}
 
-	return nil
+	return ekstypes.LogSetup{}
 }
 
 func filterPublicAccessSources(sources []string) []string {
