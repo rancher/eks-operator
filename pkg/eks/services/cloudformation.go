@@ -1,39 +1,41 @@
 package services
 
 import (
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 )
 
 type CloudFormationServiceInterface interface {
-	DescribeStacks(input *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error)
-	DeleteStack(input *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error)
-	CreateStack(input *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error)
-	DescribeStackEvents(input *cloudformation.DescribeStackEventsInput) (*cloudformation.DescribeStackEventsOutput, error)
+	DescribeStacks(ctx context.Context, input *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error)
+	DeleteStack(ctx context.Context, input *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error)
+	CreateStack(ctx context.Context, input *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error)
+	DescribeStackEvents(ctx context.Context, input *cloudformation.DescribeStackEventsInput) (*cloudformation.DescribeStackEventsOutput, error)
 }
 
 type cloudFormationService struct {
-	svc *cloudformation.CloudFormation
+	svc *cloudformation.Client
 }
 
-func NewCloudFormationService(sess *session.Session) CloudFormationServiceInterface {
+func NewCloudFormationService(cfg aws.Config) CloudFormationServiceInterface {
 	return &cloudFormationService{
-		svc: cloudformation.New(sess),
+		svc: cloudformation.NewFromConfig(cfg),
 	}
 }
 
-func (c *cloudFormationService) DescribeStacks(input *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error) {
-	return c.svc.DescribeStacks(input)
+func (c *cloudFormationService) DescribeStacks(ctx context.Context, input *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error) {
+	return c.svc.DescribeStacks(ctx, input)
 }
 
-func (c *cloudFormationService) DeleteStack(input *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
-	return c.svc.DeleteStack(input)
+func (c *cloudFormationService) DeleteStack(ctx context.Context, input *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
+	return c.svc.DeleteStack(ctx, input)
 }
 
-func (c *cloudFormationService) CreateStack(input *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
-	return c.svc.CreateStack(input)
+func (c *cloudFormationService) CreateStack(ctx context.Context, input *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
+	return c.svc.CreateStack(ctx, input)
 }
 
-func (c *cloudFormationService) DescribeStackEvents(input *cloudformation.DescribeStackEventsInput) (*cloudformation.DescribeStackEventsOutput, error) {
-	return c.svc.DescribeStackEvents(input)
+func (c *cloudFormationService) DescribeStackEvents(ctx context.Context, input *cloudformation.DescribeStackEventsInput) (*cloudformation.DescribeStackEventsOutput, error) {
+	return c.svc.DescribeStackEvents(ctx, input)
 }

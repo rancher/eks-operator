@@ -4,9 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -39,19 +40,19 @@ var _ = Describe("GetClusterState", func() {
 	})
 
 	It("should successfully get cluster state", func() {
-		eksServiceMock.EXPECT().DescribeCluster(
+		eksServiceMock.EXPECT().DescribeCluster(ctx,
 			&eks.DescribeClusterInput{
 				Name: aws.String(getClusterStatusOptions.Config.Spec.DisplayName),
 			},
 		).Return(&eks.DescribeClusterOutput{}, nil)
-		clusterState, err := GetClusterState(getClusterStatusOptions)
+		clusterState, err := GetClusterState(ctx, getClusterStatusOptions)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(clusterState).ToNot(BeNil())
 	})
 
 	It("should fail to get cluster state", func() {
-		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(nil, errors.New("error getting cluster state"))
-		_, err := GetClusterState(getClusterStatusOptions)
+		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(nil, errors.New("error getting cluster state"))
+		_, err := GetClusterState(ctx, getClusterStatusOptions)
 		Expect(err).To(HaveOccurred())
 	})
 })
@@ -78,32 +79,32 @@ var _ = Describe("GetLaunchTemplateVersions", func() {
 	})
 
 	It("should successfully get launch template versions", func() {
-		ec2ServiceMock.EXPECT().DescribeLaunchTemplateVersions(
+		ec2ServiceMock.EXPECT().DescribeLaunchTemplateVersions(ctx,
 			&ec2.DescribeLaunchTemplateVersionsInput{
 				LaunchTemplateId: getLaunchTemplateOptions.LaunchTemplateID,
-				Versions:         getLaunchTemplateOptions.Versions,
+				Versions:         aws.ToStringSlice(getLaunchTemplateOptions.Versions),
 			},
 		).Return(&ec2.DescribeLaunchTemplateVersionsOutput{}, nil)
-		ltVersion, err := GetLaunchTemplateVersions(getLaunchTemplateOptions)
+		ltVersion, err := GetLaunchTemplateVersions(ctx, getLaunchTemplateOptions)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ltVersion).ToNot(BeNil())
 	})
 
 	It("should fail to get launch template versions", func() {
-		ec2ServiceMock.EXPECT().DescribeLaunchTemplateVersions(gomock.Any()).Return(nil, errors.New("error getting launch template versions"))
-		_, err := GetLaunchTemplateVersions(getLaunchTemplateOptions)
+		ec2ServiceMock.EXPECT().DescribeLaunchTemplateVersions(ctx, gomock.Any()).Return(nil, errors.New("error getting launch template versions"))
+		_, err := GetLaunchTemplateVersions(ctx, getLaunchTemplateOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to get launch template versions when template id is missing", func() {
 		getLaunchTemplateOptions.LaunchTemplateID = nil
-		_, err := GetLaunchTemplateVersions(getLaunchTemplateOptions)
+		_, err := GetLaunchTemplateVersions(ctx, getLaunchTemplateOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to get launch template versions when versions are missing", func() {
 		getLaunchTemplateOptions.Versions = nil
-		_, err := GetLaunchTemplateVersions(getLaunchTemplateOptions)
+		_, err := GetLaunchTemplateVersions(ctx, getLaunchTemplateOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -135,28 +136,28 @@ var _ = Describe("GetLaunchTemplateVersions", func() {
 		})
 		It("should detect that addon is already installed", func() {
 			eksDescribeAddonOutput = &eks.DescribeAddonOutput{
-				Addon: &eks.Addon{
+				Addon: &ekstypes.Addon{
 					AddonArn: aws.String("arn:aws::ebs-csi-driver"),
 				},
 			}
-			eksServiceMock.EXPECT().DescribeAddon(gomock.Any()).Return(eksDescribeAddonOutput, nil)
-			addonArn, err := CheckEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+			eksServiceMock.EXPECT().DescribeAddon(ctx, gomock.Any()).Return(eksDescribeAddonOutput, nil)
+			addonArn, err := CheckEBSAddon(ctx, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 			Expect(err).To(Succeed())
 			Expect(addonArn).To(Equal("arn:aws::ebs-csi-driver"))
 		})
 
 		It("should detect that addon is not installed", func() {
 			eksDescribeAddonOutput = &eks.DescribeAddonOutput{}
-			eksServiceMock.EXPECT().DescribeAddon(gomock.Any()).Return(eksDescribeAddonOutput, nil)
-			addonArn, err := CheckEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+			eksServiceMock.EXPECT().DescribeAddon(ctx, gomock.Any()).Return(eksDescribeAddonOutput, nil)
+			addonArn, err := CheckEBSAddon(ctx, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 			Expect(err).To(Succeed())
 			Expect(addonArn).To(Equal(""))
 		})
 
 		It("should fail to check if addon is not installed", func() {
 			eksDescribeAddonOutput = &eks.DescribeAddonOutput{}
-			eksServiceMock.EXPECT().DescribeAddon(gomock.Any()).Return(nil, fmt.Errorf("failed to describe addon"))
-			_, err := CheckEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+			eksServiceMock.EXPECT().DescribeAddon(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to describe addon"))
+			_, err := CheckEBSAddon(ctx, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 			Expect(err).ToNot(Succeed())
 		})
 	})
