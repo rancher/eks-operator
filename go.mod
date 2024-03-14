@@ -5,7 +5,7 @@ go 1.20
 replace k8s.io/client-go => k8s.io/client-go v0.27.4
 
 require (
-	github.com/aws/aws-sdk-go v1.44.322
+	github.com/aws/aws-sdk-go v1.44.334
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/drone/envsubst/v2 v2.0.0-20210730161058-179042472c46
 	github.com/golang/mock v1.6.0
