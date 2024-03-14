@@ -119,7 +119,7 @@ func ReadE2EConfig(configPath string) (*E2EConfig, error) { //nolint:gocyclo
 }
 
 func substituteVersions(config *E2EConfig) error {
-	certManagerURL, err := envsubst.Eval(config.CertManagerChartURL, func(s string) string {
+	certManagerURL, err := envsubst.Eval(config.CertManagerChartURL, func(_ string) string {
 		return config.CertManagerVersion
 	})
 	if err != nil {
@@ -127,7 +127,7 @@ func substituteVersions(config *E2EConfig) error {
 	}
 	config.CertManagerChartURL = certManagerURL
 
-	rancherURL, err := envsubst.Eval(config.RancherChartURL, func(s string) string {
+	rancherURL, err := envsubst.Eval(config.RancherChartURL, func(_ string) string {
 		return config.RancherVersion
 	})
 	if err != nil {
