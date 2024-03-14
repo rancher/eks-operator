@@ -1,8 +1,13 @@
-FROM registry.suse.com/bci/bci-base:15.5
-RUN zypper -n update && \
-    zypper -n clean -a && \
-    rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/*
+FROM registry.suse.com/bci/bci-base:15.5 AS builder
+RUN sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd
 RUN useradd --uid 1007 eks-operator
+
+FROM registry.suse.com/bci/bci-micro:15.5
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/shadow /etc/shadow
+
+RUN rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/*
+
 ENV KUBECONFIG /home/eks-operator/.kube/config
 ENV SSL_CERT_DIR /etc/rancher/ssl
 
