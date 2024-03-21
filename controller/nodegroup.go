@@ -1,11 +1,13 @@
 package controller
 
 import (
+	"context"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	awsservices "github.com/rancher/eks-operator/pkg/eks"
 	"github.com/rancher/eks-operator/pkg/eks/services"
@@ -13,14 +15,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg, ng eksv1.NodeGroup, ec2Service services.EC2ServiceInterface) (*eksv1.LaunchTemplate, error) {
-	if aws.StringValue(upstreamNg.UserData) != aws.StringValue(ng.UserData) ||
-		aws.StringValue(upstreamNg.Ec2SshKey) != aws.StringValue(ng.Ec2SshKey) ||
-		aws.Int64Value(upstreamNg.DiskSize) != aws.Int64Value(ng.DiskSize) ||
-		aws.StringValue(upstreamNg.ImageID) != aws.StringValue(ng.ImageID) ||
-		(!aws.BoolValue(upstreamNg.RequestSpotInstances) && aws.StringValue(upstreamNg.InstanceType) != aws.StringValue(ng.InstanceType)) ||
-		!utils.CompareStringMaps(aws.StringValueMap(upstreamNg.ResourceTags), aws.StringValueMap(ng.ResourceTags)) {
-		lt, err := awsservices.CreateNewLaunchTemplateVersion(ec2Service, config.Status.ManagedLaunchTemplateID, ng)
+func newLaunchTemplateVersionIfNeeded(ctx context.Context, config *eksv1.EKSClusterConfig, upstreamNg, ng eksv1.NodeGroup, ec2Service services.EC2ServiceInterface) (*eksv1.LaunchTemplate, error) {
+	if aws.ToString(upstreamNg.UserData) != aws.ToString(ng.UserData) ||
+		aws.ToString(upstreamNg.Ec2SshKey) != aws.ToString(ng.Ec2SshKey) ||
+		aws.ToInt32(upstreamNg.DiskSize) != aws.ToInt32(ng.DiskSize) ||
+		aws.ToString(upstreamNg.ImageID) != aws.ToString(ng.ImageID) ||
+		(!aws.ToBool(upstreamNg.RequestSpotInstances) && upstreamNg.InstanceType != ng.InstanceType) ||
+		!utils.CompareStringMaps(upstreamNg.ResourceTags, ng.ResourceTags) {
+		lt, err := awsservices.CreateNewLaunchTemplateVersion(ctx, ec2Service, config.Status.ManagedLaunchTemplateID, ng)
 		if err != nil {
 			return nil, err
 		}
@@ -31,10 +33,10 @@ func newLaunchTemplateVersionIfNeeded(config *eksv1.EKSClusterConfig, upstreamNg
 	return nil, nil
 }
 
-func deleteLaunchTemplate(templateID string, ec2Service services.EC2ServiceInterface) {
+func deleteLaunchTemplate(ctx context.Context, templateID string, ec2Service services.EC2ServiceInterface) {
 	var err error
 	for i := 0; i < 5; i++ {
-		_, err = ec2Service.DeleteLaunchTemplate(&ec2.DeleteLaunchTemplateInput{
+		_, err = ec2Service.DeleteLaunchTemplate(ctx, &ec2.DeleteLaunchTemplateInput{
 			LaunchTemplateId: aws.String(templateID),
 		})
 
@@ -51,10 +53,10 @@ func deleteLaunchTemplate(templateID string, ec2Service services.EC2ServiceInter
 	)
 }
 
-func deleteNodeGroups(config *eksv1.EKSClusterConfig, nodeGroups []eksv1.NodeGroup, eksService services.EKSServiceInterface) (bool, error) {
+func deleteNodeGroups(ctx context.Context, config *eksv1.EKSClusterConfig, nodeGroups []eksv1.NodeGroup, eksService services.EKSServiceInterface) (bool, error) {
 	var waitingForNodegroupDeletion bool
 	for _, ng := range nodeGroups {
-		_, deleteInProgress, err := deleteNodeGroup(config, ng, eksService)
+		_, deleteInProgress, err := deleteNodeGroup(ctx, config, ng, eksService)
 		if err != nil {
 			return false, err
 		}
@@ -64,9 +66,9 @@ func deleteNodeGroups(config *eksv1.EKSClusterConfig, nodeGroups []eksv1.NodeGro
 	return waitingForNodegroupDeletion, nil
 }
 
-func deleteNodeGroup(config *eksv1.EKSClusterConfig, ng eksv1.NodeGroup, eksService services.EKSServiceInterface) (*string, bool, error) {
+func deleteNodeGroup(ctx context.Context, config *eksv1.EKSClusterConfig, ng eksv1.NodeGroup, eksService services.EKSServiceInterface) (*string, bool, error) {
 	var templateVersionToDelete *string
-	ngState, err := eksService.DescribeNodegroup(
+	ngState, err := eksService.DescribeNodegroup(ctx,
 		&eks.DescribeNodegroupInput{
 			ClusterName:   aws.String(config.Spec.DisplayName),
 			NodegroupName: ng.NodegroupName,
@@ -78,8 +80,8 @@ func deleteNodeGroup(config *eksv1.EKSClusterConfig, ng eksv1.NodeGroup, eksServ
 		return templateVersionToDelete, false, err
 	}
 
-	if aws.StringValue(ngState.Nodegroup.Status) != eks.NodegroupStatusDeleting {
-		_, err = eksService.DeleteNodegroup(
+	if ngState.Nodegroup.Status != ekstypes.NodegroupStatusDeleting {
+		_, err = eksService.DeleteNodegroup(ctx,
 			&eks.DeleteNodegroupInput{
 				ClusterName:   aws.String(config.Spec.DisplayName),
 				NodegroupName: ng.NodegroupName,
@@ -89,7 +91,7 @@ func deleteNodeGroup(config *eksv1.EKSClusterConfig, ng eksv1.NodeGroup, eksServ
 		}
 
 		if ngState.Nodegroup.LaunchTemplate != nil &&
-			aws.StringValue(ngState.Nodegroup.LaunchTemplate.Id) == config.Status.ManagedLaunchTemplateID {
+			aws.ToString(ngState.Nodegroup.LaunchTemplate.Id) == config.Status.ManagedLaunchTemplateID {
 			templateVersionToDelete = ngState.Nodegroup.LaunchTemplate.Version
 		}
 	}
@@ -103,17 +105,17 @@ func getNodegroupConfigUpdate(clusterName string, ng eksv1.NodeGroup, upstreamNg
 	nodegroupConfig := eks.UpdateNodegroupConfigInput{
 		ClusterName:   aws.String(clusterName),
 		NodegroupName: ng.NodegroupName,
-		ScalingConfig: &eks.NodegroupScalingConfig{},
+		ScalingConfig: &ekstypes.NodegroupScalingConfig{},
 	}
 	var sendUpdateNodegroupConfig bool
 
 	if ng.Labels != nil {
-		unlabels := utils.GetKeysToDelete(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels))
-		labels := utils.GetKeyValuesToUpdate(aws.StringValueMap(ng.Labels), aws.StringValueMap(upstreamNg.Labels))
+		unlabels := utils.GetKeysToDelete(aws.ToStringMap(ng.Labels), aws.ToStringMap(upstreamNg.Labels))
+		labels := utils.GetKeyValuesToUpdate(aws.ToStringMap(ng.Labels), aws.ToStringMap(upstreamNg.Labels))
 
 		if unlabels != nil || labels != nil {
 			sendUpdateNodegroupConfig = true
-			nodegroupConfig.Labels = &eks.UpdateLabelsPayload{
+			nodegroupConfig.Labels = &ekstypes.UpdateLabelsPayload{
 				RemoveLabels:      unlabels,
 				AddOrUpdateLabels: labels,
 			}
@@ -122,21 +124,21 @@ func getNodegroupConfigUpdate(clusterName string, ng eksv1.NodeGroup, upstreamNg
 
 	if ng.DesiredSize != nil {
 		nodegroupConfig.ScalingConfig.DesiredSize = ng.DesiredSize
-		if aws.Int64Value(upstreamNg.DesiredSize) != aws.Int64Value(ng.DesiredSize) {
+		if aws.ToInt32(upstreamNg.DesiredSize) != aws.ToInt32(ng.DesiredSize) {
 			sendUpdateNodegroupConfig = true
 		}
 	}
 
 	if ng.MinSize != nil {
 		nodegroupConfig.ScalingConfig.MinSize = ng.MinSize
-		if aws.Int64Value(upstreamNg.MinSize) != aws.Int64Value(ng.MinSize) {
+		if aws.ToInt32(upstreamNg.MinSize) != aws.ToInt32(ng.MinSize) {
 			sendUpdateNodegroupConfig = true
 		}
 	}
 
 	if ng.MaxSize != nil {
 		nodegroupConfig.ScalingConfig.MaxSize = ng.MaxSize
-		if aws.Int64Value(upstreamNg.MaxSize) != aws.Int64Value(ng.MaxSize) {
+		if aws.ToInt32(upstreamNg.MaxSize) != aws.ToInt32(ng.MaxSize) {
 			sendUpdateNodegroupConfig = true
 		}
 	}

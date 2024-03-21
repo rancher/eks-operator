@@ -71,21 +71,21 @@ type NodeGroup struct {
 	Arm                  *bool              `json:"arm"`
 	ImageID              *string            `json:"imageId" norman:"pointer"`
 	NodegroupName        *string            `json:"nodegroupName" norman:"required,pointer" wrangler:"required"`
-	DiskSize             *int64             `json:"diskSize"`
-	InstanceType         *string            `json:"instanceType" norman:"pointer"`
+	DiskSize             *int32             `json:"diskSize"`
+	InstanceType         string             `json:"instanceType" norman:"pointer"`
 	Labels               map[string]*string `json:"labels"`
 	Ec2SshKey            *string            `json:"ec2SshKey" norman:"pointer"`
-	DesiredSize          *int64             `json:"desiredSize"`
-	MaxSize              *int64             `json:"maxSize"`
-	MinSize              *int64             `json:"minSize"`
+	DesiredSize          *int32             `json:"desiredSize"`
+	MaxSize              *int32             `json:"maxSize"`
+	MinSize              *int32             `json:"minSize"`
 	Subnets              []string           `json:"subnets"`
 	Tags                 map[string]*string `json:"tags"`
-	ResourceTags         map[string]*string `json:"resourceTags"`
+	ResourceTags         map[string]string  `json:"resourceTags"`
 	UserData             *string            `json:"userData" norman:"pointer"`
 	Version              *string            `json:"version" norman:"pointer"`
 	LaunchTemplate       *LaunchTemplate    `json:"launchTemplate"`
 	RequestSpotInstances *bool              `json:"requestSpotInstances"`
-	SpotInstanceTypes    []*string          `json:"spotInstanceTypes"`
+	SpotInstanceTypes    []string           `json:"spotInstanceTypes"`
 	NodeRole             *string            `json:"nodeRole" norman:"pointer"`
 }
 

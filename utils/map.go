@@ -1,23 +1,24 @@
 package utils
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 )
 
-func GetKeyValuesToUpdate(tags map[string]string, upstreamTags map[string]string) map[string]*string {
+func GetKeyValuesToUpdate(tags map[string]string, upstreamTags map[string]string) map[string]string {
 	if len(tags) == 0 {
 		return nil
 	}
 
 	if len(upstreamTags) == 0 {
-		return aws.StringMap(tags)
+		return tags
 	}
 
-	updateTags := make(map[string]*string)
+	updateTags := make(map[string]string)
 	for key, val := range tags {
 		if upstreamTags[key] != val {
-			updateTags[key] = aws.String(val)
+			updateTags[key] = val
 		}
 	}
 
@@ -27,16 +28,16 @@ func GetKeyValuesToUpdate(tags map[string]string, upstreamTags map[string]string
 	return updateTags
 }
 
-func GetKeysToDelete(tags map[string]string, upstreamTags map[string]string) []*string {
+func GetKeysToDelete(tags map[string]string, upstreamTags map[string]string) []string {
 	if len(upstreamTags) == 0 {
 		return nil
 	}
 
-	var updateUntags []*string
+	var updateUntags []string
 	for key := range upstreamTags {
 		_, ok := tags[key]
 		if !ok {
-			updateUntags = append(updateUntags, aws.String(key))
+			updateUntags = append(updateUntags, key)
 		}
 	}
 
@@ -81,42 +82,68 @@ func ValuesFromMap(m map[string]string) []string {
 	return s
 }
 
-func GetInstanceTags(templateTags []*ec2.LaunchTemplateTagSpecification) map[string]*string {
-	tags := make(map[string]*string)
+func GetInstanceTags(templateTags []ec2types.LaunchTemplateTagSpecification) map[string]string {
+	tags := make(map[string]string)
 
 	for _, tag := range templateTags {
-		if aws.StringValue(tag.ResourceType) == ec2.ResourceTypeInstance {
+		if tag.ResourceType == ec2types.ResourceTypeInstance {
 			for _, t := range tag.Tags {
-				tags[aws.StringValue(t.Key)] = t.Value
+				tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
 			}
 		}
 	}
 	return tags
 }
 
-func CreateTagSpecs(instanceTags map[string]*string) []*ec2.LaunchTemplateTagSpecificationRequest {
+func CreateTagSpecs(instanceTags map[string]string) []ec2types.LaunchTemplateTagSpecificationRequest {
 	if len(instanceTags) == 0 {
 		return nil
 	}
 
-	tags := make([]*ec2.Tag, 0)
+	tags := make([]ec2types.Tag, 0)
 	for key, value := range instanceTags {
-		tags = append(tags, &ec2.Tag{Key: aws.String(key), Value: value})
+		keyCopy := key
+		valueCopy := value
+		tags = append(tags, ec2types.Tag{Key: &keyCopy, Value: &valueCopy})
 	}
-	return []*ec2.LaunchTemplateTagSpecificationRequest{
+	return []ec2types.LaunchTemplateTagSpecificationRequest{
 		{
-			ResourceType: aws.String(ec2.ResourceTypeInstance),
+			ResourceType: ec2types.ResourceTypeInstance,
 			Tags:         tags,
 		},
 		{
-			ResourceType: aws.String(ec2.ResourceTypeVolume),
+			ResourceType: ec2types.ResourceTypeVolume,
 			Tags:         tags,
 		},
 		{
-			ResourceType: aws.String(ec2.ResourceTypeSpotInstancesRequest),
+			ResourceType: ec2types.ResourceTypeSpotInstancesRequest,
 			Tags:         tags,
 		},
 	}
+}
+
+func ConvertToLogTypes(loggingTypes []string) []ekstypes.LogType {
+	if len(loggingTypes) == 0 {
+		return []ekstypes.LogType{}
+	}
+
+	types := make([]ekstypes.LogType, len(loggingTypes))
+	for i, lt := range loggingTypes {
+		types[i] = ekstypes.LogType(lt)
+	}
+	return types
+}
+
+func ConvertFromLogTypes(logTypes []ekstypes.LogType) []string {
+	if len(logTypes) == 0 {
+		return []string{}
+	}
+
+	types := make([]string, len(logTypes))
+	for i, lt := range logTypes {
+		types[i] = string(lt)
+	}
+	return types
 }
 
 func CompareStringMaps(map1, map2 map[string]string) bool {

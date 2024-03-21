@@ -5,9 +5,10 @@
 package mock_services
 
 import (
+	context "context"
 	reflect "reflect"
 
-	iam "github.com/aws/aws-sdk-go/service/iam"
+	iam "github.com/aws/aws-sdk-go-v2/service/iam"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -35,46 +36,46 @@ func (m *MockIAMServiceInterface) EXPECT() *MockIAMServiceInterfaceMockRecorder 
 }
 
 // CreateOIDCProvider mocks base method.
-func (m *MockIAMServiceInterface) CreateOIDCProvider(input *iam.CreateOpenIDConnectProviderInput) (*iam.CreateOpenIDConnectProviderOutput, error) {
+func (m *MockIAMServiceInterface) CreateOIDCProvider(ctx context.Context, input *iam.CreateOpenIDConnectProviderInput) (*iam.CreateOpenIDConnectProviderOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOIDCProvider", input)
+	ret := m.ctrl.Call(m, "CreateOIDCProvider", ctx, input)
 	ret0, _ := ret[0].(*iam.CreateOpenIDConnectProviderOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateOIDCProvider indicates an expected call of CreateOIDCProvider.
-func (mr *MockIAMServiceInterfaceMockRecorder) CreateOIDCProvider(input interface{}) *gomock.Call {
+func (mr *MockIAMServiceInterfaceMockRecorder) CreateOIDCProvider(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOIDCProvider", reflect.TypeOf((*MockIAMServiceInterface)(nil).CreateOIDCProvider), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOIDCProvider", reflect.TypeOf((*MockIAMServiceInterface)(nil).CreateOIDCProvider), ctx, input)
 }
 
 // GetRole mocks base method.
-func (m *MockIAMServiceInterface) GetRole(input *iam.GetRoleInput) (*iam.GetRoleOutput, error) {
+func (m *MockIAMServiceInterface) GetRole(ctx context.Context, input *iam.GetRoleInput) (*iam.GetRoleOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRole", input)
+	ret := m.ctrl.Call(m, "GetRole", ctx, input)
 	ret0, _ := ret[0].(*iam.GetRoleOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRole indicates an expected call of GetRole.
-func (mr *MockIAMServiceInterfaceMockRecorder) GetRole(input interface{}) *gomock.Call {
+func (mr *MockIAMServiceInterfaceMockRecorder) GetRole(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRole", reflect.TypeOf((*MockIAMServiceInterface)(nil).GetRole), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRole", reflect.TypeOf((*MockIAMServiceInterface)(nil).GetRole), ctx, input)
 }
 
 // ListOIDCProviders mocks base method.
-func (m *MockIAMServiceInterface) ListOIDCProviders(input *iam.ListOpenIDConnectProvidersInput) (*iam.ListOpenIDConnectProvidersOutput, error) {
+func (m *MockIAMServiceInterface) ListOIDCProviders(ctx context.Context, input *iam.ListOpenIDConnectProvidersInput) (*iam.ListOpenIDConnectProvidersOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListOIDCProviders", input)
+	ret := m.ctrl.Call(m, "ListOIDCProviders", ctx, input)
 	ret0, _ := ret[0].(*iam.ListOpenIDConnectProvidersOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListOIDCProviders indicates an expected call of ListOIDCProviders.
-func (mr *MockIAMServiceInterfaceMockRecorder) ListOIDCProviders(input interface{}) *gomock.Call {
+func (mr *MockIAMServiceInterfaceMockRecorder) ListOIDCProviders(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOIDCProviders", reflect.TypeOf((*MockIAMServiceInterface)(nil).ListOIDCProviders), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOIDCProviders", reflect.TypeOf((*MockIAMServiceInterface)(nil).ListOIDCProviders), ctx, input)
 }
