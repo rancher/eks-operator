@@ -84,7 +84,7 @@ func (h *Handler) OnEksConfigChanged(_ string, config *eksv1.EKSClusterConfig) (
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	awsSVCs, err := newAWSv2Services(ctx, h.secretsCache, config.Spec)
+	awsSVCs, err := newAWSv2Services(ctx, h.secrets, config.Spec)
 	if err != nil {
 		return config, fmt.Errorf("error creating new AWS services: %w", err)
 	}
@@ -207,7 +207,7 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	awsSVCs, err := newAWSv2Services(ctx, h.secretsCache, config.Spec)
+	awsSVCs, err := newAWSv2Services(ctx, h.secrets, config.Spec)
 	if err != nil {
 		return config, fmt.Errorf("error creating new AWS services: %w", err)
 	}

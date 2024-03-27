@@ -19,8 +19,8 @@ import (
 
 // StartEC2Service initializes and returns an instance of the EC2ServiceInterface
 // interface, which provides methods for interacting with the EC2 service in AWS.
-func StartEC2Service(ctx context.Context, secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (services.EC2ServiceInterface, error) {
-	cfg, err := newAWSConfigV2(ctx, secretsCache, spec)
+func StartEC2Service(ctx context.Context, secretClient wranglerv1.SecretClient, spec eksv1.EKSClusterConfigSpec) (services.EC2ServiceInterface, error) {
+	cfg, err := newAWSConfigV2(ctx, secretClient, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -30,8 +30,8 @@ func StartEC2Service(ctx context.Context, secretsCache wranglerv1.SecretCache, s
 
 // StartEKSService initializes and returns an instance of the EKSServiceInterface
 // interface, which provides methods for interacting with the EKS service in AWS.
-func StartEKSService(ctx context.Context, secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (services.EKSServiceInterface, error) {
-	cfg, err := newAWSConfigV2(ctx, secretsCache, spec)
+func StartEKSService(ctx context.Context, secretClient wranglerv1.SecretClient, spec eksv1.EKSClusterConfigSpec) (services.EKSServiceInterface, error) {
+	cfg, err := newAWSConfigV2(ctx, secretClient, spec)
 	if err != nil {
 		return nil, err
 	}
