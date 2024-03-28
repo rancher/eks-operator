@@ -5,7 +5,7 @@ go 1.21
 replace k8s.io/client-go => k8s.io/client-go v0.28.6
 
 require (
-	github.com/aws/aws-sdk-go v1.50.34
+	github.com/aws/aws-sdk-go v1.50.38
 	github.com/aws/aws-sdk-go-v2 v1.26.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.7
