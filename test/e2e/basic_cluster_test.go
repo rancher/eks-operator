@@ -3,7 +3,7 @@ package e2e
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
@@ -67,11 +67,11 @@ var _ = Describe("BasicCluster", func() {
 		nodeGroup := eksv1.NodeGroup{
 			NodegroupName:        aws.String("ng1"),
 			Arm:                  aws.Bool(true),
-			DiskSize:             aws.Int64(20),
-			InstanceType:         aws.String("a1.large"),
-			DesiredSize:          aws.Int64(1),
-			MaxSize:              aws.Int64(10),
-			MinSize:              aws.Int64(1),
+			DiskSize:             aws.Int32(20),
+			InstanceType:         "a1.large",
+			DesiredSize:          aws.Int32(1),
+			MaxSize:              aws.Int32(10),
+			MinSize:              aws.Int32(1),
 			RequestSpotInstances: aws.Bool(false),
 		}
 

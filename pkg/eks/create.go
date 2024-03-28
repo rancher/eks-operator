@@ -2,9 +2,11 @@ package eks
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -14,13 +16,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/iam"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/templates"
@@ -49,10 +54,10 @@ type CreateClusterOptions struct {
 	RoleARN    string
 }
 
-func CreateCluster(opts *CreateClusterOptions) error {
+func CreateCluster(ctx context.Context, opts *CreateClusterOptions) error {
 	createClusterInput := newClusterInput(opts.Config, opts.RoleARN)
 
-	_, err := opts.EKSService.CreateCluster(createClusterInput)
+	_, err := opts.EKSService.CreateCluster(ctx, createClusterInput)
 	return err
 }
 
@@ -60,11 +65,11 @@ func newClusterInput(config *eksv1.EKSClusterConfig, roleARN string) *eks.Create
 	createClusterInput := &eks.CreateClusterInput{
 		Name:    aws.String(config.Spec.DisplayName),
 		RoleArn: aws.String(roleARN),
-		ResourcesVpcConfig: &eks.VpcConfigRequest{
+		ResourcesVpcConfig: &ekstypes.VpcConfigRequest{
 			EndpointPrivateAccess: config.Spec.PrivateAccess,
 			EndpointPublicAccess:  config.Spec.PublicAccess,
-			SecurityGroupIds:      aws.StringSlice(config.Status.SecurityGroups),
-			SubnetIds:             aws.StringSlice(config.Status.Subnets),
+			SecurityGroupIds:      config.Status.SecurityGroups,
+			SubnetIds:             config.Status.Subnets,
 			PublicAccessCidrs:     getPublicAccessCidrs(config.Spec.PublicAccessSources),
 		},
 		Tags:    getTags(config.Spec.Tags),
@@ -72,13 +77,13 @@ func newClusterInput(config *eksv1.EKSClusterConfig, roleARN string) *eks.Create
 		Version: config.Spec.KubernetesVersion,
 	}
 
-	if aws.BoolValue(config.Spec.SecretsEncryption) {
-		createClusterInput.EncryptionConfig = []*eks.EncryptionConfig{
+	if aws.ToBool(config.Spec.SecretsEncryption) {
+		createClusterInput.EncryptionConfig = []ekstypes.EncryptionConfig{
 			{
-				Provider: &eks.Provider{
+				Provider: &ekstypes.Provider{
 					KeyArn: config.Spec.KmsKey,
 				},
-				Resources: aws.StringSlice([]string{"secrets"}),
+				Resources: []string{"secrets"},
 			},
 		}
 	}
@@ -91,17 +96,17 @@ type CreateStackOptions struct {
 	StackName             string
 	DisplayName           string
 	TemplateBody          string
-	Capabilities          []string
-	Parameters            []*cloudformation.Parameter
+	Capabilities          []cftypes.Capability
+	Parameters            []cftypes.Parameter
 }
 
-func CreateStack(opts *CreateStackOptions) (*cloudformation.DescribeStacksOutput, error) {
-	_, err := opts.CloudFormationService.CreateStack(&cloudformation.CreateStackInput{
+func CreateStack(ctx context.Context, opts *CreateStackOptions) (*cloudformation.DescribeStacksOutput, error) {
+	_, err := opts.CloudFormationService.CreateStack(ctx, &cloudformation.CreateStackInput{
 		StackName:    aws.String(opts.StackName),
 		TemplateBody: aws.String(opts.TemplateBody),
-		Capabilities: aws.StringSlice(opts.Capabilities),
+		Capabilities: opts.Capabilities,
 		Parameters:   opts.Parameters,
-		Tags: []*cloudformation.Tag{
+		Tags: []cftypes.Tag{
 			{
 				Key:   aws.String("displayName"),
 				Value: aws.String(opts.DisplayName),
@@ -117,7 +122,7 @@ func CreateStack(opts *CreateStackOptions) (*cloudformation.DescribeStacksOutput
 
 	for status == createInProgressStatus {
 		time.Sleep(time.Second * 5)
-		stack, err = opts.CloudFormationService.DescribeStacks(&cloudformation.DescribeStacksInput{
+		stack, err = opts.CloudFormationService.DescribeStacks(ctx, &cloudformation.DescribeStacksInput{
 			StackName: aws.String(opts.StackName),
 		})
 		if err != nil {
@@ -128,27 +133,27 @@ func CreateStack(opts *CreateStackOptions) (*cloudformation.DescribeStacksOutput
 			return nil, fmt.Errorf("stack did not have output: %v", err)
 		}
 
-		status = *stack.Stacks[0].StackStatus
+		status = string(stack.Stacks[0].StackStatus)
 	}
 
 	if status != createCompleteStatus {
 		reason := "reason unknown"
-		events, err := opts.CloudFormationService.DescribeStackEvents(&cloudformation.DescribeStackEventsInput{
+		events, err := opts.CloudFormationService.DescribeStackEvents(ctx, &cloudformation.DescribeStackEventsInput{
 			StackName: aws.String(opts.StackName),
 		})
 		if err == nil {
 			for _, event := range events.StackEvents {
 				// guard against nil pointer dereference
-				if event.ResourceStatus == nil || event.LogicalResourceId == nil || event.ResourceStatusReason == nil {
+				if event.LogicalResourceId == nil || event.ResourceStatusReason == nil {
 					continue
 				}
 
-				if *event.ResourceStatus == createFailedStatus {
+				if event.ResourceStatus == cftypes.ResourceStatusCreateFailed {
 					reason = *event.ResourceStatusReason
 					break
 				}
 
-				if *event.ResourceStatus == rollbackInProgressStatus {
+				if event.ResourceStatus == cftypes.ResourceStatusRollbackInProgress {
 					reason = *event.ResourceStatusReason
 					// do not break so that CREATE_FAILED takes priority
 				}
@@ -165,16 +170,16 @@ type CreateLaunchTemplateOptions struct {
 	Config     *eksv1.EKSClusterConfig
 }
 
-func CreateLaunchTemplate(opts *CreateLaunchTemplateOptions) error {
-	_, err := opts.EC2Service.DescribeLaunchTemplates(&ec2.DescribeLaunchTemplatesInput{
-		LaunchTemplateIds: []*string{aws.String(opts.Config.Status.ManagedLaunchTemplateID)},
+func CreateLaunchTemplate(ctx context.Context, opts *CreateLaunchTemplateOptions) error {
+	_, err := opts.EC2Service.DescribeLaunchTemplates(ctx, &ec2.DescribeLaunchTemplatesInput{
+		LaunchTemplateIds: []string{opts.Config.Status.ManagedLaunchTemplateID},
 	})
 	if opts.Config.Status.ManagedLaunchTemplateID == "" || doesNotExist(err) {
-		lt, err := createLaunchTemplate(opts.EC2Service, opts.Config.Spec.DisplayName)
+		lt, err := createLaunchTemplate(ctx, opts.EC2Service, opts.Config.Spec.DisplayName)
 		if err != nil {
 			return fmt.Errorf("error creating launch template: %w", err)
 		}
-		opts.Config.Status.ManagedLaunchTemplateID = aws.StringValue(lt.ID)
+		opts.Config.Status.ManagedLaunchTemplateID = aws.ToString(lt.ID)
 	} else if err != nil {
 		return fmt.Errorf("error checking for existing launch template: %w", err)
 	}
@@ -182,17 +187,17 @@ func CreateLaunchTemplate(opts *CreateLaunchTemplateOptions) error {
 	return nil
 }
 
-func createLaunchTemplate(ec2Service services.EC2ServiceInterface, clusterDisplayName string) (*eksv1.LaunchTemplate, error) {
+func createLaunchTemplate(ctx context.Context, ec2Service services.EC2ServiceInterface, clusterDisplayName string) (*eksv1.LaunchTemplate, error) {
 	// The first version of the rancher-managed launch template will be the default version.
 	// Since the default version cannot be deleted until the launch template is deleted, it will not be used for any node group.
 	// Also, launch templates cannot be created blank, so fake userdata is added to the first version.
 	launchTemplateCreateInput := &ec2.CreateLaunchTemplateInput{
-		LaunchTemplateData: &ec2.RequestLaunchTemplateData{UserData: aws.String("cGxhY2Vob2xkZXIK")},
+		LaunchTemplateData: &ec2types.RequestLaunchTemplateData{UserData: aws.String("cGxhY2Vob2xkZXIK")},
 		LaunchTemplateName: aws.String(fmt.Sprintf(LaunchTemplateNameFormat, clusterDisplayName)),
-		TagSpecifications: []*ec2.TagSpecification{
+		TagSpecifications: []ec2types.TagSpecification{
 			{
-				ResourceType: aws.String(ec2.ResourceTypeLaunchTemplate),
-				Tags: []*ec2.Tag{
+				ResourceType: ec2types.ResourceTypeLaunchTemplate,
+				Tags: []ec2types.Tag{
 					{
 						Key:   aws.String(launchTemplateTagKey),
 						Value: aws.String(launchTemplateTagValue),
@@ -202,7 +207,7 @@ func createLaunchTemplate(ec2Service services.EC2ServiceInterface, clusterDispla
 		},
 	}
 
-	awsLaunchTemplateOutput, err := ec2Service.CreateLaunchTemplate(launchTemplateCreateInput)
+	awsLaunchTemplateOutput, err := ec2Service.CreateLaunchTemplate(ctx, launchTemplateCreateInput)
 	if err != nil {
 		return nil, err
 	}
@@ -223,22 +228,22 @@ type CreateNodeGroupOptions struct {
 	NodeGroup eksv1.NodeGroup
 }
 
-func CreateNodeGroup(opts *CreateNodeGroupOptions) (string, string, error) {
+func CreateNodeGroup(ctx context.Context, opts *CreateNodeGroupOptions) (string, string, error) {
 	var err error
-	capacityType := eks.CapacityTypesOnDemand
-	if aws.BoolValue(opts.NodeGroup.RequestSpotInstances) {
-		capacityType = eks.CapacityTypesSpot
+	capacityType := ekstypes.CapacityTypesOnDemand
+	if aws.ToBool(opts.NodeGroup.RequestSpotInstances) {
+		capacityType = ekstypes.CapacityTypesSpot
 	}
 	nodeGroupCreateInput := &eks.CreateNodegroupInput{
 		ClusterName:   aws.String(opts.Config.Spec.DisplayName),
 		NodegroupName: opts.NodeGroup.NodegroupName,
-		Labels:        opts.NodeGroup.Labels,
-		ScalingConfig: &eks.NodegroupScalingConfig{
+		Labels:        aws.ToStringMap(opts.NodeGroup.Labels),
+		ScalingConfig: &ekstypes.NodegroupScalingConfig{
 			DesiredSize: opts.NodeGroup.DesiredSize,
 			MaxSize:     opts.NodeGroup.MaxSize,
 			MinSize:     opts.NodeGroup.MinSize,
 		},
-		CapacityType: aws.String(capacityType),
+		CapacityType: capacityType,
 	}
 
 	lt := opts.NodeGroup.LaunchTemplate
@@ -250,56 +255,56 @@ func CreateNodeGroup(opts *CreateNodeGroupOptions) (string, string, error) {
 	if lt == nil {
 		// In this case, the user has not specified their own launch template.
 		// If the cluster doesn't have a launch template associated with it, then we create one.
-		lt, err = CreateNewLaunchTemplateVersion(opts.EC2Service, opts.Config.Status.ManagedLaunchTemplateID, opts.NodeGroup)
+		lt, err = CreateNewLaunchTemplateVersion(ctx, opts.EC2Service, opts.Config.Status.ManagedLaunchTemplateID, opts.NodeGroup)
 		if err != nil {
 			return "", "", err
 		}
 	}
 
 	var launchTemplateVersion *string
-	if aws.Int64Value(lt.Version) != 0 {
+	if aws.ToInt64(lt.Version) != 0 {
 		launchTemplateVersion = aws.String(strconv.FormatInt(*lt.Version, 10))
 	}
 
-	nodeGroupCreateInput.LaunchTemplate = &eks.LaunchTemplateSpecification{
+	nodeGroupCreateInput.LaunchTemplate = &ekstypes.LaunchTemplateSpecification{
 		Id:      lt.ID,
 		Version: launchTemplateVersion,
 	}
 
-	if aws.BoolValue(opts.NodeGroup.RequestSpotInstances) {
+	if aws.ToBool(opts.NodeGroup.RequestSpotInstances) {
 		nodeGroupCreateInput.InstanceTypes = opts.NodeGroup.SpotInstanceTypes
 	}
 
-	if aws.StringValue(opts.NodeGroup.ImageID) == "" {
+	if aws.ToString(opts.NodeGroup.ImageID) == "" {
 		if opts.NodeGroup.LaunchTemplate != nil {
-			nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesCustom)
-		} else if arm := opts.NodeGroup.Arm; aws.BoolValue(arm) {
-			nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesAl2Arm64)
-		} else if gpu := opts.NodeGroup.Gpu; aws.BoolValue(gpu) {
-			nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesAl2X8664Gpu)
+			nodeGroupCreateInput.AmiType = ekstypes.AMITypesCustom
+		} else if arm := opts.NodeGroup.Arm; aws.ToBool(arm) {
+			nodeGroupCreateInput.AmiType = ekstypes.AMITypesAl2Arm64
+		} else if gpu := opts.NodeGroup.Gpu; aws.ToBool(gpu) {
+			nodeGroupCreateInput.AmiType = ekstypes.AMITypesAl2X8664Gpu
 		} else {
-			nodeGroupCreateInput.AmiType = aws.String(eks.AMITypesAl2X8664)
+			nodeGroupCreateInput.AmiType = ekstypes.AMITypesAl2X8664
 		}
 	}
 
 	if len(opts.NodeGroup.Subnets) != 0 {
-		nodeGroupCreateInput.Subnets = aws.StringSlice(opts.NodeGroup.Subnets)
+		nodeGroupCreateInput.Subnets = opts.NodeGroup.Subnets
 	} else {
-		nodeGroupCreateInput.Subnets = aws.StringSlice(opts.Config.Status.Subnets)
+		nodeGroupCreateInput.Subnets = opts.Config.Status.Subnets
 	}
 
 	generatedNodeRole := opts.Config.Status.GeneratedNodeRole
 
-	if aws.StringValue(opts.NodeGroup.NodeRole) == "" {
+	if aws.ToString(opts.NodeGroup.NodeRole) == "" {
 		if opts.Config.Status.GeneratedNodeRole == "" {
 			finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(opts.Config.Spec.Region))
-			output, err := CreateStack(&CreateStackOptions{
+			output, err := CreateStack(ctx, &CreateStackOptions{
 				CloudFormationService: opts.CloudFormationService,
 				StackName:             fmt.Sprintf("%s-node-instance-role", opts.Config.Spec.DisplayName),
 				DisplayName:           opts.Config.Spec.DisplayName,
 				TemplateBody:          finalTemplate,
-				Capabilities:          []string{cloudformation.CapabilityCapabilityIam},
-				Parameters:            []*cloudformation.Parameter{},
+				Capabilities:          []cftypes.Capability{cftypes.CapabilityCapabilityIam},
+				Parameters:            []cftypes.Parameter{},
 			})
 			if err != nil {
 				// If there was an error creating the node role stack, return an empty launch template
@@ -313,20 +318,20 @@ func CreateNodeGroup(opts *CreateNodeGroupOptions) (string, string, error) {
 		nodeGroupCreateInput.NodeRole = opts.NodeGroup.NodeRole
 	}
 
-	_, err = opts.EKSService.CreateNodegroup(nodeGroupCreateInput)
+	_, err = opts.EKSService.CreateNodegroup(ctx, nodeGroupCreateInput)
 	if err != nil {
 		// If there was an error creating the node group, then the template version should be deleted
 		// to prevent many launch template versions from being created before the issue is fixed.
-		DeleteLaunchTemplateVersions(opts.EC2Service, *lt.ID, []*string{launchTemplateVersion})
+		DeleteLaunchTemplateVersions(ctx, opts.EC2Service, *lt.ID, []*string{launchTemplateVersion})
 	}
 
 	// Return the launch template version and generated node role to the calling function so they can
 	// be set on the Status.
-	return aws.StringValue(launchTemplateVersion), generatedNodeRole, err
+	return aws.ToString(launchTemplateVersion), generatedNodeRole, err
 }
 
-func CreateNewLaunchTemplateVersion(ec2Service services.EC2ServiceInterface, launchTemplateID string, group eksv1.NodeGroup) (*eksv1.LaunchTemplate, error) {
-	launchTemplate, err := buildLaunchTemplateData(ec2Service, group)
+func CreateNewLaunchTemplateVersion(ctx context.Context, ec2Service services.EC2ServiceInterface, launchTemplateID string, group eksv1.NodeGroup) (*eksv1.LaunchTemplate, error) {
+	launchTemplate, err := buildLaunchTemplateData(ctx, ec2Service, group)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +341,7 @@ func CreateNewLaunchTemplateVersion(ec2Service services.EC2ServiceInterface, lau
 		LaunchTemplateId:   aws.String(launchTemplateID),
 	}
 
-	awsLaunchTemplateOutput, err := ec2Service.CreateLaunchTemplateVersion(launchTemplateVersionInput)
+	awsLaunchTemplateOutput, err := ec2Service.CreateLaunchTemplateVersion(ctx, launchTemplateVersionInput)
 	if err != nil {
 		return nil, err
 	}
@@ -348,111 +353,105 @@ func CreateNewLaunchTemplateVersion(ec2Service services.EC2ServiceInterface, lau
 	}, nil
 }
 
-func buildLaunchTemplateData(ec2Service services.EC2ServiceInterface, group eksv1.NodeGroup) (*ec2.RequestLaunchTemplateData, error) {
+func buildLaunchTemplateData(ctx context.Context, ec2Service services.EC2ServiceInterface, group eksv1.NodeGroup) (*ec2types.RequestLaunchTemplateData, error) {
 	var imageID *string
-	if aws.StringValue(group.ImageID) != "" {
+	if aws.ToString(group.ImageID) != "" {
 		imageID = group.ImageID
 	}
 
 	userdata := group.UserData
-	if aws.StringValue(userdata) != "" {
+	if aws.ToString(userdata) != "" {
 		if !strings.Contains(*userdata, "Content-Type: multipart/mixed") {
-			return nil, fmt.Errorf("userdata for nodegroup [%s] is not of mime time multipart/mixed", aws.StringValue(group.NodegroupName))
+			return nil, fmt.Errorf("userdata for nodegroup [%s] is not of mime time multipart/mixed", aws.ToString(group.NodegroupName))
 		}
 		*userdata = base64.StdEncoding.EncodeToString([]byte(*userdata))
 	}
 
 	deviceName := aws.String(defaultStorageDeviceName)
-	if aws.StringValue(group.ImageID) != "" {
-		if rootDeviceName, err := getImageRootDeviceName(ec2Service, group.ImageID); err != nil {
+	if aws.ToString(group.ImageID) != "" {
+		if rootDeviceName, err := getImageRootDeviceName(ctx, ec2Service, group.ImageID); err != nil {
 			return nil, err
 		} else if rootDeviceName != nil {
 			deviceName = rootDeviceName
 		}
 	}
 
-	launchTemplateData := &ec2.RequestLaunchTemplateData{
+	launchTemplateData := &ec2types.RequestLaunchTemplateData{
 		ImageId:  imageID,
 		KeyName:  group.Ec2SshKey,
 		UserData: userdata,
-		BlockDeviceMappings: []*ec2.LaunchTemplateBlockDeviceMappingRequest{
+		BlockDeviceMappings: []ec2types.LaunchTemplateBlockDeviceMappingRequest{
 			{
 				DeviceName: deviceName,
-				Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
+				Ebs: &ec2types.LaunchTemplateEbsBlockDeviceRequest{
 					VolumeSize: group.DiskSize,
 				},
 			},
 		},
 		TagSpecifications: utils.CreateTagSpecs(group.ResourceTags),
 	}
-	if !aws.BoolValue(group.RequestSpotInstances) {
-		launchTemplateData.InstanceType = group.InstanceType
+	if !aws.ToBool(group.RequestSpotInstances) {
+		launchTemplateData.InstanceType = ec2types.InstanceType(group.InstanceType)
 	}
 
 	return launchTemplateData, nil
 }
 
-func getImageRootDeviceName(ec2Service services.EC2ServiceInterface, imageID *string) (*string, error) {
+func getImageRootDeviceName(ctx context.Context, ec2Service services.EC2ServiceInterface, imageID *string) (*string, error) {
 	if imageID == nil {
 		return nil, fmt.Errorf("imageID is nil")
 	}
-	describeOutput, err := ec2Service.DescribeImages(&ec2.DescribeImagesInput{ImageIds: []*string{imageID}})
+	describeOutput, err := ec2Service.DescribeImages(ctx, &ec2.DescribeImagesInput{ImageIds: []string{aws.ToString(imageID)}})
 	if err != nil {
 		return nil, err
 	}
 	if len(describeOutput.Images) == 0 {
-		return nil, fmt.Errorf("no images returned for id %v", aws.StringValue(imageID))
+		return nil, fmt.Errorf("no images returned for id %v", aws.ToString(imageID))
 	}
 
 	return describeOutput.Images[0].RootDeviceName, nil
 }
 
-func getTags(tags map[string]string) map[string]*string {
+func getTags(tags map[string]string) map[string]string {
 	if len(tags) == 0 {
 		return nil
 	}
 
-	return aws.StringMap(tags)
+	return tags
 }
 
-func getLogging(loggingTypes []string) *eks.Logging {
+func getLogging(loggingTypes []string) *ekstypes.Logging {
 	if len(loggingTypes) == 0 {
-		return &eks.Logging{
-			ClusterLogging: []*eks.LogSetup{
+		return &ekstypes.Logging{
+			ClusterLogging: []ekstypes.LogSetup{
 				{
 					Enabled: aws.Bool(false),
-					Types:   aws.StringSlice(loggingTypes),
+					Types:   []ekstypes.LogType{},
 				},
 			},
 		}
 	}
-	return &eks.Logging{
-		ClusterLogging: []*eks.LogSetup{
+	return &ekstypes.Logging{
+		ClusterLogging: []ekstypes.LogSetup{
 			{
 				Enabled: aws.Bool(true),
-				Types:   aws.StringSlice(loggingTypes),
+				Types:   utils.ConvertToLogTypes(loggingTypes),
 			},
 		},
 	}
 }
 
-func getPublicAccessCidrs(publicAccessCidrs []string) []*string {
+func getPublicAccessCidrs(publicAccessCidrs []string) []string {
 	if len(publicAccessCidrs) == 0 {
-		return aws.StringSlice([]string{"0.0.0.0/0"})
+		return []string{"0.0.0.0/0"}
 	}
 
-	return aws.StringSlice(publicAccessCidrs)
+	return publicAccessCidrs
 }
 
 func alreadyExistsInCloudFormationError(err error) bool {
-	if aerr, ok := err.(awserr.Error); ok {
-		switch aerr.Code() {
-		case cloudformation.ErrCodeAlreadyExistsException:
-			return true
-		}
-	}
-
-	return false
+	var aee *cftypes.AlreadyExistsException
+	return errors.As(err, &aee)
 }
 
 func doesNotExist(err error) bool {
@@ -468,12 +467,12 @@ func doesNotExist(err error) bool {
 
 func getEC2ServiceEndpoint(region string) string {
 	if p, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), region); ok {
-		return fmt.Sprintf("%s.%s", ec2.ServiceName, p.DNSSuffix())
+		return fmt.Sprintf("ec2.%s", p.DNSSuffix())
 	}
 	return "ec2.amazonaws.com"
 }
 
-func getParameterValueFromOutput(key string, outputs []*cloudformation.Output) string {
+func getParameterValueFromOutput(key string, outputs []cftypes.Output) string {
 	for _, output := range outputs {
 		if *output.OutputKey == key {
 			return *output.OutputValue
@@ -494,28 +493,28 @@ type EnableEBSCSIDriverInput struct {
 
 // EnableEBSCSIDriver manages the installation of the EBS CSI driver for EKS, including the
 // creation of the OIDC Provider, the IAM role and the validation and installation of the EKS add-on
-func EnableEBSCSIDriver(opts *EnableEBSCSIDriverInput) error {
-	oidcID, err := configureOIDCProvider(opts.IAMService, opts.EKSService, opts.Config)
+func EnableEBSCSIDriver(ctx context.Context, opts *EnableEBSCSIDriverInput) error {
+	oidcID, err := configureOIDCProvider(ctx, opts.IAMService, opts.EKSService, opts.Config)
 	if err != nil {
 		return fmt.Errorf("could not configure oidc provider: %w", err)
 	}
-	roleArn, err := createEBSCSIDriverRole(opts.CFService, opts.Config, oidcID)
+	roleArn, err := createEBSCSIDriverRole(ctx, opts.CFService, opts.Config, oidcID)
 	if err != nil {
 		return fmt.Errorf("could not create ebs csi driver role: %w", err)
 	}
-	if _, err := installEBSAddon(opts.EKSService, opts.Config, roleArn, opts.AddonVersion); err != nil {
+	if _, err := installEBSAddon(ctx, opts.EKSService, opts.Config, roleArn, opts.AddonVersion); err != nil {
 		return fmt.Errorf("failed to install ebs csi driver addon: %w", err)
 	}
 
 	return nil
 }
 
-func configureOIDCProvider(iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
-	output, err := iamService.ListOIDCProviders(&iam.ListOpenIDConnectProvidersInput{})
+func configureOIDCProvider(ctx context.Context, iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
+	output, err := iamService.ListOIDCProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
 	if err != nil {
 		return "", err
 	}
-	clusterOutput, err := eksService.DescribeCluster(&eks.DescribeClusterInput{
+	clusterOutput, err := eksService.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: aws.String(config.Spec.DisplayName),
 	})
 	if err != nil {
@@ -537,12 +536,12 @@ func configureOIDCProvider(iamService services.IAMServiceInterface, eksService s
 		return "", err
 	}
 	input := &iam.CreateOpenIDConnectProviderInput{
-		ClientIDList:   []*string{aws.String(defaultAudienceOpenIDConnect)},
-		ThumbprintList: []*string{&thumbprint},
+		ClientIDList:   []string{string(defaultAudienceOpenIDConnect)},
+		ThumbprintList: []string{thumbprint},
 		Url:            clusterOutput.Cluster.Identity.Oidc.Issuer,
-		Tags:           []*iam.Tag{},
+		Tags:           []iamtypes.Tag{},
 	}
-	newOIDC, err := iamService.CreateOIDCProvider(input)
+	newOIDC, err := iamService.CreateOIDCProvider(ctx, input)
 	if err != nil {
 		return "", err
 	}
@@ -583,7 +582,7 @@ func getIssuerThumbprint(issuer string) (string, error) {
 	return fmt.Sprintf("%x", sha1.Sum(root.Raw)), nil
 }
 
-func createEBSCSIDriverRole(cfService services.CloudFormationServiceInterface, config *eksv1.EKSClusterConfig, oidcID string) (string, error) {
+func createEBSCSIDriverRole(ctx context.Context, cfService services.CloudFormationServiceInterface, config *eksv1.EKSClusterConfig, oidcID string) (string, error) {
 	templateData := struct {
 		Region     string
 		ProviderID string
@@ -601,13 +600,13 @@ func createEBSCSIDriverRole(cfService services.CloudFormationServiceInterface, c
 	}
 	finalTemplate := buf.String()
 
-	output, err := CreateStack(&CreateStackOptions{
+	output, err := CreateStack(ctx, &CreateStackOptions{
 		CloudFormationService: cfService,
 		StackName:             fmt.Sprintf("%s-ebs-csi-driver-role", config.Spec.DisplayName),
 		DisplayName:           config.Spec.DisplayName,
 		TemplateBody:          finalTemplate,
-		Capabilities:          []string{cloudformation.CapabilityCapabilityIam},
-		Parameters:            []*cloudformation.Parameter{},
+		Capabilities:          []cftypes.Capability{cftypes.CapabilityCapabilityIam},
+		Parameters:            []cftypes.Parameter{},
 	})
 	if err != nil {
 		return "", err
@@ -617,7 +616,7 @@ func createEBSCSIDriverRole(cfService services.CloudFormationServiceInterface, c
 	return createdRoleArn, nil
 }
 
-func installEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig, roleArn, version string) (string, error) {
+func installEBSAddon(ctx context.Context, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig, roleArn, version string) (string, error) {
 	input := eks.CreateAddonInput{
 		AddonName:             aws.String(ebsCSIAddonName),
 		ClusterName:           aws.String(config.Spec.DisplayName),
@@ -627,7 +626,7 @@ func installEBSAddon(eksService services.EKSServiceInterface, config *eksv1.EKSC
 		input.AddonVersion = aws.String(version)
 	}
 
-	addonOutput, err := eksService.CreateAddon(&input)
+	addonOutput, err := eksService.CreateAddon(ctx, &input)
 	if err != nil {
 		return "", err
 	}

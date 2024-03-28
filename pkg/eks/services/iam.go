@@ -1,34 +1,36 @@
 package services
 
 import (
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 )
 
 type IAMServiceInterface interface {
-	GetRole(input *iam.GetRoleInput) (*iam.GetRoleOutput, error)
-	ListOIDCProviders(input *iam.ListOpenIDConnectProvidersInput) (*iam.ListOpenIDConnectProvidersOutput, error)
-	CreateOIDCProvider(input *iam.CreateOpenIDConnectProviderInput) (*iam.CreateOpenIDConnectProviderOutput, error)
+	GetRole(ctx context.Context, input *iam.GetRoleInput) (*iam.GetRoleOutput, error)
+	ListOIDCProviders(ctx context.Context, input *iam.ListOpenIDConnectProvidersInput) (*iam.ListOpenIDConnectProvidersOutput, error)
+	CreateOIDCProvider(ctx context.Context, input *iam.CreateOpenIDConnectProviderInput) (*iam.CreateOpenIDConnectProviderOutput, error)
 }
 
 type iamService struct {
-	svc *iam.IAM
+	svc *iam.Client
 }
 
-func NewIAMService(sess *session.Session) IAMServiceInterface {
+func NewIAMService(cfg aws.Config) IAMServiceInterface {
 	return &iamService{
-		svc: iam.New(sess),
+		svc: iam.NewFromConfig(cfg),
 	}
 }
 
-func (c *iamService) GetRole(input *iam.GetRoleInput) (*iam.GetRoleOutput, error) {
-	return c.svc.GetRole(input)
+func (c *iamService) GetRole(ctx context.Context, input *iam.GetRoleInput) (*iam.GetRoleOutput, error) {
+	return c.svc.GetRole(ctx, input)
 }
 
-func (c *iamService) ListOIDCProviders(input *iam.ListOpenIDConnectProvidersInput) (*iam.ListOpenIDConnectProvidersOutput, error) {
-	return c.svc.ListOpenIDConnectProviders(input)
+func (c *iamService) ListOIDCProviders(ctx context.Context, input *iam.ListOpenIDConnectProvidersInput) (*iam.ListOpenIDConnectProvidersOutput, error) {
+	return c.svc.ListOpenIDConnectProviders(ctx, input)
 }
 
-func (c *iamService) CreateOIDCProvider(input *iam.CreateOpenIDConnectProviderInput) (*iam.CreateOpenIDConnectProviderOutput, error) {
-	return c.svc.CreateOpenIDConnectProvider(input)
+func (c *iamService) CreateOIDCProvider(ctx context.Context, input *iam.CreateOpenIDConnectProviderInput) (*iam.CreateOpenIDConnectProviderOutput, error) {
+	return c.svc.CreateOpenIDConnectProvider(ctx, input)
 }

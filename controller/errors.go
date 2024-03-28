@@ -1,18 +1,15 @@
 package controller
 
 import (
+	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 )
 
 func isClusterConflict(err error) bool {
-	if awsErr, ok := err.(awserr.Error); ok {
-		return awsErr.Code() == eks.ErrCodeResourceInUseException
-	}
-
-	return false
+	var riu *ekstypes.ResourceInUseException
+	return errors.As(err, &riu)
 }
 
 func doesNotExist(err error) bool {
@@ -27,10 +24,13 @@ func doesNotExist(err error) bool {
 }
 
 func notFound(err error) bool {
-	if awsErr, ok := err.(awserr.Error); ok {
-		return awsErr.Code() == eks.ErrCodeResourceNotFoundException ||
-			strings.Contains(awsErr.Code(), "VersionNotFound")
+	var rnf *ekstypes.ResourceNotFoundException
+	if errors.As(err, &rnf) {
+		return true
 	}
 
+	if err != nil {
+		return strings.Contains(err.Error(), "VersionNotFound")
+	}
 	return false
 }

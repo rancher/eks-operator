@@ -3,11 +3,12 @@ package controller
 import (
 	"errors"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 
-	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 
-	awssdkeks "github.com/aws/aws-sdk-go/service/eks"
+	awssdkeks "github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -66,12 +67,12 @@ var _ = Describe("importCluster", func() {
 	})
 
 	It("should get cluster state", func() {
-		eksServiceMock.EXPECT().DescribeCluster(
+		eksServiceMock.EXPECT().DescribeCluster(ctx,
 			&awssdkeks.DescribeClusterInput{
 				Name: aws.String(getClusterStatusOptions.Config.Spec.DisplayName),
 			},
 		).Return(&awssdkeks.DescribeClusterOutput{}, nil).AnyTimes()
-		clusterState, err := eks.GetClusterState(getClusterStatusOptions)
+		clusterState, err := eks.GetClusterState(ctx, getClusterStatusOptions)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(clusterState).ToNot(BeNil())
 	})
@@ -96,59 +97,59 @@ var _ = Describe("delete stack", func() {
 	})
 
 	It("should successfully delete a stack", func() {
-		mockCloudformationService.EXPECT().DescribeStacks(
+		mockCloudformationService.EXPECT().DescribeStacks(ctx,
 			&cloudformation.DescribeStacksInput{
 				StackName: &newStyleName,
 			},
 		).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
 						StackName: &newStyleName,
 					},
 				},
 			}, nil)
 
-		mockCloudformationService.EXPECT().DeleteStack(&cloudformation.DeleteStackInput{
+		mockCloudformationService.EXPECT().DeleteStack(ctx, &cloudformation.DeleteStackInput{
 			StackName: &newStyleName,
 		}).Return(nil, nil)
 
-		newerr := deleteStack(mockCloudformationService, newStyleName, "")
+		newerr := deleteStack(ctx, mockCloudformationService, newStyleName, "")
 		Expect(newerr).ToNot(HaveOccurred())
 	})
 	It("should successfully delete a stack with old style name", func() {
-		mockCloudformationService.EXPECT().DescribeStacks(
+		mockCloudformationService.EXPECT().DescribeStacks(ctx,
 			&cloudformation.DescribeStacksInput{
 				StackName: &oldStyleName,
 			},
 		).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
 						StackName: &oldStyleName,
 					},
 				},
 			}, nil)
 
-		mockCloudformationService.EXPECT().DeleteStack(&cloudformation.DeleteStackInput{
+		mockCloudformationService.EXPECT().DeleteStack(ctx, &cloudformation.DeleteStackInput{
 			StackName: &oldStyleName,
 		}).Return(nil, nil)
 
-		newerr := deleteStack(mockCloudformationService, "", oldStyleName)
+		newerr := deleteStack(ctx, mockCloudformationService, "", oldStyleName)
 		Expect(newerr).ToNot(HaveOccurred())
 	})
 
 	It("should fail to delete a stack if DescribeStacks returns no stacks", func() {
-		mockCloudformationService.EXPECT().DescribeStacks(
+		mockCloudformationService.EXPECT().DescribeStacks(ctx,
 			&cloudformation.DescribeStacksInput{
 				StackName: &newStyleName,
 			},
 		).Return(&cloudformation.DescribeStacksOutput{}, nil)
 
-		mockCloudformationService.EXPECT().DeleteStack(&cloudformation.DeleteStackInput{
+		mockCloudformationService.EXPECT().DeleteStack(ctx, &cloudformation.DeleteStackInput{
 			StackName: &newStyleName,
 		}).Return(nil, errors.New("error"))
-		newerr := deleteStack(mockCloudformationService, newStyleName, "")
+		newerr := deleteStack(ctx, mockCloudformationService, newStyleName, "")
 		Expect(newerr).To(HaveOccurred())
 	})
 })

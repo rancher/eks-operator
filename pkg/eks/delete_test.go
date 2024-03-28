@@ -1,8 +1,8 @@
 package eks
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	"github.com/rancher/eks-operator/pkg/eks/services/mock_services"
@@ -25,13 +25,13 @@ var _ = Describe("deleteLaunchTemplateVersions", func() {
 
 	It("should try to delete launch template versions", func() {
 		templateID := "templateID"
-		templateVersions := []*string{aws.String("1"), aws.String("2")}
+		templateVersions := []string{"1", "2"}
 
-		ec2ServiceMock.EXPECT().DeleteLaunchTemplateVersions(&ec2.DeleteLaunchTemplateVersionsInput{
+		ec2ServiceMock.EXPECT().DeleteLaunchTemplateVersions(ctx, &ec2.DeleteLaunchTemplateVersionsInput{
 			LaunchTemplateId: aws.String(templateID),
 			Versions:         templateVersions,
 		}).Return(nil, nil)
 
-		DeleteLaunchTemplateVersions(ec2ServiceMock, templateID, templateVersions)
+		DeleteLaunchTemplateVersions(ctx, ec2ServiceMock, templateID, aws.StringSlice(templateVersions))
 	})
 })

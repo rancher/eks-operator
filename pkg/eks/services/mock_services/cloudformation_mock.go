@@ -5,9 +5,10 @@
 package mock_services
 
 import (
+	context "context"
 	reflect "reflect"
 
-	cloudformation "github.com/aws/aws-sdk-go/service/cloudformation"
+	cloudformation "github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -35,61 +36,61 @@ func (m *MockCloudFormationServiceInterface) EXPECT() *MockCloudFormationService
 }
 
 // CreateStack mocks base method.
-func (m *MockCloudFormationServiceInterface) CreateStack(input *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
+func (m *MockCloudFormationServiceInterface) CreateStack(ctx context.Context, input *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateStack", input)
+	ret := m.ctrl.Call(m, "CreateStack", ctx, input)
 	ret0, _ := ret[0].(*cloudformation.CreateStackOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateStack indicates an expected call of CreateStack.
-func (mr *MockCloudFormationServiceInterfaceMockRecorder) CreateStack(input interface{}) *gomock.Call {
+func (mr *MockCloudFormationServiceInterfaceMockRecorder) CreateStack(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateStack", reflect.TypeOf((*MockCloudFormationServiceInterface)(nil).CreateStack), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateStack", reflect.TypeOf((*MockCloudFormationServiceInterface)(nil).CreateStack), ctx, input)
 }
 
 // DeleteStack mocks base method.
-func (m *MockCloudFormationServiceInterface) DeleteStack(input *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
+func (m *MockCloudFormationServiceInterface) DeleteStack(ctx context.Context, input *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteStack", input)
+	ret := m.ctrl.Call(m, "DeleteStack", ctx, input)
 	ret0, _ := ret[0].(*cloudformation.DeleteStackOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteStack indicates an expected call of DeleteStack.
-func (mr *MockCloudFormationServiceInterfaceMockRecorder) DeleteStack(input interface{}) *gomock.Call {
+func (mr *MockCloudFormationServiceInterfaceMockRecorder) DeleteStack(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStack", reflect.TypeOf((*MockCloudFormationServiceInterface)(nil).DeleteStack), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStack", reflect.TypeOf((*MockCloudFormationServiceInterface)(nil).DeleteStack), ctx, input)
 }
 
 // DescribeStackEvents mocks base method.
-func (m *MockCloudFormationServiceInterface) DescribeStackEvents(input *cloudformation.DescribeStackEventsInput) (*cloudformation.DescribeStackEventsOutput, error) {
+func (m *MockCloudFormationServiceInterface) DescribeStackEvents(ctx context.Context, input *cloudformation.DescribeStackEventsInput) (*cloudformation.DescribeStackEventsOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DescribeStackEvents", input)
+	ret := m.ctrl.Call(m, "DescribeStackEvents", ctx, input)
 	ret0, _ := ret[0].(*cloudformation.DescribeStackEventsOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DescribeStackEvents indicates an expected call of DescribeStackEvents.
-func (mr *MockCloudFormationServiceInterfaceMockRecorder) DescribeStackEvents(input interface{}) *gomock.Call {
+func (mr *MockCloudFormationServiceInterfaceMockRecorder) DescribeStackEvents(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeStackEvents", reflect.TypeOf((*MockCloudFormationServiceInterface)(nil).DescribeStackEvents), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeStackEvents", reflect.TypeOf((*MockCloudFormationServiceInterface)(nil).DescribeStackEvents), ctx, input)
 }
 
 // DescribeStacks mocks base method.
-func (m *MockCloudFormationServiceInterface) DescribeStacks(input *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error) {
+func (m *MockCloudFormationServiceInterface) DescribeStacks(ctx context.Context, input *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DescribeStacks", input)
+	ret := m.ctrl.Call(m, "DescribeStacks", ctx, input)
 	ret0, _ := ret[0].(*cloudformation.DescribeStacksOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DescribeStacks indicates an expected call of DescribeStacks.
-func (mr *MockCloudFormationServiceInterfaceMockRecorder) DescribeStacks(input interface{}) *gomock.Call {
+func (mr *MockCloudFormationServiceInterfaceMockRecorder) DescribeStacks(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeStacks", reflect.TypeOf((*MockCloudFormationServiceInterface)(nil).DescribeStacks), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeStacks", reflect.TypeOf((*MockCloudFormationServiceInterface)(nil).DescribeStacks), ctx, input)
 }

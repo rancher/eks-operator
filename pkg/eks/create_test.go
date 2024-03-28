@@ -4,12 +4,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -40,13 +43,13 @@ var _ = Describe("CreateCluster", func() {
 	})
 
 	It("should successfully create a cluster", func() {
-		eksServiceMock.EXPECT().CreateCluster(gomock.Any()).Return(nil, nil)
-		Expect(CreateCluster(clustercCreateOptions)).To(Succeed())
+		eksServiceMock.EXPECT().CreateCluster(ctx, gomock.Any()).Return(nil, nil)
+		Expect(CreateCluster(ctx, clustercCreateOptions)).To(Succeed())
 	})
 
 	It("should fail to create a cluster", func() {
-		eksServiceMock.EXPECT().CreateCluster(gomock.Any()).Return(nil, errors.New("error creating cluster"))
-		Expect(CreateCluster(clustercCreateOptions)).ToNot(Succeed())
+		eksServiceMock.EXPECT().CreateCluster(ctx, gomock.Any()).Return(nil, errors.New("error creating cluster"))
+		Expect(CreateCluster(ctx, clustercCreateOptions)).ToNot(Succeed())
 	})
 })
 
@@ -84,19 +87,19 @@ var _ = Describe("newClusterInput", func() {
 		Expect(clusterInput.Name).To(Equal(aws.String(config.Spec.DisplayName)))
 		Expect(clusterInput.RoleArn).To(Equal(aws.String(roleARN)))
 		Expect(clusterInput.ResourcesVpcConfig).ToNot(BeNil())
-		Expect(clusterInput.ResourcesVpcConfig.SecurityGroupIds).To(Equal(aws.StringSlice(config.Status.SecurityGroups)))
-		Expect(clusterInput.ResourcesVpcConfig.SubnetIds).To(Equal(aws.StringSlice(config.Status.Subnets)))
+		Expect(clusterInput.ResourcesVpcConfig.SecurityGroupIds).To(Equal(config.Status.SecurityGroups))
+		Expect(clusterInput.ResourcesVpcConfig.SubnetIds).To(Equal(config.Status.Subnets))
 		Expect(clusterInput.ResourcesVpcConfig.EndpointPrivateAccess).To(Equal(config.Spec.PrivateAccess))
 		Expect(clusterInput.ResourcesVpcConfig.EndpointPublicAccess).To(Equal(config.Spec.PublicAccess))
-		Expect(clusterInput.ResourcesVpcConfig.PublicAccessCidrs).To(Equal(aws.StringSlice(config.Spec.PublicAccessSources)))
-		Expect(clusterInput.Tags).To(Equal(aws.StringMap(config.Spec.Tags)))
+		Expect(clusterInput.ResourcesVpcConfig.PublicAccessCidrs).To(Equal(config.Spec.PublicAccessSources))
+		Expect(clusterInput.Tags).To(Equal(config.Spec.Tags))
 		Expect(clusterInput.Logging.ClusterLogging).To(HaveLen(1))
 		Expect(clusterInput.Logging.ClusterLogging[0].Enabled).To(Equal(aws.Bool(true)))
-		Expect(clusterInput.Logging.ClusterLogging[0].Types).To(Equal(aws.StringSlice(config.Spec.LoggingTypes)))
+		Expect(clusterInput.Logging.ClusterLogging[0].Types).To(Equal(utils.ConvertToLogTypes(config.Spec.LoggingTypes)))
 		Expect(clusterInput.Version).To(Equal(config.Spec.KubernetesVersion))
 		Expect(clusterInput.EncryptionConfig).To(HaveLen(1))
 		Expect(clusterInput.EncryptionConfig[0].Provider.KeyArn).To(Equal(config.Spec.KmsKey))
-		Expect(clusterInput.EncryptionConfig[0].Resources).To(Equal(aws.StringSlice([]string{"secrets"})))
+		Expect(clusterInput.EncryptionConfig[0].Resources).To(Equal([]string{"secrets"}))
 	})
 
 	It("should successfully create a cluster input with no public access cidrs set", func() {
@@ -105,7 +108,7 @@ var _ = Describe("newClusterInput", func() {
 		Expect(clusterInput).ToNot(BeNil())
 
 		Expect(clusterInput.ResourcesVpcConfig.PublicAccessCidrs).ToNot(BeNil())
-		Expect(clusterInput.ResourcesVpcConfig.PublicAccessCidrs).To(Equal(aws.StringSlice([]string{"0.0.0.0/0"})))
+		Expect(clusterInput.ResourcesVpcConfig.PublicAccessCidrs).To(Equal([]string{"0.0.0.0/0"}))
 	})
 
 	It("should successfully create a cluster with no tags set", func() {
@@ -123,7 +126,7 @@ var _ = Describe("newClusterInput", func() {
 
 		Expect(clusterInput.Logging.ClusterLogging).To(HaveLen(1))
 		Expect(clusterInput.Logging.ClusterLogging[0].Enabled).To(Equal(aws.Bool(false)))
-		Expect(clusterInput.Logging.ClusterLogging[0].Types).To(Equal(aws.StringSlice(config.Spec.LoggingTypes)))
+		Expect(clusterInput.Logging.ClusterLogging[0].Types).To(Equal(utils.ConvertToLogTypes(config.Spec.LoggingTypes)))
 	})
 
 	It("should successfully create a cluster with no secrets encryption set", func() {
@@ -150,8 +153,8 @@ var _ = Describe("CreateStack", func() {
 			StackName:             "test",
 			DisplayName:           "test",
 			TemplateBody:          "test-body",
-			Capabilities:          []string{"test"},
-			Parameters:            []*cloudformation.Parameter{{ParameterKey: aws.String("test"), ParameterValue: aws.String("test")}},
+			Capabilities:          []cftypes.Capability{"test"},
+			Parameters:            []cftypes.Parameter{{ParameterKey: aws.String("test"), ParameterValue: aws.String("test")}},
 		}
 	})
 
@@ -160,12 +163,12 @@ var _ = Describe("CreateStack", func() {
 	})
 
 	It("should successfully create a stack", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(&cloudformation.CreateStackInput{
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, &cloudformation.CreateStackInput{
 			StackName:    &stackCreationOptions.StackName,
 			TemplateBody: &stackCreationOptions.TemplateBody,
-			Capabilities: aws.StringSlice(stackCreationOptions.Capabilities),
+			Capabilities: stackCreationOptions.Capabilities,
 			Parameters:   stackCreationOptions.Parameters,
-			Tags: []*cloudformation.Tag{
+			Tags: []cftypes.Tag{
 				{
 					Key:   aws.String("displayName"),
 					Value: aws.String(stackCreationOptions.DisplayName),
@@ -173,124 +176,117 @@ var _ = Describe("CreateStack", func() {
 			},
 		}).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx,
 			&cloudformation.DescribeStacksInput{
 				StackName: &stackCreationOptions.StackName,
 			},
 		).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
+						StackStatus: createCompleteStatus,
 					},
 				},
 			}, nil)
 
-		describeStacksOutput, err := CreateStack(stackCreationOptions)
+		describeStacksOutput, err := CreateStack(ctx, stackCreationOptions)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(describeStacksOutput).ToNot(BeNil())
 	})
 
 	It("should fail to create a stack if CreateStack returns error", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, errors.New("error"))
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, errors.New("error"))
 
-		_, err := CreateStack(stackCreationOptions)
+		_, err := CreateStack(ctx, stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to create a stack if DescribeStacks returns no stacks", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx,
 			&cloudformation.DescribeStacksInput{
 				StackName: &stackCreationOptions.StackName,
 			},
 		).Return(&cloudformation.DescribeStacksOutput{}, nil)
 
-		_, err := CreateStack(stackCreationOptions)
+		_, err := CreateStack(ctx, stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to create a stack if stack already exists", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, awserr.New(cloudformation.ErrCodeAlreadyExistsException, "", nil))
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
-			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
-					{
-						StackStatus: aws.String(createCompleteStatus),
-					},
-				},
-			}, nil)
+		testerr := fmt.Errorf("stack already exists: %v", cftypes.HandlerErrorCodeAlreadyExists)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, testerr)
 
-		_, err := CreateStack(stackCreationOptions)
-		Expect(err).ToNot(HaveOccurred())
+		_, err := CreateStack(ctx, stackCreationOptions)
+		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to create a stack if DescribeStack return errors", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(nil, errors.New("error"))
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(nil, errors.New("error"))
 
-		_, err := CreateStack(stackCreationOptions)
+		_, err := CreateStack(ctx, stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to create a stack if stack status is CREATE_FAILED", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createFailedStatus),
+						StackStatus: createFailedStatus,
 					},
 				},
 			}, nil)
-		cloudFormationServiceMock.EXPECT().DescribeStackEvents(
+		cloudFormationServiceMock.EXPECT().DescribeStackEvents(ctx,
 			&cloudformation.DescribeStackEventsInput{
 				StackName: &stackCreationOptions.StackName,
 			},
 		).Return(
 			&cloudformation.DescribeStackEventsOutput{
-				StackEvents: []*cloudformation.StackEvent{
+				StackEvents: []cftypes.StackEvent{
 					{
-						ResourceStatus:       aws.String(createFailedStatus),
+						ResourceStatus:       createFailedStatus,
 						ResourceStatusReason: aws.String(createFailedStatus),
 						LogicalResourceId:    aws.String("test"),
 					},
 				},
 			}, nil)
 
-		_, err := CreateStack(stackCreationOptions)
+		_, err := CreateStack(ctx, stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(createFailedStatus))
 	})
 
 	It("should fail to create a stack if stack status is ROLLBACK_IN_PROGRESS", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(rollbackInProgressStatus),
+						StackStatus: rollbackInProgressStatus,
 					},
 				},
 			}, nil)
-		cloudFormationServiceMock.EXPECT().DescribeStackEvents(
+		cloudFormationServiceMock.EXPECT().DescribeStackEvents(ctx,
 			&cloudformation.DescribeStackEventsInput{
 				StackName: &stackCreationOptions.StackName,
 			},
 		).Return(
 			&cloudformation.DescribeStackEventsOutput{
-				StackEvents: []*cloudformation.StackEvent{
+				StackEvents: []cftypes.StackEvent{
 					{
-						ResourceStatus:       aws.String(rollbackInProgressStatus),
+						ResourceStatus:       rollbackInProgressStatus,
 						ResourceStatusReason: aws.String(rollbackInProgressStatus),
 						LogicalResourceId:    aws.String("test"),
 					},
 				},
 			}, nil)
 
-		_, err := CreateStack(stackCreationOptions)
+		_, err := CreateStack(ctx, stackCreationOptions)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(rollbackInProgressStatus))
 	})
@@ -314,20 +310,20 @@ var _ = Describe("createLaunchTemplate", func() {
 
 	It("should create a launch template", func() {
 		expectedOutput := &ec2.CreateLaunchTemplateOutput{
-			LaunchTemplate: &ec2.LaunchTemplate{
+			LaunchTemplate: &ec2types.LaunchTemplate{
 				LaunchTemplateName:   aws.String("testName"),
 				LaunchTemplateId:     aws.String("testID"),
 				DefaultVersionNumber: aws.Int64(1),
 			},
 		}
-		ec2ServiceMock.EXPECT().CreateLaunchTemplate(
+		ec2ServiceMock.EXPECT().CreateLaunchTemplate(ctx,
 			&ec2.CreateLaunchTemplateInput{
-				LaunchTemplateData: &ec2.RequestLaunchTemplateData{UserData: aws.String("cGxhY2Vob2xkZXIK")},
+				LaunchTemplateData: &ec2types.RequestLaunchTemplateData{UserData: aws.String("cGxhY2Vob2xkZXIK")},
 				LaunchTemplateName: aws.String(fmt.Sprintf(LaunchTemplateNameFormat, clusterDisplayName)),
-				TagSpecifications: []*ec2.TagSpecification{
+				TagSpecifications: []ec2types.TagSpecification{
 					{
-						ResourceType: aws.String(ec2.ResourceTypeLaunchTemplate),
-						Tags: []*ec2.Tag{
+						ResourceType: ec2types.ResourceTypeLaunchTemplate,
+						Tags: []ec2types.Tag{
 							{
 								Key:   aws.String(launchTemplateTagKey),
 								Value: aws.String(launchTemplateTagValue),
@@ -337,7 +333,7 @@ var _ = Describe("createLaunchTemplate", func() {
 				},
 			},
 		).Return(expectedOutput, nil)
-		launchTemplate, err := createLaunchTemplate(ec2ServiceMock, clusterDisplayName)
+		launchTemplate, err := createLaunchTemplate(ctx, ec2ServiceMock, clusterDisplayName)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(launchTemplate).ToNot(BeNil())
 
@@ -347,8 +343,8 @@ var _ = Describe("createLaunchTemplate", func() {
 	})
 
 	It("should fail to create a launch template", func() {
-		ec2ServiceMock.EXPECT().CreateLaunchTemplate(gomock.Any()).Return(nil, errors.New("error"))
-		_, err := createLaunchTemplate(ec2ServiceMock, clusterDisplayName)
+		ec2ServiceMock.EXPECT().CreateLaunchTemplate(ctx, gomock.Any()).Return(nil, errors.New("error"))
+		_, err := createLaunchTemplate(ctx, ec2ServiceMock, clusterDisplayName)
 		Expect(err).To(HaveOccurred())
 	})
 })
@@ -382,65 +378,65 @@ var _ = Describe("CreateLaunchTemplate", func() {
 
 	It("should create a launch template if managed launch template ID is not set", func() {
 		createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID = ""
-		ec2ServiceMock.EXPECT().CreateLaunchTemplate(gomock.Any()).Return(&ec2.CreateLaunchTemplateOutput{
-			LaunchTemplate: &ec2.LaunchTemplate{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplate(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateOutput{
+			LaunchTemplate: &ec2types.LaunchTemplate{
 				LaunchTemplateName:   aws.String("testName"),
 				LaunchTemplateId:     aws.String("testID"),
 				DefaultVersionNumber: aws.Int64(1),
 			},
 		}, nil)
 
-		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(
+		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(ctx,
 			&ec2.DescribeLaunchTemplatesInput{
-				LaunchTemplateIds: []*string{aws.String(createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID)},
+				LaunchTemplateIds: []string{createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID},
 			},
 		).Return(nil, nil)
 
-		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).To(Succeed())
+		Expect(CreateLaunchTemplate(ctx, createLaunchTemplateOpts)).To(Succeed())
 		Expect(createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID).To(Equal("testID"))
 	})
 
 	It("should create a launch template if managed launch template doesn't exist", func() {
-		ec2ServiceMock.EXPECT().CreateLaunchTemplate(gomock.Any()).Return(&ec2.CreateLaunchTemplateOutput{
-			LaunchTemplate: &ec2.LaunchTemplate{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplate(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateOutput{
+			LaunchTemplate: &ec2types.LaunchTemplate{
 				LaunchTemplateName:   aws.String("testName"),
 				LaunchTemplateId:     aws.String("testID"),
 				DefaultVersionNumber: aws.Int64(1),
 			},
 		}, nil)
 
-		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(
+		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(ctx,
 			&ec2.DescribeLaunchTemplatesInput{
-				LaunchTemplateIds: []*string{aws.String(createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID)},
+				LaunchTemplateIds: []string{createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID},
 			},
 		).Return(nil, errors.New("does not exist"))
 
-		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).To(Succeed())
+		Expect(CreateLaunchTemplate(ctx, createLaunchTemplateOpts)).To(Succeed())
 		Expect(createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID).To(Equal("testID"))
 	})
 
 	It("should not create a launch template if managed launch template exists", func() {
-		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(
+		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(ctx,
 			&ec2.DescribeLaunchTemplatesInput{
-				LaunchTemplateIds: []*string{aws.String(createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID)},
+				LaunchTemplateIds: []string{createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID},
 			},
 		).Return(nil, nil)
 
-		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).To(Succeed())
+		Expect(CreateLaunchTemplate(ctx, createLaunchTemplateOpts)).To(Succeed())
 	})
 
 	It("should fail to create a launch template if DescribeLaunchTemplates returns error", func() {
-		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(gomock.Any()).Return(nil, errors.New("error"))
-		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).ToNot(Succeed())
+		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(ctx, gomock.Any()).Return(nil, errors.New("error"))
+		Expect(CreateLaunchTemplate(ctx, createLaunchTemplateOpts)).ToNot(Succeed())
 	})
 
 	It("should fail to create a launch template if CreateLaunchTemplate return error", func() {
 		createLaunchTemplateOpts.Config.Status.ManagedLaunchTemplateID = ""
-		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(gomock.Any()).Return(nil, nil)
+		ec2ServiceMock.EXPECT().DescribeLaunchTemplates(ctx, gomock.Any()).Return(nil, nil)
 
-		ec2ServiceMock.EXPECT().CreateLaunchTemplate(gomock.Any()).Return(nil, errors.New("error"))
+		ec2ServiceMock.EXPECT().CreateLaunchTemplate(ctx, gomock.Any()).Return(nil, errors.New("error"))
 
-		Expect(CreateLaunchTemplate(createLaunchTemplateOpts)).ToNot(Succeed())
+		Expect(CreateLaunchTemplate(ctx, createLaunchTemplateOpts)).ToNot(Succeed())
 	})
 })
 
@@ -462,13 +458,13 @@ var _ = Describe("getImageRootDeviceName", func() {
 
 	It("should get the root device name", func() {
 		exptectedRootDeviceName := "test-root-device-name"
-		ec2ServiceMock.EXPECT().DescribeImages(
+		ec2ServiceMock.EXPECT().DescribeImages(ctx,
 			&ec2.DescribeImagesInput{
-				ImageIds: []*string{&imageID},
+				ImageIds: []string{imageID},
 			},
 		).Return(
 			&ec2.DescribeImagesOutput{
-				Images: []*ec2.Image{
+				Images: []ec2types.Image{
 					{
 						RootDeviceName: &exptectedRootDeviceName,
 					},
@@ -476,20 +472,20 @@ var _ = Describe("getImageRootDeviceName", func() {
 			},
 			nil)
 
-		rootDeviceName, err := getImageRootDeviceName(ec2ServiceMock, &imageID)
+		rootDeviceName, err := getImageRootDeviceName(ctx, ec2ServiceMock, &imageID)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(rootDeviceName).To(Equal(&exptectedRootDeviceName))
 	})
 
 	It("should fail to get the root device name if image is nil", func() {
-		_, err := getImageRootDeviceName(ec2ServiceMock, nil)
+		_, err := getImageRootDeviceName(ctx, ec2ServiceMock, nil)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to get the root device name if error is return by ec2", func() {
-		ec2ServiceMock.EXPECT().DescribeImages(gomock.Any()).Return(nil, errors.New("error"))
-		_, err := getImageRootDeviceName(ec2ServiceMock, &imageID)
+		ec2ServiceMock.EXPECT().DescribeImages(ctx, gomock.Any()).Return(nil, errors.New("error"))
+		_, err := getImageRootDeviceName(ctx, ec2ServiceMock, &imageID)
 		Expect(err).To(HaveOccurred())
 	})
 })
@@ -507,9 +503,9 @@ var _ = Describe("buildLaunchTemplateData", func() {
 		group = &eksv1.NodeGroup{
 			ImageID:      aws.String("test-ami"),
 			UserData:     aws.String("Content-Type: multipart/mixed ..."),
-			DiskSize:     aws.Int64(20),
-			ResourceTags: aws.StringMap(map[string]string{"test": "test"}),
-			InstanceType: aws.String("test-instance-type"),
+			DiskSize:     aws.Int32(20),
+			ResourceTags: map[string]string{"test": "test"},
+			InstanceType: "test-instance-type",
 			Ec2SshKey:    aws.String("test-ssh-key"),
 		}
 	})
@@ -520,13 +516,13 @@ var _ = Describe("buildLaunchTemplateData", func() {
 
 	It("should build a launch template data", func() {
 		exptectedRootDeviceName := "test-root-device-name"
-		ec2ServiceMock.EXPECT().DescribeImages(
+		ec2ServiceMock.EXPECT().DescribeImages(ctx,
 			&ec2.DescribeImagesInput{
-				ImageIds: []*string{group.ImageID},
+				ImageIds: []string{aws.ToString(group.ImageID)},
 			},
 		).Return(
 			&ec2.DescribeImagesOutput{
-				Images: []*ec2.Image{
+				Images: []ec2types.Image{
 					{
 						RootDeviceName: &exptectedRootDeviceName,
 					},
@@ -534,7 +530,7 @@ var _ = Describe("buildLaunchTemplateData", func() {
 			},
 			nil)
 
-		launchTemplateData, err := buildLaunchTemplateData(ec2ServiceMock, *group)
+		launchTemplateData, err := buildLaunchTemplateData(ctx, ec2ServiceMock, *group)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateData).ToNot(BeNil())
@@ -545,18 +541,18 @@ var _ = Describe("buildLaunchTemplateData", func() {
 		Expect(launchTemplateData.BlockDeviceMappings[0].DeviceName).To(Equal(&exptectedRootDeviceName))
 		Expect(launchTemplateData.BlockDeviceMappings[0].Ebs.VolumeSize).To(Equal(group.DiskSize))
 		Expect(launchTemplateData.TagSpecifications).To(Equal(utils.CreateTagSpecs(group.ResourceTags)))
-		Expect(launchTemplateData.InstanceType).To(Equal(group.InstanceType))
+		Expect(string(launchTemplateData.InstanceType)).To(Equal(group.InstanceType))
 	})
 
 	It("should fail to build a launch template data if userdata is invalid", func() {
 		group.UserData = aws.String("invalid-user-data")
-		_, err := buildLaunchTemplateData(ec2ServiceMock, *group)
+		_, err := buildLaunchTemplateData(ctx, ec2ServiceMock, *group)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("should fail to build a launch template data if error is return by ec2", func() {
-		ec2ServiceMock.EXPECT().DescribeImages(gomock.Any()).Return(nil, errors.New("error"))
-		_, err := buildLaunchTemplateData(ec2ServiceMock, *group)
+		ec2ServiceMock.EXPECT().DescribeImages(ctx, gomock.Any()).Return(nil, errors.New("error"))
+		_, err := buildLaunchTemplateData(ctx, ec2ServiceMock, *group)
 		Expect(err).To(HaveOccurred())
 	})
 })
@@ -573,9 +569,9 @@ var _ = Describe("createNewLaunchTemplateVersion", func() {
 		mockController = gomock.NewController(GinkgoT())
 		ec2ServiceMock = mock_services.NewMockEC2ServiceInterface(mockController)
 		group = &eksv1.NodeGroup{
-			DiskSize:     aws.Int64(20),
-			ResourceTags: aws.StringMap(map[string]string{"test": "test"}),
-			InstanceType: aws.String("test-instance-type"),
+			DiskSize:     aws.Int32(20),
+			ResourceTags: map[string]string{"test": "test"},
+			InstanceType: "test-instance-type",
 			Ec2SshKey:    aws.String("test-ssh-key"),
 		}
 	})
@@ -585,23 +581,23 @@ var _ = Describe("createNewLaunchTemplateVersion", func() {
 	})
 
 	It("should create a new launch template", func() {
-		input, err := buildLaunchTemplateData(ec2ServiceMock, *group)
+		input, err := buildLaunchTemplateData(ctx, ec2ServiceMock, *group)
 		Expect(err).ToNot(HaveOccurred())
 
 		output := &ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}
 
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(&ec2.CreateLaunchTemplateVersionInput{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, &ec2.CreateLaunchTemplateVersionInput{
 			LaunchTemplateData: input,
 			LaunchTemplateId:   aws.String(templateID),
 		}).Return(output, nil)
 
-		launchTemplate, err := CreateNewLaunchTemplateVersion(ec2ServiceMock, templateID, *group)
+		launchTemplate, err := CreateNewLaunchTemplateVersion(ctx, ec2ServiceMock, templateID, *group)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplate.Name).To(Equal(output.LaunchTemplateVersion.LaunchTemplateName))
@@ -610,8 +606,8 @@ var _ = Describe("createNewLaunchTemplateVersion", func() {
 	})
 
 	It("should fail to create a new launch template if error is returned by ec2", func() {
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(nil, errors.New("error"))
-		_, err := CreateNewLaunchTemplateVersion(ec2ServiceMock, templateID, *group)
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(nil, errors.New("error"))
+		_, err := CreateNewLaunchTemplateVersion(ctx, ec2ServiceMock, templateID, *group)
 		Expect(err).To(HaveOccurred())
 	})
 })
@@ -647,13 +643,13 @@ var _ = Describe("CreateNodeGroup", func() {
 				RequestSpotInstances: aws.Bool(true),
 				NodegroupName:        aws.String("test"),
 				Labels:               aws.StringMap(map[string]string{"test": "test"}),
-				DesiredSize:          aws.Int64(1),
-				MaxSize:              aws.Int64(1),
-				MinSize:              aws.Int64(1),
+				DesiredSize:          aws.Int32(1),
+				MaxSize:              aws.Int32(1),
+				MinSize:              aws.Int32(1),
 				Subnets:              []string{"test"},
 				ImageID:              aws.String("test"),
 				Ec2SshKey:            aws.String("test"),
-				SpotInstanceTypes:    aws.StringSlice([]string{"test"}),
+				SpotInstanceTypes:    []string{"test"},
 			},
 		}
 	})
@@ -663,14 +659,14 @@ var _ = Describe("CreateNodeGroup", func() {
 	})
 
 	It("should create a node group", func() {
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(&ec2.CreateLaunchTemplateVersionInput{
-			LaunchTemplateData: &ec2.RequestLaunchTemplateData{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, &ec2.CreateLaunchTemplateVersionInput{
+			LaunchTemplateData: &ec2types.RequestLaunchTemplateData{
 				ImageId: createNodeGroupOpts.NodeGroup.ImageID,
 				KeyName: createNodeGroupOpts.NodeGroup.Ec2SshKey,
-				BlockDeviceMappings: []*ec2.LaunchTemplateBlockDeviceMappingRequest{
+				BlockDeviceMappings: []ec2types.LaunchTemplateBlockDeviceMappingRequest{
 					{
 						DeviceName: aws.String("test"),
-						Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
+						Ebs: &ec2types.LaunchTemplateEbsBlockDeviceRequest{
 							VolumeSize: createNodeGroupOpts.NodeGroup.DiskSize,
 						},
 					},
@@ -679,29 +675,29 @@ var _ = Describe("CreateNodeGroup", func() {
 			},
 			LaunchTemplateId: aws.String(createNodeGroupOpts.Config.Status.ManagedLaunchTemplateID),
 		}).Return(&ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}, nil)
 
-		ec2ServiceMock.EXPECT().DescribeImages(&ec2.DescribeImagesInput{ImageIds: []*string{createNodeGroupOpts.NodeGroup.ImageID}}).Return(&ec2.DescribeImagesOutput{
-			Images: []*ec2.Image{
+		ec2ServiceMock.EXPECT().DescribeImages(ctx, &ec2.DescribeImagesInput{ImageIds: []string{aws.ToString(createNodeGroupOpts.NodeGroup.ImageID)}}).Return(&ec2.DescribeImagesOutput{
+			Images: []ec2types.Image{
 				{
 					RootDeviceName: aws.String("test"),
 				},
 			},
 		}, nil)
 
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("NodeInstanceRole"),
 								OutputValue: aws.String("test"),
@@ -711,26 +707,26 @@ var _ = Describe("CreateNodeGroup", func() {
 				},
 			}, nil)
 
-		eksServiceMock.EXPECT().CreateNodegroup(&eks.CreateNodegroupInput{
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 			ClusterName:   aws.String(createNodeGroupOpts.Config.Spec.DisplayName),
 			NodegroupName: createNodeGroupOpts.NodeGroup.NodegroupName,
-			Labels:        createNodeGroupOpts.NodeGroup.Labels,
-			ScalingConfig: &eks.NodegroupScalingConfig{
+			Labels:        aws.ToStringMap(createNodeGroupOpts.NodeGroup.Labels),
+			ScalingConfig: &ekstypes.NodegroupScalingConfig{
 				DesiredSize: createNodeGroupOpts.NodeGroup.DesiredSize,
 				MaxSize:     createNodeGroupOpts.NodeGroup.MaxSize,
 				MinSize:     createNodeGroupOpts.NodeGroup.MinSize,
 			},
-			CapacityType: aws.String(eks.CapacityTypesSpot),
-			LaunchTemplate: &eks.LaunchTemplateSpecification{
+			CapacityType: ekstypes.CapacityTypesSpot,
+			LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
 				Id:      aws.String("test"),
 				Version: aws.String("1"),
 			},
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
-			Subnets:       aws.StringSlice(createNodeGroupOpts.NodeGroup.Subnets),
+			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
 			NodeRole:      aws.String("test"),
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -744,14 +740,14 @@ var _ = Describe("CreateNodeGroup", func() {
 			Name:    aws.String("test"),
 		}
 
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("NodeInstanceRole"),
 								OutputValue: aws.String("test"),
@@ -761,9 +757,9 @@ var _ = Describe("CreateNodeGroup", func() {
 				},
 			}, nil)
 
-		eksServiceMock.EXPECT().CreateNodegroup(gomock.Any()).Return(nil, nil)
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, gomock.Any()).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -772,25 +768,25 @@ var _ = Describe("CreateNodeGroup", func() {
 
 	It("shouldn't create node role if it exists", func() {
 		createNodeGroupOpts.Config.Status.GeneratedNodeRole = "test"
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}, nil)
 
-		ec2ServiceMock.EXPECT().DescribeImages(gomock.Any()).Return(&ec2.DescribeImagesOutput{
-			Images: []*ec2.Image{
+		ec2ServiceMock.EXPECT().DescribeImages(ctx, gomock.Any()).Return(&ec2.DescribeImagesOutput{
+			Images: []ec2types.Image{
 				{
 					RootDeviceName: aws.String("test"),
 				},
 			},
 		}, nil)
 
-		eksServiceMock.EXPECT().CreateNodegroup(gomock.Any()).Return(nil, nil)
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, gomock.Any()).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -798,27 +794,27 @@ var _ = Describe("CreateNodeGroup", func() {
 	})
 
 	It("delete launch template versions if creating node group fails", func() {
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}, nil)
-		ec2ServiceMock.EXPECT().DescribeImages(gomock.Any()).Return(&ec2.DescribeImagesOutput{
-			Images: []*ec2.Image{
+		ec2ServiceMock.EXPECT().DescribeImages(ctx, gomock.Any()).Return(&ec2.DescribeImagesOutput{
+			Images: []ec2types.Image{
 				{
 					RootDeviceName: aws.String("test"),
 				},
 			},
 		}, nil)
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("NodeInstanceRole"),
 								OutputValue: aws.String("test"),
@@ -827,10 +823,10 @@ var _ = Describe("CreateNodeGroup", func() {
 					},
 				},
 			}, nil)
-		eksServiceMock.EXPECT().CreateNodegroup(gomock.Any()).Return(nil, errors.New("error"))
-		ec2ServiceMock.EXPECT().DeleteLaunchTemplateVersions(gomock.Any()).Return(nil, nil)
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, gomock.Any()).Return(nil, errors.New("error"))
+		ec2ServiceMock.EXPECT().DeleteLaunchTemplateVersions(ctx, gomock.Any()).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).To(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -838,47 +834,47 @@ var _ = Describe("CreateNodeGroup", func() {
 	})
 
 	It("should fail to create node group if creating launch template return error", func() {
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(nil, errors.New("error"))
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(nil, errors.New("error"))
 
-		ec2ServiceMock.EXPECT().DescribeImages(gomock.Any()).Return(&ec2.DescribeImagesOutput{
-			Images: []*ec2.Image{
+		ec2ServiceMock.EXPECT().DescribeImages(ctx, gomock.Any()).Return(&ec2.DescribeImagesOutput{
+			Images: []ec2types.Image{
 				{
 					RootDeviceName: aws.String("test"),
 				},
 			},
 		}, nil)
 
-		_, _, err := CreateNodeGroup(createNodeGroupOpts)
+		_, _, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("get subnets from status if not set", func() {
 		createNodeGroupOpts.NodeGroup.Subnets = nil
 		createNodeGroupOpts.Config.Status.Subnets = []string{"from", "status"}
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}, nil)
 
-		ec2ServiceMock.EXPECT().DescribeImages(gomock.Any()).Return(&ec2.DescribeImagesOutput{
-			Images: []*ec2.Image{
+		ec2ServiceMock.EXPECT().DescribeImages(ctx, gomock.Any()).Return(&ec2.DescribeImagesOutput{
+			Images: []ec2types.Image{
 				{
 					RootDeviceName: aws.String("test"),
 				},
 			},
 		}, nil)
 
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("NodeInstanceRole"),
 								OutputValue: aws.String("test"),
@@ -888,26 +884,26 @@ var _ = Describe("CreateNodeGroup", func() {
 				},
 			}, nil)
 
-		eksServiceMock.EXPECT().CreateNodegroup(&eks.CreateNodegroupInput{
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 			ClusterName:   aws.String(createNodeGroupOpts.Config.Spec.DisplayName),
 			NodegroupName: createNodeGroupOpts.NodeGroup.NodegroupName,
-			Labels:        createNodeGroupOpts.NodeGroup.Labels,
-			ScalingConfig: &eks.NodegroupScalingConfig{
+			Labels:        aws.ToStringMap(createNodeGroupOpts.NodeGroup.Labels),
+			ScalingConfig: &ekstypes.NodegroupScalingConfig{
 				DesiredSize: createNodeGroupOpts.NodeGroup.DesiredSize,
 				MaxSize:     createNodeGroupOpts.NodeGroup.MaxSize,
 				MinSize:     createNodeGroupOpts.NodeGroup.MinSize,
 			},
-			CapacityType: aws.String(eks.CapacityTypesSpot),
-			LaunchTemplate: &eks.LaunchTemplateSpecification{
+			CapacityType: ekstypes.CapacityTypesSpot,
+			LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
 				Id:      aws.String("test"),
 				Version: aws.String("1"),
 			},
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
-			Subnets:       aws.StringSlice(createNodeGroupOpts.Config.Status.Subnets),
+			Subnets:       createNodeGroupOpts.Config.Status.Subnets,
 			NodeRole:      aws.String("test"),
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -918,22 +914,22 @@ var _ = Describe("CreateNodeGroup", func() {
 		createNodeGroupOpts.NodeGroup.Gpu = aws.Bool(true)
 		createNodeGroupOpts.NodeGroup.ImageID = nil
 
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}, nil)
 
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("NodeInstanceRole"),
 								OutputValue: aws.String("test"),
@@ -943,27 +939,27 @@ var _ = Describe("CreateNodeGroup", func() {
 				},
 			}, nil)
 
-		eksServiceMock.EXPECT().CreateNodegroup(&eks.CreateNodegroupInput{
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 			ClusterName:   aws.String(createNodeGroupOpts.Config.Spec.DisplayName),
 			NodegroupName: createNodeGroupOpts.NodeGroup.NodegroupName,
-			Labels:        createNodeGroupOpts.NodeGroup.Labels,
-			ScalingConfig: &eks.NodegroupScalingConfig{
+			Labels:        aws.ToStringMap(createNodeGroupOpts.NodeGroup.Labels),
+			ScalingConfig: &ekstypes.NodegroupScalingConfig{
 				DesiredSize: createNodeGroupOpts.NodeGroup.DesiredSize,
 				MaxSize:     createNodeGroupOpts.NodeGroup.MaxSize,
 				MinSize:     createNodeGroupOpts.NodeGroup.MinSize,
 			},
-			CapacityType: aws.String(eks.CapacityTypesSpot),
-			LaunchTemplate: &eks.LaunchTemplateSpecification{
+			CapacityType: ekstypes.CapacityTypesSpot,
+			LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
 				Id:      aws.String("test"),
 				Version: aws.String("1"),
 			},
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
-			Subnets:       aws.StringSlice(createNodeGroupOpts.NodeGroup.Subnets),
+			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
 			NodeRole:      aws.String("test"),
-			AmiType:       aws.String(eks.AMITypesAl2X8664Gpu),
+			AmiType:       ekstypes.AMITypesAl2X8664Gpu,
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -974,22 +970,22 @@ var _ = Describe("CreateNodeGroup", func() {
 		createNodeGroupOpts.NodeGroup.Arm = aws.Bool(true)
 		createNodeGroupOpts.NodeGroup.ImageID = nil
 
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}, nil)
 
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("NodeInstanceRole"),
 								OutputValue: aws.String("test"),
@@ -999,27 +995,27 @@ var _ = Describe("CreateNodeGroup", func() {
 				},
 			}, nil)
 
-		eksServiceMock.EXPECT().CreateNodegroup(&eks.CreateNodegroupInput{
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 			ClusterName:   aws.String(createNodeGroupOpts.Config.Spec.DisplayName),
 			NodegroupName: createNodeGroupOpts.NodeGroup.NodegroupName,
-			Labels:        createNodeGroupOpts.NodeGroup.Labels,
-			ScalingConfig: &eks.NodegroupScalingConfig{
+			Labels:        aws.ToStringMap(createNodeGroupOpts.NodeGroup.Labels),
+			ScalingConfig: &ekstypes.NodegroupScalingConfig{
 				DesiredSize: createNodeGroupOpts.NodeGroup.DesiredSize,
 				MaxSize:     createNodeGroupOpts.NodeGroup.MaxSize,
 				MinSize:     createNodeGroupOpts.NodeGroup.MinSize,
 			},
-			CapacityType: aws.String(eks.CapacityTypesSpot),
-			LaunchTemplate: &eks.LaunchTemplateSpecification{
+			CapacityType: ekstypes.CapacityTypesSpot,
+			LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
 				Id:      aws.String("test"),
 				Version: aws.String("1"),
 			},
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
-			Subnets:       aws.StringSlice(createNodeGroupOpts.NodeGroup.Subnets),
+			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
 			NodeRole:      aws.String("test"),
-			AmiType:       aws.String(eks.AMITypesAl2Arm64),
+			AmiType:       ekstypes.AMITypesAl2Arm64,
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -1028,22 +1024,22 @@ var _ = Describe("CreateNodeGroup", func() {
 
 	It("set ami type if image id not set", func() {
 		createNodeGroupOpts.NodeGroup.ImageID = nil
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}, nil)
 
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("NodeInstanceRole"),
 								OutputValue: aws.String("test"),
@@ -1053,61 +1049,61 @@ var _ = Describe("CreateNodeGroup", func() {
 				},
 			}, nil)
 
-		eksServiceMock.EXPECT().CreateNodegroup(&eks.CreateNodegroupInput{
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 			ClusterName:   aws.String(createNodeGroupOpts.Config.Spec.DisplayName),
 			NodegroupName: createNodeGroupOpts.NodeGroup.NodegroupName,
-			Labels:        createNodeGroupOpts.NodeGroup.Labels,
-			ScalingConfig: &eks.NodegroupScalingConfig{
+			Labels:        aws.ToStringMap(createNodeGroupOpts.NodeGroup.Labels),
+			ScalingConfig: &ekstypes.NodegroupScalingConfig{
 				DesiredSize: createNodeGroupOpts.NodeGroup.DesiredSize,
 				MaxSize:     createNodeGroupOpts.NodeGroup.MaxSize,
 				MinSize:     createNodeGroupOpts.NodeGroup.MinSize,
 			},
-			CapacityType: aws.String(eks.CapacityTypesSpot),
-			LaunchTemplate: &eks.LaunchTemplateSpecification{
+			CapacityType: ekstypes.CapacityTypesSpot,
+			LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
 				Id:      aws.String("test"),
 				Version: aws.String("1"),
 			},
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
-			Subnets:       aws.StringSlice(createNodeGroupOpts.NodeGroup.Subnets),
+			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
 			NodeRole:      aws.String("test"),
-			AmiType:       aws.String(eks.AMITypesAl2X8664),
+			AmiType:       ekstypes.AMITypesAl2X8664,
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
 		Expect(generatedNodeRole).To(Equal("test"))
 	})
 	It("set resource tags", func() {
-		createNodeGroupOpts.NodeGroup.ResourceTags = map[string]*string{
-			"tag1": aws.String("val1"),
+		createNodeGroupOpts.NodeGroup.ResourceTags = map[string]string{
+			"tag1": "val1",
 		}
 
-		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
-			LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
 				LaunchTemplateName: aws.String("test"),
 				LaunchTemplateId:   aws.String("test"),
 				VersionNumber:      aws.Int64(1),
 			},
 		}, nil)
 
-		ec2ServiceMock.EXPECT().DescribeImages(gomock.Any()).Return(&ec2.DescribeImagesOutput{
-			Images: []*ec2.Image{
+		ec2ServiceMock.EXPECT().DescribeImages(ctx, gomock.Any()).Return(&ec2.DescribeImagesOutput{
+			Images: []ec2types.Image{
 				{
 					RootDeviceName: aws.String("test"),
 				},
 			},
 		}, nil)
 
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("NodeInstanceRole"),
 								OutputValue: aws.String("test"),
@@ -1117,29 +1113,29 @@ var _ = Describe("CreateNodeGroup", func() {
 				},
 			}, nil)
 
-		eksServiceMock.EXPECT().CreateNodegroup(&eks.CreateNodegroupInput{
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 			ClusterName:   aws.String(createNodeGroupOpts.Config.Spec.DisplayName),
 			NodegroupName: createNodeGroupOpts.NodeGroup.NodegroupName,
-			Labels:        createNodeGroupOpts.NodeGroup.Labels,
-			ScalingConfig: &eks.NodegroupScalingConfig{
+			Labels:        aws.ToStringMap(createNodeGroupOpts.NodeGroup.Labels),
+			ScalingConfig: &ekstypes.NodegroupScalingConfig{
 				DesiredSize: createNodeGroupOpts.NodeGroup.DesiredSize,
 				MaxSize:     createNodeGroupOpts.NodeGroup.MaxSize,
 				MinSize:     createNodeGroupOpts.NodeGroup.MinSize,
 			},
-			CapacityType: aws.String(eks.CapacityTypesSpot),
-			LaunchTemplate: &eks.LaunchTemplateSpecification{
+			CapacityType: ekstypes.CapacityTypesSpot,
+			LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
 				Id:      aws.String("test"),
 				Version: aws.String("1"),
 			},
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
-			Subnets:       aws.StringSlice(createNodeGroupOpts.NodeGroup.Subnets),
+			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
 			NodeRole:      aws.String("test"),
-			Tags: map[string]*string{
-				"tag1": aws.String("val1"),
+			Tags: map[string]string{
+				"tag1": "val1",
 			},
 		}).Return(nil, nil)
 
-		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(createNodeGroupOpts)
+		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(launchTemplateVersion).To(Equal("1"))
@@ -1178,9 +1174,9 @@ var _ = Describe("installEBSCSIDriver", func() {
 			OpenIDConnectProviderArn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.regions.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455"),
 		}
 		eksClusterOutput = &eks.DescribeClusterOutput{
-			Cluster: &eks.Cluster{
-				Identity: &eks.Identity{
-					Oidc: &eks.OIDC{
+			Cluster: &ekstypes.Cluster{
+				Identity: &ekstypes.Identity{
+					Oidc: &ekstypes.OIDC{
 						Issuer: aws.String(fmt.Sprintf("https://oidc.eks.%v.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455", defaultAWSRegion)),
 					},
 				},
@@ -1193,51 +1189,51 @@ var _ = Describe("installEBSCSIDriver", func() {
 	})
 
 	It("should successfully create oidc provider", func() {
-		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+		oidcListProvidersOutput.OpenIDConnectProviderList = []iamtypes.OpenIDConnectProviderListEntry{
 			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/BBBAAACCCDDDEEEFFF11122233344455")},
 		}
-		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
-		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
-		iamServiceMock.EXPECT().CreateOIDCProvider(gomock.Any()).Return(oidcCreateProviderOutput, nil)
-		_, err := configureOIDCProvider(enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
+		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().CreateOIDCProvider(ctx, gomock.Any()).Return(oidcCreateProviderOutput, nil)
+		_, err := configureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).To(Succeed())
 	})
 
 	It("should successfully use existing oidc provider", func() {
-		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+		oidcListProvidersOutput.OpenIDConnectProviderList = []iamtypes.OpenIDConnectProviderListEntry{
 			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455")},
 		}
-		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
-		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
-		_, err := configureOIDCProvider(enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
+		_, err := configureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).To(Succeed())
 	})
 
 	It("should fail to list oidc providers", func() {
-		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(nil, fmt.Errorf("failed to list oidc providers"))
-		_, err := configureOIDCProvider(enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to list oidc providers"))
+		_, err := configureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).ToNot(Succeed())
 	})
 
 	It("should fail to create oidc provider", func() {
-		oidcListProvidersOutput.OpenIDConnectProviderList = []*iam.OpenIDConnectProviderListEntry{
+		oidcListProvidersOutput.OpenIDConnectProviderList = []iamtypes.OpenIDConnectProviderListEntry{
 			{Arn: aws.String("arn:aws:iam::account:oidc-provider/oidc.eks.region.amazonaws.com/id/BBBAAACCCDDDEEEFFF11122233344455")},
 		}
-		iamServiceMock.EXPECT().ListOIDCProviders(gomock.Any()).Return(oidcListProvidersOutput, nil)
-		eksServiceMock.EXPECT().DescribeCluster(gomock.Any()).Return(eksClusterOutput, nil)
-		iamServiceMock.EXPECT().CreateOIDCProvider(gomock.Any()).Return(nil, fmt.Errorf("failed to create oidc provider"))
-		_, err := configureOIDCProvider(enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
+		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
+		iamServiceMock.EXPECT().CreateOIDCProvider(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to create oidc provider"))
+		_, err := configureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).ToNot(Succeed())
 	})
 
 	It("should successfully create driver iam role", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
 			&cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
+				Stacks: []cftypes.Stack{
 					{
-						StackStatus: aws.String(createCompleteStatus),
-						Outputs: []*cloudformation.Output{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
 							{
 								OutputKey:   aws.String("EBSCSIDriverRole"),
 								OutputValue: aws.String("test"),
@@ -1246,33 +1242,33 @@ var _ = Describe("installEBSCSIDriver", func() {
 					},
 				},
 			}, nil)
-		_, err := createEBSCSIDriverRole(enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "")
+		_, err := createEBSCSIDriverRole(ctx, enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "")
 		Expect(err).To(Succeed())
 	})
 
 	It("should fail to create driver iam role", func() {
-		cloudFormationServiceMock.EXPECT().CreateStack(gomock.Any()).Return(nil, nil)
-		cloudFormationServiceMock.EXPECT().DescribeStacks(gomock.Any()).Return(nil, fmt.Errorf("failed to describe stack"))
-		_, err := createEBSCSIDriverRole(enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "")
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to describe stack"))
+		_, err := createEBSCSIDriverRole(ctx, enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "")
 		Expect(err).ToNot(Succeed())
 	})
 
 	It("should successfully install addon", func() {
 		eksCreateAddonOutput = &eks.CreateAddonOutput{
-			Addon: &eks.Addon{
+			Addon: &ekstypes.Addon{
 				AddonArn: aws.String("arn:aws::ebs-csi-driver"),
 			},
 		}
-		eksServiceMock.EXPECT().CreateAddon(gomock.Any()).Return(eksCreateAddonOutput, nil)
-		addonArn, err := installEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config, "roleArn", "latest")
+		eksServiceMock.EXPECT().CreateAddon(ctx, gomock.Any()).Return(eksCreateAddonOutput, nil)
+		addonArn, err := installEBSAddon(ctx, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config, "roleArn", "latest")
 		Expect(err).To(Succeed())
 		Expect(addonArn).To(Equal("arn:aws::ebs-csi-driver"))
 	})
 
 	It("should fail to install addon", func() {
 		eksCreateAddonOutput = &eks.CreateAddonOutput{}
-		eksServiceMock.EXPECT().CreateAddon(gomock.Any()).Return(nil, fmt.Errorf("failed to create addon"))
-		_, err := installEBSAddon(enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config, "roleArn", "latest")
+		eksServiceMock.EXPECT().CreateAddon(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to create addon"))
+		_, err := installEBSAddon(ctx, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config, "roleArn", "latest")
 		Expect(err).ToNot(Succeed())
 	})
 })
