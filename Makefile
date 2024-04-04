@@ -12,6 +12,9 @@ GIT_TAG?=$(shell git describe --abbrev=0 --tags 2>/dev/null || echo "v0.0.0" )
 endif
 TAG?=${GIT_TAG}-${GIT_COMMIT_SHORT}
 REPO?=docker.io/rancher/eks-operator
+IMAGE = $(REPO):$(TAG)
+TARGET_PLATFORMS := linux/amd64,linux/arm64
+MACHINE := rancher
 E2E_CONF_FILE ?= $(ROOT_DIR)/test/e2e/config/config.yaml
 CHART_VERSION?=$(subst v,,$(GIT_TAG))
 RAWCOMMITDATE=$(shell git log -n1 --format="%at")
@@ -80,6 +83,24 @@ generate-crd: $(MOCKGEN)
 generate:
 	$(MAKE) generate-go
 	$(MAKE) generate-crd
+
+buildx-machine:
+	@docker buildx ls | grep $(MACHINE) || \
+		docker buildx create --name=$(MACHINE) --platform=$(TARGET_PLATFORMS)
+
+.PHONY: image-build
+image-build: buildx-machine ## build (and load) the container image targeting the current platform.
+	docker buildx build -f package/Dockerfile \
+    --builder $(MACHINE) --build-arg VERSION=$(TAG) \
+    -t "$(IMAGE)" $(BUILD_ACTION) .
+	@echo "Built $(IMAGE)"
+
+.PHONY: image-push
+image-push: buildx-machine ## build the container image targeting all platforms defined by TARGET_PLATFORMS and push to a registry.
+	docker buildx build -f package/Dockerfile \
+    --builder $(MACHINE) --build-arg VERSION=$(TAG) \
+    --platform=$(TARGET_PLATFORMS) -t "$(IMAGE)" --push .
+	@echo "Pushed $(IMAGE)"
 
 ALL_VERIFY_CHECKS = generate
 
