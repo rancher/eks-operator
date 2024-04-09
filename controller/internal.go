@@ -17,15 +17,15 @@ import (
 func newAWSConfigV2(ctx context.Context, secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (aws.Config, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return cfg, fmt.Errorf("error loading default AWS config: %v", err)
+		return cfg, fmt.Errorf("error loading default AWS config: %w", err)
 	}
 
 	if region := spec.Region; region != "" {
 		cfg.Region = region
 	}
 
-	ns, id := utils.Parse(spec.AmazonCredentialSecret)
 	if amazonCredentialSecret := spec.AmazonCredentialSecret; amazonCredentialSecret != "" {
+		ns, id := utils.Parse(spec.AmazonCredentialSecret)
 		secret, err := secretsCache.Get(ns, id)
 		if err != nil {
 			return cfg, fmt.Errorf("error getting secret %s/%s: %w", ns, id, err)
@@ -73,7 +73,7 @@ func deleteStack(ctx context.Context, svc services.CloudFormationServiceInterfac
 		StackName: aws.String(name),
 	})
 	if err != nil && !doesNotExist(err) {
-		return fmt.Errorf("error deleting stack: %v", err)
+		return fmt.Errorf("error deleting stack: %w", err)
 	}
 
 	return nil
