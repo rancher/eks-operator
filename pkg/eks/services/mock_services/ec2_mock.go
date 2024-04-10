@@ -5,9 +5,10 @@
 package mock_services
 
 import (
+	context "context"
 	reflect "reflect"
 
-	ec2 "github.com/aws/aws-sdk-go/service/ec2"
+	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -35,106 +36,106 @@ func (m *MockEC2ServiceInterface) EXPECT() *MockEC2ServiceInterfaceMockRecorder 
 }
 
 // CreateLaunchTemplate mocks base method.
-func (m *MockEC2ServiceInterface) CreateLaunchTemplate(input *ec2.CreateLaunchTemplateInput) (*ec2.CreateLaunchTemplateOutput, error) {
+func (m *MockEC2ServiceInterface) CreateLaunchTemplate(ctx context.Context, input *ec2.CreateLaunchTemplateInput) (*ec2.CreateLaunchTemplateOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateLaunchTemplate", input)
+	ret := m.ctrl.Call(m, "CreateLaunchTemplate", ctx, input)
 	ret0, _ := ret[0].(*ec2.CreateLaunchTemplateOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateLaunchTemplate indicates an expected call of CreateLaunchTemplate.
-func (mr *MockEC2ServiceInterfaceMockRecorder) CreateLaunchTemplate(input interface{}) *gomock.Call {
+func (mr *MockEC2ServiceInterfaceMockRecorder) CreateLaunchTemplate(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateLaunchTemplate", reflect.TypeOf((*MockEC2ServiceInterface)(nil).CreateLaunchTemplate), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateLaunchTemplate", reflect.TypeOf((*MockEC2ServiceInterface)(nil).CreateLaunchTemplate), ctx, input)
 }
 
 // CreateLaunchTemplateVersion mocks base method.
-func (m *MockEC2ServiceInterface) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) (*ec2.CreateLaunchTemplateVersionOutput, error) {
+func (m *MockEC2ServiceInterface) CreateLaunchTemplateVersion(ctx context.Context, input *ec2.CreateLaunchTemplateVersionInput) (*ec2.CreateLaunchTemplateVersionOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateLaunchTemplateVersion", input)
+	ret := m.ctrl.Call(m, "CreateLaunchTemplateVersion", ctx, input)
 	ret0, _ := ret[0].(*ec2.CreateLaunchTemplateVersionOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateLaunchTemplateVersion indicates an expected call of CreateLaunchTemplateVersion.
-func (mr *MockEC2ServiceInterfaceMockRecorder) CreateLaunchTemplateVersion(input interface{}) *gomock.Call {
+func (mr *MockEC2ServiceInterfaceMockRecorder) CreateLaunchTemplateVersion(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateLaunchTemplateVersion", reflect.TypeOf((*MockEC2ServiceInterface)(nil).CreateLaunchTemplateVersion), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateLaunchTemplateVersion", reflect.TypeOf((*MockEC2ServiceInterface)(nil).CreateLaunchTemplateVersion), ctx, input)
 }
 
 // DeleteLaunchTemplate mocks base method.
-func (m *MockEC2ServiceInterface) DeleteLaunchTemplate(input *ec2.DeleteLaunchTemplateInput) (*ec2.DeleteLaunchTemplateOutput, error) {
+func (m *MockEC2ServiceInterface) DeleteLaunchTemplate(ctx context.Context, input *ec2.DeleteLaunchTemplateInput) (*ec2.DeleteLaunchTemplateOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteLaunchTemplate", input)
+	ret := m.ctrl.Call(m, "DeleteLaunchTemplate", ctx, input)
 	ret0, _ := ret[0].(*ec2.DeleteLaunchTemplateOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteLaunchTemplate indicates an expected call of DeleteLaunchTemplate.
-func (mr *MockEC2ServiceInterfaceMockRecorder) DeleteLaunchTemplate(input interface{}) *gomock.Call {
+func (mr *MockEC2ServiceInterfaceMockRecorder) DeleteLaunchTemplate(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLaunchTemplate", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DeleteLaunchTemplate), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLaunchTemplate", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DeleteLaunchTemplate), ctx, input)
 }
 
 // DeleteLaunchTemplateVersions mocks base method.
-func (m *MockEC2ServiceInterface) DeleteLaunchTemplateVersions(input *ec2.DeleteLaunchTemplateVersionsInput) (*ec2.DeleteLaunchTemplateVersionsOutput, error) {
+func (m *MockEC2ServiceInterface) DeleteLaunchTemplateVersions(ctx context.Context, input *ec2.DeleteLaunchTemplateVersionsInput) (*ec2.DeleteLaunchTemplateVersionsOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteLaunchTemplateVersions", input)
+	ret := m.ctrl.Call(m, "DeleteLaunchTemplateVersions", ctx, input)
 	ret0, _ := ret[0].(*ec2.DeleteLaunchTemplateVersionsOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteLaunchTemplateVersions indicates an expected call of DeleteLaunchTemplateVersions.
-func (mr *MockEC2ServiceInterfaceMockRecorder) DeleteLaunchTemplateVersions(input interface{}) *gomock.Call {
+func (mr *MockEC2ServiceInterfaceMockRecorder) DeleteLaunchTemplateVersions(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLaunchTemplateVersions", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DeleteLaunchTemplateVersions), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLaunchTemplateVersions", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DeleteLaunchTemplateVersions), ctx, input)
 }
 
 // DescribeImages mocks base method.
-func (m *MockEC2ServiceInterface) DescribeImages(input *ec2.DescribeImagesInput) (*ec2.DescribeImagesOutput, error) {
+func (m *MockEC2ServiceInterface) DescribeImages(ctx context.Context, input *ec2.DescribeImagesInput) (*ec2.DescribeImagesOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DescribeImages", input)
+	ret := m.ctrl.Call(m, "DescribeImages", ctx, input)
 	ret0, _ := ret[0].(*ec2.DescribeImagesOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DescribeImages indicates an expected call of DescribeImages.
-func (mr *MockEC2ServiceInterfaceMockRecorder) DescribeImages(input interface{}) *gomock.Call {
+func (mr *MockEC2ServiceInterfaceMockRecorder) DescribeImages(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeImages", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DescribeImages), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeImages", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DescribeImages), ctx, input)
 }
 
 // DescribeLaunchTemplateVersions mocks base method.
-func (m *MockEC2ServiceInterface) DescribeLaunchTemplateVersions(input *ec2.DescribeLaunchTemplateVersionsInput) (*ec2.DescribeLaunchTemplateVersionsOutput, error) {
+func (m *MockEC2ServiceInterface) DescribeLaunchTemplateVersions(ctx context.Context, input *ec2.DescribeLaunchTemplateVersionsInput) (*ec2.DescribeLaunchTemplateVersionsOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DescribeLaunchTemplateVersions", input)
+	ret := m.ctrl.Call(m, "DescribeLaunchTemplateVersions", ctx, input)
 	ret0, _ := ret[0].(*ec2.DescribeLaunchTemplateVersionsOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DescribeLaunchTemplateVersions indicates an expected call of DescribeLaunchTemplateVersions.
-func (mr *MockEC2ServiceInterfaceMockRecorder) DescribeLaunchTemplateVersions(input interface{}) *gomock.Call {
+func (mr *MockEC2ServiceInterfaceMockRecorder) DescribeLaunchTemplateVersions(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeLaunchTemplateVersions", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DescribeLaunchTemplateVersions), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeLaunchTemplateVersions", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DescribeLaunchTemplateVersions), ctx, input)
 }
 
 // DescribeLaunchTemplates mocks base method.
-func (m *MockEC2ServiceInterface) DescribeLaunchTemplates(input *ec2.DescribeLaunchTemplatesInput) (*ec2.DescribeLaunchTemplatesOutput, error) {
+func (m *MockEC2ServiceInterface) DescribeLaunchTemplates(ctx context.Context, input *ec2.DescribeLaunchTemplatesInput) (*ec2.DescribeLaunchTemplatesOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DescribeLaunchTemplates", input)
+	ret := m.ctrl.Call(m, "DescribeLaunchTemplates", ctx, input)
 	ret0, _ := ret[0].(*ec2.DescribeLaunchTemplatesOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DescribeLaunchTemplates indicates an expected call of DescribeLaunchTemplates.
-func (mr *MockEC2ServiceInterfaceMockRecorder) DescribeLaunchTemplates(input interface{}) *gomock.Call {
+func (mr *MockEC2ServiceInterfaceMockRecorder) DescribeLaunchTemplates(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeLaunchTemplates", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DescribeLaunchTemplates), input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeLaunchTemplates", reflect.TypeOf((*MockEC2ServiceInterface)(nil).DescribeLaunchTemplates), ctx, input)
 }
