@@ -12,8 +12,8 @@ on:
 # repo level vars:
 #   - PUBLIC_REGISTRY_REPO: rancher
 # repo level secrets:
-#   - docker_username
-#   - docker_password
+#   - PUBLIC_REGISTRY_USERNAME
+#   - PUBLIC_REGISTRY_PASSWORD
 
 permissions:
   contents: read
