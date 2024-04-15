@@ -1,4 +1,4 @@
-name: E2E tests
+name: E2E test branch
 on:
   workflow_call:
     secrets:
@@ -12,22 +12,29 @@ on:
         description: "AWS Region"
         required: true
       SLACK_WEBHOOK_URL:
-        description: WebHook URL to use for Slack
+        description: "WebHook URL to use for Slack"
         required: true
+    inputs:
+      branch:
+        type: string
+        default: "release-v2.9"
+
 jobs:
   e2e-tests:
     env:
+      BRANCH: ${{ inputs.branch }}
       REPO: ttl.sh/eks-operator-ci
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: |
+            ${{ env.BRANCH }}
       - name: Export tag
         id: export_tag
         run: |
-          TAG=v0.0.0
+          TAG="v0.0.0"
           COMMITDATE=`date -d @$(git log -n1 --format="%at") "+%FT%TZ"`
           echo "operator_tag=$TAG" >> $GITHUB_OUTPUT
           echo "commit_date=$COMMITDATE" >> $GITHUB_OUTPUT
