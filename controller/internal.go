@@ -12,9 +12,10 @@ import (
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/utils"
 	wranglerv1 "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func newAWSConfigV2(ctx context.Context, secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (aws.Config, error) {
+func newAWSConfigV2(ctx context.Context, secretClient wranglerv1.SecretClient, spec eksv1.EKSClusterConfigSpec) (aws.Config, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return cfg, fmt.Errorf("error loading default AWS config: %w", err)
@@ -26,7 +27,7 @@ func newAWSConfigV2(ctx context.Context, secretsCache wranglerv1.SecretCache, sp
 
 	if amazonCredentialSecret := spec.AmazonCredentialSecret; amazonCredentialSecret != "" {
 		ns, id := utils.Parse(spec.AmazonCredentialSecret)
-		secret, err := secretsCache.Get(ns, id)
+		secret, err := secretClient.Get(ns, id, metav1.GetOptions{})
 		if err != nil {
 			return cfg, fmt.Errorf("error getting secret %s/%s: %w", ns, id, err)
 		}
@@ -46,8 +47,8 @@ func newAWSConfigV2(ctx context.Context, secretsCache wranglerv1.SecretCache, sp
 	return cfg, nil
 }
 
-func newAWSv2Services(ctx context.Context, secretsCache wranglerv1.SecretCache, spec eksv1.EKSClusterConfigSpec) (*awsServices, error) {
-	cfg, err := newAWSConfigV2(ctx, secretsCache, spec)
+func newAWSv2Services(ctx context.Context, secretClient wranglerv1.SecretClient, spec eksv1.EKSClusterConfigSpec) (*awsServices, error) {
+	cfg, err := newAWSConfigV2(ctx, secretClient, spec)
 	if err != nil {
 		return nil, err
 	}
