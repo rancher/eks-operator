@@ -67,7 +67,7 @@ require (
 	github.com/rancher/aks-operator v1.2.1-rc2 // indirect
 	github.com/rancher/fleet/pkg/apis v0.0.0-20231017140638-93432f288e79 // indirect
 	github.com/rancher/gke-operator v1.2.1-rc1 // indirect
-	github.com/rancher/norman v0.0.0-20240205154641-a6a6cf569608 // indirect
+	github.com/rancher/norman v0.0.0-20240206180703-6eda4bc94b4c // indirect
 	github.com/rancher/rke v1.5.3 // indirect
 	github.com/rancher/wrangler v1.1.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
