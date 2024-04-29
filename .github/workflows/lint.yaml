@@ -16,7 +16,7 @@ jobs:
         with:
           go-version: 1.21.x
       - name: Analysis
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v5
         with:
           args: -v
           skip-pkg-cache: true
