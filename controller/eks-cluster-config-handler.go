@@ -384,8 +384,15 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 	}
 
 	errs := make([]string, 0)
+	nodeGroupNames := make(map[string]struct{}, 0)
 	// validate nodegroup versions
 	for _, ng := range config.Spec.NodeGroups {
+		if _, ok := nodeGroupNames[aws.StringValue(ng.NodegroupName)]; !ok {
+			nodeGroupNames[aws.StringValue(ng.NodegroupName)] = struct{}{}
+		} else {
+			errs = append(errs, fmt.Sprintf("node group names must be unique within the [%s] cluster to avoid duplication", config.Name))
+		}
+
 		if ng.Version == nil {
 			continue
 		}
@@ -552,7 +559,7 @@ func (h *Handler) validateCreate(config *eksv1.EKSClusterConfig, awsSVCs *awsSer
 				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Name)
 			}
 			if nodeP[*ng.NodegroupName] {
-				return fmt.Errorf("NodePool names must be unique within the [%s] cluster to avoid duplication", config.Name)
+				return fmt.Errorf("node group names must be unique within the [%s] cluster to avoid duplication", config.Name)
 			}
 			nodeP[*ng.NodegroupName] = true
 			if ng.Version == nil {
