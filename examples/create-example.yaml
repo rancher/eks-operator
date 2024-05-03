@@ -6,7 +6,7 @@ spec:
   kubernetesVersion: "1.15"
   publicAccess: true
   privateAccess: true
-  amazonCredentialSecr: "cattle-global-data:cc-zzzz"
+  amazonCredentialSecret: "cattle-global-data:cc-zzzz"
   displayName: "my-cluster"
   region: "us-east-2"
   loggingTypes: ["audit"]
