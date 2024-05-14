@@ -152,3 +152,58 @@ var _ = Describe("delete stack", func() {
 		Expect(newerr).To(HaveOccurred())
 	})
 })
+
+var _ = Describe("updateCluster", func() {
+	var (
+		eksConfig *eksv1.EKSClusterConfig
+		handler   *Handler
+	)
+
+	BeforeEach(func() {
+		handler = &Handler{
+			eksCC:        eksFactory.Eks().V1().EKSClusterConfig(),
+			secrets:      coreFactory.Core().V1().Secret(),
+			secretsCache: coreFactory.Core().V1().Secret().Cache(),
+		}
+
+		eksConfig = &eksv1.EKSClusterConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "default",
+			},
+			Spec: eksv1.EKSClusterConfigSpec{
+				DisplayName:         "test",
+				Region:              "test",
+				PrivateAccess:       aws.Bool(true),
+				PublicAccess:        aws.Bool(true),
+				PublicAccessSources: []string{"test"},
+				Tags:                map[string]string{"test": "test"},
+				LoggingTypes:        []string{"test"},
+				KubernetesVersion:   aws.String("1.25"),
+				SecretsEncryption:   aws.Bool(true),
+				KmsKey:              aws.String("test"),
+				NodeGroups: []eksv1.NodeGroup{
+					{
+						NodegroupName: aws.String("ng1"),
+					},
+				},
+			},
+			Status: eksv1.EKSClusterConfigStatus{
+				Phase: "active",
+			},
+		}
+
+		Expect(cl.Create(ctx, eksConfig)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		Expect(test.CleanupAndWait(ctx, cl, eksConfig)).To(Succeed())
+	})
+
+	It("should not allow duplicate node group names", func() {
+		eksConfig.Status.Phase = "active"
+		eksConfig.Spec.NodeGroups = append(eksConfig.Spec.NodeGroups, eksConfig.Spec.NodeGroups...)
+		_, err := handler.OnEksConfigChanged("", eksConfig)
+		Expect(err).To(MatchError("node group names must be unique within the [test] cluster to avoid duplication"))
+	})
+})
