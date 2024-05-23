@@ -35,6 +35,10 @@ GINKGO_VER := v2.17.2
 GINKGO_BIN := ginkgo
 GINKGO := $(BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 
+GO_APIDIFF_VER := v0.8.2
+GO_APIDIFF_BIN := go-apidiff
+GO_APIDIFF := $(BIN_DIR)/$(GO_APIDIFF_BIN)-$(GO_APIDIFF_VER)
+
 SETUP_ENVTEST_VER := v0.0.0-20211110210527-619e6b92dab9
 SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER)
@@ -63,6 +67,9 @@ $(MOCKGEN):
 
 $(GINKGO):
 	GOBIN=$(BIN_DIR) $(GO_INSTALL) github.com/onsi/ginkgo/v2/ginkgo $(GINKGO_BIN) $(GINKGO_VER)
+
+$(GO_APIDIFF):
+	GOBIN=$(BIN_DIR) $(GO_INSTALL) github.com/joelanford/go-apidiff $(GO_APIDIFF_BIN) $(GO_APIDIFF_VER)
 
 $(SETUP_ENVTEST): 
 	GOBIN=$(BIN_DIR) $(GO_INSTALL) sigs.k8s.io/controller-runtime/tools/setup-envtest $(SETUP_ENVTEST_BIN) $(SETUP_ENVTEST_VER)
@@ -175,3 +182,9 @@ docker-build-e2e:
 .PHOHY: delete-local-kind-cluster
 delete-local-kind-cluster: ## Delete the local kind cluster
 	kind delete cluster --name=$(CLUSTER_NAME)
+
+APIDIFF_OLD_COMMIT ?= $(shell git rev-parse origin/main)
+
+.PHONY: apidiff
+apidiff: $(GO_APIDIFF) ## Check for API differences
+	$(GO_APIDIFF) $(APIDIFF_OLD_COMMIT) --print-compatible
