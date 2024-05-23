@@ -41,18 +41,18 @@ jobs:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Run release script
         run: ./eks-operator/.github/scripts/update-rancher-dep.sh ${{github.event.inputs.new_eks}}
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+      - name: Set timestamp
+        run: echo "TIMESTAMP=$(date +'%s')" >> "$GITHUB_ENV"
+      - name: Create PR
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
-          token: ${{secrets.CI_BOT_TOKEN}}
-          push-to-fork: highlander-ci-bot/rancher
-          title: ' Update EKS operator to v${{github.event.inputs.new_eks}}'
-          body: |
-            Update EKS operator to v${{github.event.inputs.new_eks}}
-
-            Changelog: https://github.com/rancher/eks-operator/releases/tag/v${{github.event.inputs.new_eks}}
-
-            cc @rancher/highlander
-          branch-suffix: timestamp
-          base: ${{github.event.inputs.rancher_ref}}
-          path: ./rancher/
+          github-token: ${{secrets.CI_BOT_TOKEN}}
+          script: |
+            github.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: 'highlander-ci-bot/rancher:${{github.event.inputs.new_eks}}-$TIMESTAMP',
+              base: ${{github.event.inputs.rancher_ref}},
+              title: 'Update EKS operator to v${{github.event.inputs.new_eks}}',
+              body: 'Update EKS operator to v${{github.event.inputs.new_eks}}\n\nChangelog:https://github.com/rancher/eks-operator/releases/tag/v${{github.event.inputs.new_eks}}\n\ncc @rancher/highlander'
+            })
