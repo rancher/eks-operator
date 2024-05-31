@@ -5,13 +5,13 @@ on:
       ref:
         description: "Branch to use for GitHub action workflow"
         required: true
-        default: "master"
+        default: "release-v2.7"
       rancher_ref:
         description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.7)"
         required: true
         default: "release/v2.7"
       new_eks:
-        description: "New EKS operator version (e.g. 1.1.0-rc2), don't include the 'v'"
+        description: "New EKS operator version (e.g. 1.2.0-rc.1), don't include the 'v'"
         required: true
         default: ""
 
@@ -24,35 +24,44 @@ jobs:
   create-rancher-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{github.event.inputs.ref}}
           path: eks-operator
+          persist-credentials: false
       - name: Checkout rancher/rancher
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           repository: rancher/rancher
           ref: ${{github.event.inputs.rancher_ref}}
           path: rancher
-      - uses: actions/setup-go@v4
+          persist-credentials: false
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
-      - name: Run release script
+      - name: Run release script # release script is responsible for git add/commit
         run: ./eks-operator/.github/scripts/update-rancher-dep.sh ${{github.event.inputs.new_eks}}
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+      - name: Set timestamp
+        run: echo "TIMESTAMP=$(date +'%s')" >> "$GITHUB_ENV"
+      - name: Push changes
+        env:
+          USERNAME: highlander-ci-bot
+          TOKEN: ${{ secrets.CI_BOT_TOKEN }}
+        run: |
+          git remote add bot-fork https://${USERNAME}:${TOKEN}@github.com/highlander-ci-bot/rancher.git
+          git push bot-fork HEAD:${{github.event.inputs.new_eks}}-${{env.TIMESTAMP}}
+      - name: Create PR
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
-          token: ${{secrets.CI_BOT_TOKEN}}
-          push-to-fork: highlander-ci-bot/rancher
-          title: ' Update EKS operator to v${{github.event.inputs.new_eks}}'
-          body: |
-            Update EKS operator to v${{github.event.inputs.new_eks}}
-
-            Changelog: https://github.com/rancher/eks-operator/releases/tag/v${{github.event.inputs.new_eks}}
-
-            cc @rancher/highlander
-          branch-suffix: timestamp
-          base: ${{github.event.inputs.rancher_ref}}
-          path: ./rancher/
+          github-token: ${{secrets.CI_BOT_TOKEN}}
+          script: |
+            github.pulls.create({
+              owner: 'rancher',
+              repo: 'rancher',
+              head: 'highlander-ci-bot:${{github.event.inputs.new_eks}}-${{env.TIMESTAMP}}',
+              base: ${{github.event.inputs.rancher_ref}},
+              title: 'Update EKS operator to v${{github.event.inputs.new_eks}}',
+              body: 'Update EKS operator to v${{github.event.inputs.new_eks}}\n\nChangelog: https://github.com/rancher/eks-operator/releases/tag/v${{github.event.inputs.new_eks}}\n\ncc @rancher/highlander'
+            })
