@@ -1,0 +1,2 @@
+ Requires upgrading to Go 1.21 but we can't do this before Rancher v2.7 gets updated 
+CVE-2023-45288
