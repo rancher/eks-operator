@@ -1012,7 +1012,7 @@ var _ = Describe("CreateNodeGroup", func() {
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
 			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
 			NodeRole:      aws.String("test"),
-			AmiType:       ekstypes.AMITypesAl2Arm64,
+			AmiType:       ekstypes.AMITypesAl2023Arm64Standard,
 		}).Return(nil, nil)
 
 		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
@@ -1066,7 +1066,7 @@ var _ = Describe("CreateNodeGroup", func() {
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
 			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
 			NodeRole:      aws.String("test"),
-			AmiType:       ekstypes.AMITypesAl2X8664,
+			AmiType:       ekstypes.AMITypesAl2023X8664Standard,
 		}).Return(nil, nil)
 
 		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
