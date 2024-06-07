@@ -5,20 +5,20 @@ on:
       ref:
         description: "Branch to use for GitHub action workflow"
         required: true
-        default: "main"
+        default: "release-v2.9"
       rancher_ref:
         description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.7)"
         required: true
-        default: "release/v2.7"
+        default: "release/v2.9"
       new_eks:
-        description: "New EKS operator version (e.g. 1.1.0-rc2), don't include the 'v'"
+        description: "New EKS operator version (e.g. 1.9.0-rc.2), don't include the 'v'"
         required: true
         default: ""
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '1.21.*'
+  SETUP_GO_VERSION: '1.22.*' # This should match the Go version on the rancher/rancher release/v2.9 branch
 
 jobs:
   create-rancher-pr:
