@@ -71,5 +71,5 @@ jobs:
               head: 'highlander-ci-bot:${{github.event.inputs.new_eks_operator}}-${{env.TIMESTAMP}}',
               base: ${{github.event.inputs.charts_ref}},
               title: 'Update EKS operator to v${{github.event.inputs.new_eks_operator}}',
-              body: 'Update EKS operator to v${{github.event.inputs.new_eks_operator}\n\nChangelog: https://github.com/rancher/eks-operator/releases/tag/v${{github.event.inputs.new_eks_operator}}\n\ncc @rancher/highlander'
+              body: 'Update EKS operator to v${{github.event.inputs.new_eks_operator}}\n\nChangelog: https://github.com/rancher/eks-operator/releases/tag/v${{github.event.inputs.new_eks_operator}}\n\ncc @rancher/highlander'
             })
