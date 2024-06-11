@@ -47,7 +47,7 @@ func deleteLaunchTemplate(ctx context.Context, templateID string, ec2Service ser
 		time.Sleep(10 * time.Second)
 	}
 
-	logrus.Warnf("could not delete launch template [%s]: %v, will not retry",
+	logrus.Warnf("Could not delete launch template [%s]: %v, will not retry",
 		templateID,
 		err,
 	)
