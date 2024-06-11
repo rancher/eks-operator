@@ -40,7 +40,7 @@ func DeleteLaunchTemplateVersions(ctx context.Context, ec2Service services.EC2Se
 		time.Sleep(10 * time.Second)
 	}
 
-	logrus.Warnf("could not delete versions [%v] of launch template [%s]: %v, will not retry",
+	logrus.Warnf("Could not delete versions [%v] of launch template [%s]: %v, will not retry",
 		aws.ToStringSlice(templateVersions),
 		*launchTemplateDeleteVersionInput.LaunchTemplateId,
 		err,
