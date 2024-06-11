@@ -164,7 +164,7 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 		return config, nil
 	}
 
-	logrus.Infof("deleting cluster [%s (id: %s)]", config.Name)
+	logrus.Infof("deleting cluster [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 
 	logrus.Infof("starting node group deletion for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 	waitingForNodegroupDeletion := true
@@ -336,7 +336,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		if _, ok := nodeGroupNames[aws.ToString(ng.NodegroupName)]; !ok {
 			nodeGroupNames[aws.ToString(ng.NodegroupName)] = struct{}{}
 		} else {
-			errs = append(errs, fmt.Sprintf("node group names must be unique within the [%s (%s)] cluster to avoid duplication", config.Spec.DisplayName, config.Name))
+			errs = append(errs, fmt.Sprintf("node group name %s must be unique within the [%s (%s)] cluster to avoid duplication", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name))
 		}
 
 		if ng.Version == nil {
@@ -503,7 +503,7 @@ func (h *Handler) validateCreate(ctx context.Context, config *eksv1.EKSClusterCo
 				}
 			}
 			if ng.NodegroupName == nil {
-				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if nodeP[*ng.NodegroupName] {
 				return fmt.Errorf("node group name [%s] must be unique within the [%s (id: %s)] cluster to avoid duplication", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
