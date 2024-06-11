@@ -27,7 +27,8 @@ type UpdateClusterVersionOpts struct {
 func UpdateClusterVersion(ctx context.Context, opts *UpdateClusterVersionOpts) (bool, error) {
 	updated := false
 	if aws.ToString(opts.UpstreamClusterSpec.KubernetesVersion) != aws.ToString(opts.Config.Spec.KubernetesVersion) {
-		logrus.Infof("updating kubernetes version for cluster [%s (id: %s)]", opts.Config.Spec.DisplayName, opts.Config.Name)
+		logrus.Infof("updating kubernetes version to %s for cluster [%s (id: %s)]", aws.ToString(opts.Config.Spec.KubernetesVersion), opts.Config.Spec.DisplayName, opts.Config.Name)
+		logrus.Debugf("config: %s, upstream: %s", aws.ToString(opts.Config.Spec.KubernetesVersion), aws.ToString(opts.UpstreamClusterSpec.KubernetesVersion))
 		_, err := opts.EKSService.UpdateClusterVersion(ctx, &eks.UpdateClusterVersionInput{
 			Name:    aws.String(opts.Config.Spec.DisplayName),
 			Version: opts.Config.Spec.KubernetesVersion,
@@ -52,6 +53,9 @@ type UpdateResourceTagsOpts struct {
 func UpdateResourceTags(ctx context.Context, opts *UpdateResourceTagsOpts) (bool, error) {
 	updated := false
 	if updateTags := utils.GetKeyValuesToUpdate(opts.Tags, opts.UpstreamTags); updateTags != nil {
+		logrus.Infof("updating resource tags to %s for cluster [%s]", opts.Tags, opts.ClusterName)
+		logrus.Debugf("config: %s, upstream: %s", opts.Tags, opts.UpstreamTags)
+
 		_, err := opts.EKSService.TagResource(ctx,
 			&eks.TagResourceInput{
 				ResourceArn: aws.String(opts.ResourceARN),
@@ -64,6 +68,9 @@ func UpdateResourceTags(ctx context.Context, opts *UpdateResourceTagsOpts) (bool
 	}
 
 	if updateUntags := utils.GetKeysToDelete(opts.Tags, opts.UpstreamTags); updateUntags != nil {
+		logrus.Infof("deleting resource tags %s from cluster [%s]", opts.Tags, opts.ClusterName)
+		logrus.Debugf("config: %s, upstream: %s", opts.Tags, opts.UpstreamTags)
+
 		_, err := opts.EKSService.UntagResource(ctx,
 			&eks.UntagResourceInput{
 				ResourceArn: aws.String(opts.ResourceARN),
@@ -87,6 +94,10 @@ type UpdateLoggingTypesOpts struct {
 func UpdateClusterLoggingTypes(ctx context.Context, opts *UpdateLoggingTypesOpts) (bool, error) {
 	updated := false
 	if loggingTypesUpdate := getLoggingTypesUpdate(opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes); loggingTypesUpdate != nil {
+
+		logrus.Infof("updating logging types to %s for cluster [%s (id: %s)]", opts.Config.Spec.LoggingTypes, opts.Config.Spec.DisplayName, opts.Config.Name)
+		logrus.Debugf("config: %s, upstream: %s", opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes)
+
 		_, err := opts.EKSService.UpdateClusterConfig(ctx,
 			&eks.UpdateClusterConfigInput{
 				Name:    aws.String(opts.Config.Spec.DisplayName),
@@ -114,6 +125,11 @@ func UpdateClusterAccess(ctx context.Context, opts *UpdateClusterAccessOpts) (bo
 	publicAccessUpdate := opts.Config.Spec.PublicAccess != nil && aws.ToBool(opts.UpstreamClusterSpec.PublicAccess) != aws.ToBool(opts.Config.Spec.PublicAccess)
 	privateAccessUpdate := opts.Config.Spec.PrivateAccess != nil && aws.ToBool(opts.UpstreamClusterSpec.PrivateAccess) != aws.ToBool(opts.Config.Spec.PrivateAccess)
 	if publicAccessUpdate || privateAccessUpdate {
+
+		logrus.Infof("updating public access to %v and private access to %v for cluster [%s (id: %s)]", aws.ToBool(opts.Config.Spec.PublicAccess), aws.ToBool(opts.Config.Spec.PrivateAccess), opts.Config.Spec.DisplayName, opts.Config.Name)
+		logrus.Debugf("[public access] config: %v, upstream: %v", aws.ToBool(opts.Config.Spec.PublicAccess), aws.ToBool(opts.UpstreamClusterSpec.PublicAccess))
+		logrus.Debugf("[private access] config: %v, upstream: %v", aws.ToBool(opts.Config.Spec.PrivateAccess), aws.ToBool(opts.UpstreamClusterSpec.PrivateAccess))
+
 		// public and private access updates need to be sent together. When they are sent one at a time
 		// the request may be denied due to having both public and private access disabled.
 		_, err := opts.EKSService.UpdateClusterConfig(ctx,
@@ -147,6 +163,8 @@ func UpdateClusterPublicAccessSources(ctx context.Context, opts *UpdateClusterPu
 	filteredSpecPublicAccessSources := filterPublicAccessSources(opts.Config.Spec.PublicAccessSources)
 	filteredUpstreamPublicAccessSources := filterPublicAccessSources(opts.UpstreamClusterSpec.PublicAccessSources)
 	if !utils.CompareStringSliceElements(filteredSpecPublicAccessSources, filteredUpstreamPublicAccessSources) {
+		logrus.Infof("updating public access source config to %v  for cluster [%s (id: %s)]", opts.Config.Spec.PublicAccessSources, opts.Config.Spec.DisplayName, opts.Config.Name)
+		logrus.Debugf("config: %v, upstream: %v", opts.Config.Spec.PublicAccessSources, opts.UpstreamClusterSpec.PublicAccessSources)
 		_, err := opts.EKSService.UpdateClusterConfig(ctx,
 			&eks.UpdateClusterConfigInput{
 				Name: aws.String(opts.Config.Spec.DisplayName),
@@ -175,6 +193,7 @@ type UpdateNodegroupVersionOpts struct {
 }
 
 func UpdateNodegroupVersion(ctx context.Context, opts *UpdateNodegroupVersionOpts) error {
+	logrus.Infof("updating nodegroup version for cluster [%s (id: %s)]", opts.Config.Spec.DisplayName, opts.Config.Name)
 	if _, err := opts.EKSService.UpdateNodegroupVersion(ctx, opts.NGVersionInput); err != nil {
 		if version, ok := opts.LTVersions[aws.ToString(opts.NodeGroup.NodegroupName)]; ok {
 			// If there was an error updating the node group and a Rancher-managed launch template version was created,
