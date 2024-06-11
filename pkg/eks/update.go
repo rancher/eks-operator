@@ -191,12 +191,16 @@ func getLoggingTypesUpdate(loggingTypes []string, upstreamLoggingTypes []string)
 
 	if len(loggingTypes) > 0 {
 		loggingTypesToDisable := getLoggingTypesToDisable(loggingTypes, upstreamLoggingTypes)
-		loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToDisable)
+		if loggingTypesToDisable.Enabled != nil {
+			loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToDisable)
+		}
 	}
 
 	if len(upstreamLoggingTypes) > 0 {
 		loggingTypesToEnable := getLoggingTypesToEnable(loggingTypes, upstreamLoggingTypes)
-		loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToEnable)
+		if loggingTypesToEnable.Enabled != nil {
+			loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToEnable)
+		}
 	}
 
 	if len(loggingUpdate.ClusterLogging) > 0 {

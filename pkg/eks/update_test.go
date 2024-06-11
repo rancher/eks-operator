@@ -200,11 +200,11 @@ var _ = Describe("UpdateLoggingTypes", func() {
 			EKSService: eksServiceMock,
 			Config: &eksv1.EKSClusterConfig{
 				Spec: eksv1.EKSClusterConfigSpec{
-					LoggingTypes: []string{"test1", "test2", "test3-enabled"},
+					LoggingTypes: []string{"audit", "authenticator", "controllerManager"},
 				},
 			},
 			UpstreamClusterSpec: &eksv1.EKSClusterConfigSpec{
-				LoggingTypes: []string{"test1", "test2", "disabled"},
+				LoggingTypes: []string{"audit", "authenticator", "scheduler"},
 			},
 		}
 	})
@@ -221,11 +221,11 @@ var _ = Describe("UpdateLoggingTypes", func() {
 					ClusterLogging: []ekstypes.LogSetup{
 						{
 							Enabled: aws.Bool(false),
-							Types:   utils.ConvertToLogTypes([]string{"disabled"}),
+							Types:   utils.ConvertToLogTypes([]string{"scheduler"}),
 						},
 						{
 							Enabled: aws.Bool(true),
-							Types:   utils.ConvertToLogTypes([]string{"test3-enabled"}),
+							Types:   utils.ConvertToLogTypes([]string{"controllerManager"}),
 						},
 					},
 				},
@@ -233,6 +233,23 @@ var _ = Describe("UpdateLoggingTypes", func() {
 		).Return(nil, nil)
 		updated, err := UpdateClusterLoggingTypes(ctx, updateLoggingTypesOpts)
 		Expect(updated).To(BeTrue())
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("shouldn't update cluster logging types when no changes", func() {
+		updateLoggingTypesOpts = &UpdateLoggingTypesOpts{
+			EKSService: eksServiceMock,
+			Config: &eksv1.EKSClusterConfig{
+				Spec: eksv1.EKSClusterConfigSpec{
+					LoggingTypes: []string{"audit", "authenticator", "scheduler", "controllerManager"},
+				},
+			},
+			UpstreamClusterSpec: &eksv1.EKSClusterConfigSpec{
+				LoggingTypes: []string{"audit", "authenticator", "scheduler", "controllerManager"},
+			},
+		}
+		updated, err := UpdateClusterLoggingTypes(ctx, updateLoggingTypesOpts)
+		Expect(updated).To(BeFalse())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
