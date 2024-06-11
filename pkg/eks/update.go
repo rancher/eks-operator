@@ -94,7 +94,6 @@ type UpdateLoggingTypesOpts struct {
 func UpdateClusterLoggingTypes(ctx context.Context, opts *UpdateLoggingTypesOpts) (bool, error) {
 	updated := false
 	if loggingTypesUpdate := getLoggingTypesUpdate(opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes); loggingTypesUpdate != nil {
-
 		logrus.Infof("updating logging types to %s for cluster [%s (id: %s)]", opts.Config.Spec.LoggingTypes, opts.Config.Spec.DisplayName, opts.Config.Name)
 		logrus.Debugf("config: %s, upstream: %s", opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes)
 
@@ -125,7 +124,6 @@ func UpdateClusterAccess(ctx context.Context, opts *UpdateClusterAccessOpts) (bo
 	publicAccessUpdate := opts.Config.Spec.PublicAccess != nil && aws.ToBool(opts.UpstreamClusterSpec.PublicAccess) != aws.ToBool(opts.Config.Spec.PublicAccess)
 	privateAccessUpdate := opts.Config.Spec.PrivateAccess != nil && aws.ToBool(opts.UpstreamClusterSpec.PrivateAccess) != aws.ToBool(opts.Config.Spec.PrivateAccess)
 	if publicAccessUpdate || privateAccessUpdate {
-
 		logrus.Infof("updating public access to %v and private access to %v for cluster [%s (id: %s)]", aws.ToBool(opts.Config.Spec.PublicAccess), aws.ToBool(opts.Config.Spec.PrivateAccess), opts.Config.Spec.DisplayName, opts.Config.Name)
 		logrus.Debugf("[public access] config: %v, upstream: %v", aws.ToBool(opts.Config.Spec.PublicAccess), aws.ToBool(opts.UpstreamClusterSpec.PublicAccess))
 		logrus.Debugf("[private access] config: %v, upstream: %v", aws.ToBool(opts.Config.Spec.PrivateAccess), aws.ToBool(opts.UpstreamClusterSpec.PrivateAccess))
