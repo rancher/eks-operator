@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/templates"
@@ -521,7 +522,7 @@ func configureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 		return "", err
 	}
 	if clusterOutput == nil {
-		return "", fmt.Errorf("could not find cluster [%s]", config.Spec.DisplayName)
+		return "", fmt.Errorf("could not find cluster [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 	}
 	id := path.Base(*clusterOutput.Cluster.Identity.Oidc.Issuer)
 
@@ -631,7 +632,7 @@ func installEBSAddon(ctx context.Context, eksService services.EKSServiceInterfac
 		return "", err
 	}
 	if addonOutput == nil {
-		return "", fmt.Errorf("could not create addon [%s] for cluster [%s]", ebsCSIAddonName, config.Spec.DisplayName)
+		return "", fmt.Errorf("could not create addon [%s] for cluster [%s (id: %s)]", ebsCSIAddonName, config.Spec.DisplayName, config.Name)
 	}
 
 	return *addonOutput.Addon.AddonArn, nil

@@ -7,10 +7,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/sirupsen/logrus"
+
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/pkg/eks/services"
 	"github.com/rancher/eks-operator/utils"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -26,13 +27,13 @@ type UpdateClusterVersionOpts struct {
 func UpdateClusterVersion(ctx context.Context, opts *UpdateClusterVersionOpts) (bool, error) {
 	updated := false
 	if aws.ToString(opts.UpstreamClusterSpec.KubernetesVersion) != aws.ToString(opts.Config.Spec.KubernetesVersion) {
-		logrus.Infof("updating kubernetes version for cluster [%s]", opts.Config.Name)
+		logrus.Infof("updating kubernetes version for cluster [%s (id: %s)]", opts.Config.Spec.DisplayName, opts.Config.Name)
 		_, err := opts.EKSService.UpdateClusterVersion(ctx, &eks.UpdateClusterVersionInput{
 			Name:    aws.String(opts.Config.Spec.DisplayName),
 			Version: opts.Config.Spec.KubernetesVersion,
 		})
 		if err != nil {
-			return updated, fmt.Errorf("error updating cluster [%s] kubernetes version: %w", opts.Config.Name, err)
+			return updated, fmt.Errorf("error updating cluster [%s (id: %s)] kubernetes version: %w", opts.Config.Spec.DisplayName, opts.Config.Name, err)
 		}
 		updated = true
 	}
@@ -93,7 +94,7 @@ func UpdateClusterLoggingTypes(ctx context.Context, opts *UpdateLoggingTypesOpts
 			},
 		)
 		if err != nil {
-			return false, fmt.Errorf("error updating cluster [%s] logging types: %w", opts.Config.Name, err)
+			return false, fmt.Errorf("error updating cluster [%s (id: %s)] logging types: %w", opts.Config.Spec.DisplayName, opts.Config.Name, err)
 		}
 		updated = true
 	}
@@ -125,7 +126,7 @@ func UpdateClusterAccess(ctx context.Context, opts *UpdateClusterAccessOpts) (bo
 			},
 		)
 		if err != nil {
-			return false, fmt.Errorf("error updating cluster [%s] public/private access: %w", opts.Config.Name, err)
+			return false, fmt.Errorf("error updating cluster [%s (id: %s)] public/private access: %w", opts.Config.Spec.DisplayName, opts.Config.Name, err)
 		}
 		updated = true
 	}
@@ -155,7 +156,7 @@ func UpdateClusterPublicAccessSources(ctx context.Context, opts *UpdateClusterPu
 			},
 		)
 		if err != nil {
-			return false, fmt.Errorf("error updating cluster [%s] public access sources: %w", opts.Config.Name, err)
+			return false, fmt.Errorf("error updating cluster [%s (id: %s)] public access sources: %w", opts.Config.Spec.DisplayName, opts.Config.Name, err)
 		}
 
 		updated = true
