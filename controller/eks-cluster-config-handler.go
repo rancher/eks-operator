@@ -393,10 +393,8 @@ func (h *Handler) create(ctx context.Context, config *eksv1.EKSClusterConfig, aw
 		EKSService: awsSVCs.eks,
 		Config:     config,
 		RoleARN:    roleARN,
-	}); err != nil {
-		if !isClusterConflict(err) {
-			return config, fmt.Errorf("error creating cluster: %w", err)
-		}
+	}); err != nil && !isResourceInUse(err) {
+		return config, fmt.Errorf("error creating cluster: %w", err)
 	}
 
 	// If a user edits a cluster at the exact right (or wrong) time, then the
@@ -702,7 +700,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			Config:              config,
 			UpstreamClusterSpec: upstreamSpec,
 		})
-		if err != nil {
+		if err != nil && !isResourceInUse(err) {
 			return config, fmt.Errorf("error updating cluster version: %w", err)
 		}
 		if updated {
@@ -718,7 +716,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			UpstreamTags: upstreamSpec.Tags,
 			ResourceARN:  clusterARN,
 		})
-		if err != nil {
+		if err != nil && !isResourceInUse(err) {
 			return config, fmt.Errorf("error updating cluster tags: %w", err)
 		}
 		if updated {
@@ -733,7 +731,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			Config:              config,
 			UpstreamClusterSpec: upstreamSpec,
 		})
-		if err != nil {
+		if err != nil && !isResourceInUse(err) {
 			return config, fmt.Errorf("error updating logging types: %w", err)
 		}
 		if updated {
@@ -746,7 +744,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		Config:              config,
 		UpstreamClusterSpec: upstreamSpec,
 	})
-	if err != nil {
+	if err != nil && !isResourceInUse(err) {
 		return config, fmt.Errorf("error updating cluster access config: %w", err)
 	}
 	if updated {
@@ -759,7 +757,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			Config:              config,
 			UpstreamClusterSpec: upstreamSpec,
 		})
-		if err != nil {
+		if err != nil && !isResourceInUse(err) {
 			return config, fmt.Errorf("error updating cluster public access sources: %w", err)
 		}
 		if updated {
@@ -801,7 +799,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		if err := awsservices.CreateLaunchTemplate(ctx, &awsservices.CreateLaunchTemplateOptions{
 			EC2Service: awsSVCs.ec2,
 			Config:     config,
-		}); err != nil {
+		}); err != nil && !isResourceInUse(err) {
 			return config, fmt.Errorf("error getting or creating launch template: %w", err)
 		}
 		// in this case update is set right away because creating the
@@ -823,7 +821,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			NodeGroup:             ng,
 		})
 
-		if err != nil {
+		if err != nil && !isResourceInUse(err) {
 			return config, fmt.Errorf("error creating nodegroup: %w", err)
 		}
 
@@ -940,7 +938,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 				NodeGroup:      &ng,
 				NGVersionInput: ngVersionInput,
 				LTVersions:     templateVersionsToAdd,
-			}); err != nil {
+			}); err != nil && !isResourceInUse(err) {
 				return config, err
 			}
 			continue

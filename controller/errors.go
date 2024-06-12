@@ -7,7 +7,7 @@ import (
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 )
 
-func isClusterConflict(err error) bool {
+func isResourceInUse(err error) bool {
 	var riu *ekstypes.ResourceInUseException
 	return errors.As(err, &riu)
 }
