@@ -236,6 +236,34 @@ var _ = Describe("UpdateLoggingTypes", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
+	It("should update cluster logging types when upstream is empty", func() {
+		updateLoggingTypesOpts = &UpdateLoggingTypesOpts{
+			EKSService: eksServiceMock,
+			Config: &eksv1.EKSClusterConfig{
+				Spec: eksv1.EKSClusterConfigSpec{
+					LoggingTypes: []string{"audit", "authenticator", "scheduler", "controllerManager"},
+				},
+			},
+			UpstreamClusterSpec: &eksv1.EKSClusterConfigSpec{},
+		}
+		eksServiceMock.EXPECT().UpdateClusterConfig(ctx,
+			&eks.UpdateClusterConfigInput{
+				Name: aws.String(updateLoggingTypesOpts.Config.Spec.DisplayName),
+				Logging: &ekstypes.Logging{
+					ClusterLogging: []ekstypes.LogSetup{
+						{
+							Enabled: aws.Bool(true),
+							Types:   utils.ConvertToLogTypes([]string{"audit", "authenticator", "scheduler", "controllerManager"}),
+						},
+					},
+				},
+			},
+		).Return(nil, nil)
+		updated, err := UpdateClusterLoggingTypes(ctx, updateLoggingTypesOpts)
+		Expect(updated).To(BeTrue())
+		Expect(err).NotTo(HaveOccurred())
+	})
+
 	It("shouldn't update cluster logging types when no changes", func() {
 		updateLoggingTypesOpts = &UpdateLoggingTypesOpts{
 			EKSService: eksServiceMock,
