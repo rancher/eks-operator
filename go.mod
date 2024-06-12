@@ -6,13 +6,13 @@ replace k8s.io/client-go => k8s.io/client-go v0.29.4
 
 require (
 	github.com/aws/aws-sdk-go v1.50.38
-	github.com/aws/aws-sdk-go-v2 v1.27.0
+	github.com/aws/aws-sdk-go-v2 v1.27.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.16
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.16
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.51.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.162.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.42.5
-	github.com/aws/aws-sdk-go-v2/service/iam v1.32.4
+	github.com/aws/aws-sdk-go-v2/service/iam v1.32.6
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/drone/envsubst/v2 v2.0.0-20210730161058-179042472c46
 	github.com/golang/mock v1.6.0
@@ -43,8 +43,8 @@ require (
 
 require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.7 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.7 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.9 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.9 // indirect
