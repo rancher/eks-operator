@@ -2,8 +2,6 @@ module github.com/rancher/eks-operator
 
 go 1.22.0
 
-toolchain go1.22.3
-
 // to be removed when pkg/apis is updated after v1.30 support in rancher
 replace k8s.io/apiserver => k8s.io/apiserver v0.29.4
 
