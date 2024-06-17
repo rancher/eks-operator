@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 	eksv1 "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io"
 	"github.com/rancher/eks-operator/pkg/test"
-	"github.com/rancher/wrangler/v2/pkg/generated/controllers/core"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
