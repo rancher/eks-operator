@@ -17,7 +17,7 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v3.2.0
       - name: Build image
-        uses: docker/build-push-action@v5.3.0
+        uses: docker/build-push-action@v6.0.0
         with:
           context: .
           tags: ghcr.io/rancher/eks-operator:${{ github.sha }}
