@@ -36,21 +36,25 @@ jobs:
         run: |
           TAG="v0.0.0"
           COMMITDATE=`date -d @$(git log -n1 --format="%at") "+%FT%TZ"`
+          COMMIT=`git rev-parse HEAD`
+          COMMIT_SHORT=`git rev-parse --short HEAD`
           echo "operator_tag=$TAG" >> $GITHUB_OUTPUT
           echo "commit_date=$COMMITDATE" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "commit_short=$COMMIT_SHORT" >> $GITHUB_OUTPUT
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5.5.1
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
         with:
           images: |
             ${{ env.REPO }}
           tags: |
-            type=sha,format=short,prefix=${{ steps.export_tag.outputs.operator_tag }}-
+            type=raw,value=${{ steps.export_tag.outputs.operator_tag }}-${{ steps.export_tag.outputs.commit_short }}
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3.2.0
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
       - name: Build and push image
-        uses: docker/build-push-action@v6.0.0
+        uses: docker/build-push-action@c382f710d39a5bb4e430307530a720f50c2d3318 # v6.0.0
         with:
           context: .
           tags: ${{ steps.meta.outputs.tags }}
@@ -63,7 +67,7 @@ jobs:
           build-args: |
             TAG=${{ steps.export_tag.outputs.operator_tag }}
             COMMITDATE=${{ steps.export_tag.outputs.commit_date }}
-            COMMIT=${{ github.sha }}
+            COMMIT=${{ steps.export_tag.outputs.commit }}
       - name: Install Go
         uses: actions/setup-go@v5
         with:
@@ -84,7 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4.3.3
         with:
-          name: ci-artifacts
+          name: ci-artifacts-${{ env.BRANCH }}
           path: _artifacts
           if-no-files-found: ignore
       - name: Send failed status to slack
