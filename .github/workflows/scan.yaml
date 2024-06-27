@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
     branches:
-      - master
+      - release-v2.8
     tags:
       - "v*"
 jobs:
