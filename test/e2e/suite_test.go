@@ -95,7 +95,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	By("Deploying rancher and cert-manager", func() {
-		By("installing cert-manager", func() {
+		By("Installing cert-manager", func() {
 			if isDeploymentReady(certManagerNamespace, certManagerName) {
 				By("already installed")
 			} else {
@@ -118,14 +118,31 @@ var _ = BeforeSuite(func() {
 			}
 		})
 
-		By("installing rancher", func() {
+		By("Add rancher helm chart repository", func() {
+			Expect(kubectl.RunHelmBinaryWithCustomErr(
+				"repo",
+				"add",
+				"--force-update",
+				"rancher-latest",
+				fmt.Sprintf(e2eCfg.RancherChartURL),
+			)).To(Succeed())
+		})
+
+		By("Update helm repositories", func() {
+			Expect(kubectl.RunHelmBinaryWithCustomErr(
+				"repo",
+				"update",
+			)).To(Succeed())
+		})
+
+		By("Installing rancher", func() {
 			if isDeploymentReady(cattleSystemNamespace, rancherName) {
 				By("already installed")
 			} else {
 				Expect(kubectl.RunHelmBinaryWithCustomErr(
+					"install",
 					"-n",
 					cattleSystemNamespace,
-					"install",
 					"--set",
 					"bootstrapPassword=admin",
 					"--set",
@@ -134,8 +151,9 @@ var _ = BeforeSuite(func() {
 					"replicas=1",
 					"--set", fmt.Sprintf("hostname=%s.%s", e2eCfg.ExternalIP, e2eCfg.MagicDNS),
 					"--create-namespace",
+					"--set", fmt.Sprintf("rancherImageTag=%s", e2eCfg.RancherVersion),
 					rancherName,
-					fmt.Sprintf(e2eCfg.RancherChartURL),
+					"rancher-latest/rancher",
 				)).To(Succeed())
 				Eventually(func() bool {
 					return isDeploymentReady(cattleSystemNamespace, rancherName)
