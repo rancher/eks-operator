@@ -53,8 +53,8 @@ type UpdateResourceTagsOpts struct {
 func UpdateResourceTags(ctx context.Context, opts *UpdateResourceTagsOpts) (bool, error) {
 	updated := false
 	if updateTags := utils.GetKeyValuesToUpdate(opts.Tags, opts.UpstreamTags); updateTags != nil {
-		logrus.Infof("updating resource tags to %s for cluster [%s]", opts.Tags, opts.ClusterName)
-		logrus.Debugf("config: %s, upstream: %s", opts.Tags, opts.UpstreamTags)
+		logrus.Infof("updating resource tags to %v for cluster [%s]", opts.Tags, opts.ClusterName)
+		logrus.Debugf("config: %v, upstream: %v", opts.Tags, opts.UpstreamTags)
 
 		_, err := opts.EKSService.TagResource(ctx,
 			&eks.TagResourceInput{
@@ -68,8 +68,8 @@ func UpdateResourceTags(ctx context.Context, opts *UpdateResourceTagsOpts) (bool
 	}
 
 	if updateUntags := utils.GetKeysToDelete(opts.Tags, opts.UpstreamTags); updateUntags != nil {
-		logrus.Infof("deleting resource tags %s from cluster [%s]", opts.Tags, opts.ClusterName)
-		logrus.Debugf("config: %s, upstream: %s", opts.Tags, opts.UpstreamTags)
+		logrus.Infof("deleting resource tags %v from cluster [%s]", opts.Tags, opts.ClusterName)
+		logrus.Debugf("config: %v, upstream: %v", opts.Tags, opts.UpstreamTags)
 
 		_, err := opts.EKSService.UntagResource(ctx,
 			&eks.UntagResourceInput{
@@ -94,8 +94,8 @@ type UpdateLoggingTypesOpts struct {
 func UpdateClusterLoggingTypes(ctx context.Context, opts *UpdateLoggingTypesOpts) (bool, error) {
 	updated := false
 	if loggingTypesUpdate := getLoggingTypesUpdate(opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes); loggingTypesUpdate != nil {
-		logrus.Infof("updating logging types to %s for cluster [%s (id: %s)]", opts.Config.Spec.LoggingTypes, opts.Config.Spec.DisplayName, opts.Config.Name)
-		logrus.Debugf("config: %s, upstream: %s", opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes)
+		logrus.Infof("updating logging types to %v for cluster [%s (id: %s)]", opts.Config.Spec.LoggingTypes, opts.Config.Spec.DisplayName, opts.Config.Name)
+		logrus.Debugf("config: %v, upstream: %v", opts.Config.Spec.LoggingTypes, opts.UpstreamClusterSpec.LoggingTypes)
 
 		_, err := opts.EKSService.UpdateClusterConfig(ctx,
 			&eks.UpdateClusterConfigInput{
