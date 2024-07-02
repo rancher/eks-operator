@@ -16,9 +16,10 @@ import (
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/pkg/eks"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/rancher/eks-operator/pkg/eks/services/mock_services"
 	"github.com/rancher/eks-operator/pkg/test"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("importCluster", func() {
@@ -205,6 +206,6 @@ var _ = Describe("updateCluster", func() {
 		eksConfig.Status.Phase = "active"
 		eksConfig.Spec.NodeGroups = append(eksConfig.Spec.NodeGroups, eksConfig.Spec.NodeGroups...)
 		_, err := handler.OnEksConfigChanged("", eksConfig)
-		Expect(err).To(MatchError("node group names must be unique within the [test] cluster to avoid duplication"))
+		Expect(err).To(MatchError("node group name [ng1] is not unique within the cluster [test (id: test)] to avoid duplication"))
 	})
 })
