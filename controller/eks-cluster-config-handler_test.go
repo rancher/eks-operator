@@ -206,6 +206,6 @@ var _ = Describe("updateCluster", func() {
 		eksConfig.Status.Phase = "active"
 		eksConfig.Spec.NodeGroups = append(eksConfig.Spec.NodeGroups, eksConfig.Spec.NodeGroups...)
 		_, err := handler.OnEksConfigChanged("", eksConfig)
-		Expect(err).To(MatchError("node group name \"ng1\" must be unique within the [test (id: test)] cluster to avoid duplication"))
+		Expect(err).To(MatchError("node group name [ng1] is not unique within the cluster [test (id: test)] to avoid duplication"))
 	})
 })

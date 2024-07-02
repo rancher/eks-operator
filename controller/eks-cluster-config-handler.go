@@ -336,7 +336,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		if _, ok := nodeGroupNames[aws.ToString(ng.NodegroupName)]; !ok {
 			nodeGroupNames[aws.ToString(ng.NodegroupName)] = struct{}{}
 		} else {
-			errs = append(errs, fmt.Sprintf("node group name %q must be unique within the [%s (id: %s)] cluster to avoid duplication", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name))
+			errs = append(errs, fmt.Sprintf("node group name [%s] is not unique within the cluster [%s (id: %s)] to avoid duplication", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name))
 		}
 
 		if ng.Version == nil {
@@ -506,7 +506,7 @@ func (h *Handler) validateCreate(ctx context.Context, config *eksv1.EKSClusterCo
 				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if nodeP[*ng.NodegroupName] {
-				return fmt.Errorf("node group name [%s] must be unique within the [%s (id: %s)] cluster to avoid duplication", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
+				return fmt.Errorf("node group name [%s] is not unique within the cluster [%s (id: %s)] to avoid duplication", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			nodeP[*ng.NodegroupName] = true
 			if ng.Version == nil {
@@ -537,11 +537,11 @@ func (h *Handler) validateCreate(ctx context.Context, config *eksv1.EKSClusterCo
 				return fmt.Errorf(cannotBeNilError, "requestSpotInstances", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.NodeRole == nil {
-				logrus.Warnf("nodeRole is not specified for nodegroup [%s] in cluster [%s (id: %s)], the controller will generate it", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
+				logrus.Warnf("nodeRole is not specified for nodegroup [%s] in cluster [%s (id: %s)], the controller will generate it", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name)
 			}
 			if aws.ToBool(ng.RequestSpotInstances) {
 				if len(ng.SpotInstanceTypes) == 0 {
-					return fmt.Errorf("nodegroup [%s] in cluster [%s (id: %s)]: spotInstanceTypes must be specified when requesting spot instances", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
+					return fmt.Errorf("nodegroup [%s] in cluster [%s (id: %s)]: spotInstanceTypes must be specified when requesting spot instances", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name)
 				}
 				if ng.InstanceType != "" {
 					return fmt.Errorf("nodegroup [%s] in cluster [%s (id: %s)]: instance type should not be specified when requestSpotInstances is specified, use spotInstanceTypes instead",
