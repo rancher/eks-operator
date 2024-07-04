@@ -15,15 +15,12 @@ on:
 #   - PUBLIC_REGISTRY_USERNAME
 #   - PUBLIC_REGISTRY_PASSWORD
 
-permissions:
-  contents: read
-
 jobs:
-  publish-public:
+  release:
     permissions:
-      contents: read
-      id-token: write
-    runs-on: ubuntu-22.04
+      contents: write # required for creating GH release
+      id-token: write # required for reading vault secrets
+    runs-on: ubuntu-latest
     steps:
     - name: Read secrets
       uses: rancher-eio/read-vault-secrets@main
@@ -44,15 +41,39 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
+        fetch-depth: 0
         ref: ${{ github.ref_name}}
-    - name: Build operator binary
-      run: |
-        make operator
     - name: Build and push all image variations
       run: |
+        make operator
         make image-push
         TAG="${TAG}-amd64" TARGET_PLATFORMS=linux/amd64 make image-push
         TAG="${TAG}-arm64" TARGET_PLATFORMS=linux/arm64 make image-push
       env:
         TAG: ${{ github.ref_name }}
         REPO: ${{ vars.PUBLIC_REGISTRY }}/${{ vars.PUBLIC_REGISTRY_REPO }}
+    - name: Create release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # required for creating GH release
+      id: goreleaser
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        distribution: goreleaser
+        version: "~> v2"
+        args: release --clean --verbose
+    - name: Upload charts to release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # required for updating GH release
+        TAG: ${{ github.ref_name }} # image tag to be referenced in `values.yaml` of the Helm chart release
+      run: |
+        version=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.version')
+        echo "Publishing helm charts (version: $version)"
+        
+        # Both version and appVersion are set to the same value in the Chart.yaml (excluding the 'v' prefix)
+        CHART_VERSION=$version GIT_TAG=$version make charts
+        
+        for f in $(find bin/ -name '*.tgz'); do
+          echo "Uploading $f to GitHub release $TAG"
+          gh release upload $TAG $f
+        done
+        echo "Charts successfully uploaded to GitHub release $TAG"
