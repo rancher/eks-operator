@@ -64,6 +64,7 @@ jobs:
     - name: Upload charts to release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # required for updating GH release
+        REPO: rancher/aks-operator # Docker repository to reference in `values.yaml` of the Helm chart release
         TAG: ${{ github.ref_name }} # image tag to be referenced in `values.yaml` of the Helm chart release
       run: |
         version=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.version')
