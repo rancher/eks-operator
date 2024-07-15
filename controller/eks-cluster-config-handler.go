@@ -693,8 +693,18 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		return config, fmt.Errorf("aws services not initialized")
 	}
 
+	configVersion, err := semver.ParseTolerant(aws.ToString(config.Spec.KubernetesVersion))
+	if err != nil {
+		return config, fmt.Errorf("couldn't parse config version: %w", err)
+	}
+	upstreamVersion, err := semver.ParseTolerant(aws.ToString(upstreamSpec.KubernetesVersion))
+	if err != nil {
+		return config, fmt.Errorf("couldn't parse upstream version: %w", err)
+	}
+
 	// check kubernetes version for update
-	if config.Spec.KubernetesVersion != nil {
+	if config.Spec.KubernetesVersion != nil &&
+		configVersion.GT(upstreamVersion) {
 		updated, err := awsservices.UpdateClusterVersion(ctx, &awsservices.UpdateClusterVersionOpts{
 			EKSService:          awsSVCs.eks,
 			Config:              config,
@@ -766,10 +776,14 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 	}
 
 	if config.Spec.NodeGroups == nil {
-		logrus.Infof("cluster [%s] finished updating", config.Name)
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigActivePhase
-		return h.eksCC.UpdateStatus(config)
+		if config.Status.Phase != eksConfigActivePhase {
+			logrus.Infof("cluster [%s] finished updating", config.Name)
+			config = config.DeepCopy()
+			config.Status.Phase = eksConfigActivePhase
+			return h.eksCC.UpdateStatus(config)
+		}
+
+		return config, nil
 	}
 
 	// check nodegroups for updates
