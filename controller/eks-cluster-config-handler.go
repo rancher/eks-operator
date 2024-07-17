@@ -693,28 +693,29 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		return config, fmt.Errorf("aws services not initialized")
 	}
 
-	configVersion, err := semver.ParseTolerant(aws.ToString(config.Spec.KubernetesVersion))
-	if err != nil {
-		return config, fmt.Errorf("couldn't parse config version: %w", err)
-	}
-	upstreamVersion, err := semver.ParseTolerant(aws.ToString(upstreamSpec.KubernetesVersion))
-	if err != nil {
-		return config, fmt.Errorf("couldn't parse upstream version: %w", err)
-	}
-
-	// check kubernetes version for update
-	if config.Spec.KubernetesVersion != nil &&
-		configVersion.GT(upstreamVersion) {
-		updated, err := awsservices.UpdateClusterVersion(ctx, &awsservices.UpdateClusterVersionOpts{
-			EKSService:          awsSVCs.eks,
-			Config:              config,
-			UpstreamClusterSpec: upstreamSpec,
-		})
-		if err != nil && !isResourceInUse(err) {
-			return config, fmt.Errorf("error updating cluster version: %w", err)
+	if config.Spec.KubernetesVersion != nil && upstreamSpec.KubernetesVersion != nil {
+		configVersion, err := semver.ParseTolerant(aws.ToString(config.Spec.KubernetesVersion))
+		if err != nil {
+			return config, fmt.Errorf("couldn't parse config version: %w", err)
 		}
-		if updated {
-			return h.enqueueUpdate(config)
+		upstreamVersion, err := semver.ParseTolerant(aws.ToString(upstreamSpec.KubernetesVersion))
+		if err != nil {
+			return config, fmt.Errorf("couldn't parse upstream version: %w", err)
+		}
+
+		// check kubernetes version for update
+		if configVersion.GT(upstreamVersion) {
+			updated, err := awsservices.UpdateClusterVersion(ctx, &awsservices.UpdateClusterVersionOpts{
+				EKSService:          awsSVCs.eks,
+				Config:              config,
+				UpstreamClusterSpec: upstreamSpec,
+			})
+			if err != nil && !isResourceInUse(err) {
+				return config, fmt.Errorf("error updating cluster version: %w", err)
+			}
+			if updated {
+				return h.enqueueUpdate(config)
+			}
 		}
 	}
 
