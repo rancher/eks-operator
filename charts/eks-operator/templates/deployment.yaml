@@ -39,6 +39,13 @@ spec:
           value: {{ .Values.httpsProxy }}
         - name: NO_PROXY
           value: {{ .Values.noProxy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          privileged: false
+          capabilities:
+            drop:
+            - ALL
 {{- if .Values.additionalTrustedCAs }}
         # eks-operator mounts the additional CAs in two places:
         volumeMounts:
