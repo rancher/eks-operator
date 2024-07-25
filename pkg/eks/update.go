@@ -189,7 +189,7 @@ func UpdateNodegroupVersion(ctx context.Context, opts *UpdateNodegroupVersionOpt
 func getLoggingTypesUpdate(loggingTypes []string, upstreamLoggingTypes []string) *ekstypes.Logging {
 	loggingUpdate := &ekstypes.Logging{}
 
-	if len(loggingTypes) > 0 {
+	if len(loggingTypes) >= 0 {
 		loggingTypesToDisable := getLoggingTypesToDisable(loggingTypes, upstreamLoggingTypes)
 		if loggingTypesToDisable.Enabled != nil {
 			loggingUpdate.ClusterLogging = append(loggingUpdate.ClusterLogging, loggingTypesToDisable)
