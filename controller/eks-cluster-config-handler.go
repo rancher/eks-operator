@@ -310,7 +310,7 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(ctx, config.Spec.DisplayName, config.Status.ManagedLaunchTemplateID, clusterState, nodeGroupStates, awsSVCs.ec2, true)
+	upstreamSpec, clusterARN, err := BuildUpstreamClusterState(ctx, config.Spec.DisplayName, config.Status.ManagedLaunchTemplateID, clusterState, nodeGroupStates, awsSVCs, true)
 	if err != nil {
 		return config, err
 	}
@@ -1000,7 +1000,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 
 	// check if ebs csi driver needs to be enabled
 	if aws.ToBool(config.Spec.EBSCSIDriver) {
-		installedArn, err := awsservices.CheckEBSAddon(ctx, awsSVCs.eks, config)
+		installedArn, err := awsservices.CheckEBSAddon(ctx, config.Spec.DisplayName, awsSVCs.eks)
 		if err != nil {
 			return nil, fmt.Errorf("error checking if ebs csi driver addon is installed: %w", err)
 		}
