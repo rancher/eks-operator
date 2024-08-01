@@ -49,10 +49,10 @@ func GetLaunchTemplateVersions(ctx context.Context, opts *GetLaunchTemplateVersi
 
 // CheckEBSAddon checks if the EBS CSI driver add-on is installed. If it is, it will return
 // the ARN of the add-on. If it is not, it will return an empty string. Otherwise, it will return an error
-func CheckEBSAddon(ctx context.Context, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
+func CheckEBSAddon(ctx context.Context, clusterName string, eksService services.EKSServiceInterface) (string, error) {
 	input := eks.DescribeAddonInput{
 		AddonName:   aws.String(ebsCSIAddonName),
-		ClusterName: aws.String(config.Spec.DisplayName),
+		ClusterName: aws.String(clusterName),
 	}
 
 	output, err := eksService.DescribeAddon(ctx, &input)
