@@ -49,7 +49,7 @@ func NodeGroupIssueIsUpdatable(code string) bool {
 }
 
 // BuildUpstreamClusterState builds the upstream cluster state from the given eks cluster and node group states.
-func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, awsSVCs *awsServices, includeManagedLaunchTemplate bool) (*eksv1.EKSClusterConfigSpec, string, error) {
+func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID string, clusterState *eks.DescribeClusterOutput, nodeGroupStates []*eks.DescribeNodegroupOutput, ec2Service services.EC2ServiceInterface, eksService services.EKSServiceInterface, includeManagedLaunchTemplate bool) (*eksv1.EKSClusterConfigSpec, string, error) {
 	upstreamSpec := &eksv1.EKSClusterConfigSpec{}
 
 	upstreamSpec.Imported = true
@@ -101,7 +101,7 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 
 	// set ebs csi driver
 	upstreamSpec.EBSCSIDriver = aws.Bool(false)
-	currentARN, err := awsservices.CheckEBSAddon(ctx, name, awsSVCs.eks)
+	currentARN, err := awsservices.CheckEBSAddon(ctx, name, eksService)
 	if err != nil {
 		return nil, "", fmt.Errorf("error checking if ebs csi driver addon is installed: %w", err)
 	}
@@ -153,7 +153,7 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 			if managedTemplateID == aws.ToString(ngToAdd.LaunchTemplate.ID) {
 				// If this is a rancher-managed launch template, then we move the data from the launch template to the node group.
 				launchTemplateRequestOutput, err := awsservices.GetLaunchTemplateVersions(ctx, &awsservices.GetLaunchTemplateVersionsOpts{
-					EC2Service:       awsSVCs.ec2,
+					EC2Service:       ec2Service,
 					LaunchTemplateID: ngToAdd.LaunchTemplate.ID,
 					Versions:         []*string{ng.Nodegroup.LaunchTemplate.Version},
 				})
