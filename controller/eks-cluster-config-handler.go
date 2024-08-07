@@ -182,19 +182,14 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 	}
 
 	logrus.Infof("starting control plane deletion for config [%s]", config.Name)
-	_, err = awsSVCs.eks.DeleteCluster(ctx, &eks.DeleteClusterInput{
-		Name: aws.String(config.Spec.DisplayName),
-	})
-	if err != nil {
-		if notFound(err) {
-			_, err = awsSVCs.eks.DeleteCluster(ctx, &eks.DeleteClusterInput{
-				Name: aws.String(config.Spec.DisplayName),
-			})
+	waitingForClusterDeletion := true
+	for waitingForClusterDeletion {
+		waitingForClusterDeletion, err = deleteCluster(ctx, config, awsSVCs.eks)
+		if err != nil {
+			return config, fmt.Errorf("error deleting cluster for config [%s]", config.Spec.DisplayName)
 		}
-
-		if err != nil && !notFound(err) {
-			return config, fmt.Errorf("error deleting cluster: %v", err)
-		}
+		time.Sleep(10 * time.Second)
+		logrus.Infof("waiting for config [%s] cluster to delete", config.Name)
 	}
 
 	if aws.ToBool(config.Spec.EBSCSIDriver) {
@@ -224,6 +219,30 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 	}
 
 	return config, err
+}
+
+func deleteCluster(ctx context.Context, config *eksv1.EKSClusterConfig, eksService services.EKSServiceInterface) (bool, error) {
+	clusterState, err := eksService.DescribeCluster(ctx,
+		&eks.DescribeClusterInput{
+			Name: aws.String(config.Spec.DisplayName),
+		})
+	if err != nil {
+		if notFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	if clusterState.Cluster.Status != ekstypes.ClusterStatusDeleting {
+		_, err = eksService.DeleteCluster(ctx,
+			&eks.DeleteClusterInput{
+				Name: aws.String(config.Spec.DisplayName),
+			})
+		if err != nil {
+			return false, err
+		}
+	}
+	return true, err
 }
 
 func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (*eksv1.EKSClusterConfig, error) {
