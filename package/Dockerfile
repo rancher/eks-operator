@@ -1,8 +1,8 @@
-FROM registry.suse.com/bci/bci-base:15.5 AS builder
+FROM registry.suse.com/bci/bci-base:15.6 AS builder
 RUN sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd
 RUN useradd --uid 1007 eks-operator
 
-FROM registry.suse.com/bci/bci-micro:15.5
+FROM registry.suse.com/bci/bci-micro:15.6
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/shadow /etc/shadow
 
