@@ -14,18 +14,19 @@ import (
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/blang/semver"
-	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
-	awsservices "github.com/rancher/eks-operator/pkg/eks"
-	"github.com/rancher/eks-operator/pkg/eks/services"
-	ekscontrollers "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
-	"github.com/rancher/eks-operator/templates"
-	"github.com/rancher/eks-operator/utils"
 	wranglerv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
+
+	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
+	awsservices "github.com/rancher/eks-operator/pkg/eks"
+	"github.com/rancher/eks-operator/pkg/eks/services"
+	ekscontrollers "github.com/rancher/eks-operator/pkg/generated/controllers/eks.cattle.io/v1"
+	"github.com/rancher/eks-operator/templates"
+	"github.com/rancher/eks-operator/utils"
 )
 
 const (
@@ -138,7 +139,7 @@ func (h *Handler) recordError(onChange func(key string, config *eksv1.EKSCluster
 		var recordErr error
 		config, recordErr = h.eksCC.UpdateStatus(config)
 		if recordErr != nil {
-			logrus.Errorf("Error recording ekscc [%s] failure message: %s", config.Name, recordErr.Error())
+			logrus.Errorf("Error recording ekscc [%s (id: %s)] failure message: %s", config.Spec.DisplayName, config.Name, recordErr.Error())
 		}
 		return config, err
 	}
@@ -154,34 +155,34 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 	}
 
 	if config.Spec.Imported {
-		logrus.Infof("cluster [%s] is imported, will not delete EKS cluster", config.Name)
+		logrus.Infof("Cluster [%s (id: %s)] is imported, will not delete EKS cluster", config.Spec.DisplayName, config.Name)
 		return config, nil
 	}
 	if config.Status.Phase == eksConfigNotCreatedPhase {
 		// The most likely context here is that the cluster already existed in EKS, so we shouldn't delete it
-		logrus.Warnf("cluster [%s] never advanced to creating status, will not delete EKS cluster", config.Name)
+		logrus.Warnf("Cluster [%s (id: %s)] never advanced to creating status, will not delete EKS cluster", config.Spec.DisplayName, config.Name)
 		return config, nil
 	}
 
-	logrus.Infof("deleting cluster [%s]", config.Name)
+	logrus.Infof("Deleting cluster [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 
-	logrus.Infof("starting node group deletion for config [%s]", config.Spec.DisplayName)
+	logrus.Infof("Starting node group deletion for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 	waitingForNodegroupDeletion := true
 	for waitingForNodegroupDeletion {
 		waitingForNodegroupDeletion, err = deleteNodeGroups(ctx, config, config.Spec.NodeGroups, awsSVCs.eks)
 		if err != nil {
-			return config, fmt.Errorf("error deleting nodegroups for config [%s]", config.Spec.DisplayName)
+			return config, fmt.Errorf("error deleting nodegroups for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 		}
 		time.Sleep(10 * time.Second)
-		logrus.Infof("waiting for config [%s] node groups to delete", config.Name)
+		logrus.Infof("Waiting for config [%s (id: %s)] node groups to delete", config.Spec.DisplayName, config.Name)
 	}
 
 	if config.Status.ManagedLaunchTemplateID != "" {
-		logrus.Infof("deleting common launch template for config [%s]", config.Name)
+		logrus.Infof("Deleting common launch template for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 		deleteLaunchTemplate(ctx, config.Status.ManagedLaunchTemplateID, awsSVCs.ec2)
 	}
 
-	logrus.Infof("starting control plane deletion for config [%s]", config.Name)
+	logrus.Infof("Starting control plane deletion for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 	_, err = awsSVCs.eks.DeleteCluster(ctx, &eks.DeleteClusterInput{
 		Name: aws.String(config.Spec.DisplayName),
 	})
@@ -198,27 +199,27 @@ func (h *Handler) OnEksConfigRemoved(_ string, config *eksv1.EKSClusterConfig) (
 	}
 
 	if aws.ToBool(config.Spec.EBSCSIDriver) {
-		logrus.Infof("deleting ebs csi driver role for config [%s]", config.Name)
+		logrus.Infof("Deleting ebs csi driver role for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 		if err := deleteStack(ctx, awsSVCs.cloudformation, getEBSCSIDriverRoleStackName(config.Spec.DisplayName), getEBSCSIDriverRoleStackName(config.Spec.DisplayName)); err != nil {
 			return config, fmt.Errorf("error ebs csi driver role stack: %v", err)
 		}
 	}
 
 	if aws.ToString(config.Spec.ServiceRole) == "" {
-		logrus.Infof("deleting service role for config [%s]", config.Name)
+		logrus.Infof("Deleting service role for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 		if err := deleteStack(ctx, awsSVCs.cloudformation, getServiceRoleName(config.Spec.DisplayName), getServiceRoleName(config.Spec.DisplayName)); err != nil {
 			return config, fmt.Errorf("error deleting service role stack: %v", err)
 		}
 	}
 
 	if len(config.Spec.Subnets) == 0 {
-		logrus.Infof("deleting vpc, subnets, and security groups for config [%s]", config.Name)
+		logrus.Infof("Deleting vpc, subnets, and security groups for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 		if err := deleteStack(ctx, awsSVCs.cloudformation, getVPCStackName(config.Spec.DisplayName), getVPCStackName(config.Spec.DisplayName)); err != nil {
 			return config, fmt.Errorf("error deleting vpc stack: %v", err)
 		}
 	}
 
-	logrus.Infof("deleting node instance role for config [%s]", config.Name)
+	logrus.Infof("Deleting node instance role for config [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 	if err := deleteStack(ctx, awsSVCs.cloudformation, fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName), fmt.Sprintf("%s-node-instance-role", config.Spec.DisplayName)); err != nil {
 		return config, fmt.Errorf("error deleting worker node stack: %v", err)
 	}
@@ -253,7 +254,7 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 
 	if clusterState.Cluster.Status == ekstypes.ClusterStatusUpdating {
 		// upstream cluster is already updating, must wait until sending next update
-		logrus.Infof("waiting for cluster [%s] to finish updating", config.Name)
+		logrus.Infof("Waiting for cluster [%s (id: %s)] to finish updating", config.Spec.DisplayName, config.Name)
 		if config.Status.Phase != eksConfigUpdatingPhase {
 			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
@@ -293,7 +294,7 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 					return config, err
 				}
 			}
-			logrus.Infof("waiting for cluster [%s] to update nodegroups [%s]", config.Name, ngName)
+			logrus.Infof("Waiting for cluster [%s (id: %s)] to update nodegroups [%s]", config.Spec.DisplayName, config.Name, ngName)
 			h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
 			return config, nil
 		}
@@ -324,7 +325,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		var err error
 		clusterVersion, err = semver.New(fmt.Sprintf("%s.0", aws.ToString(config.Spec.KubernetesVersion)))
 		if err != nil {
-			return fmt.Errorf("improper version format for cluster [%s]: %s", config.Name, aws.ToString(config.Spec.KubernetesVersion))
+			return fmt.Errorf("improper version format for cluster [%s (id: %s)]: %s", config.Spec.DisplayName, config.Name, aws.ToString(config.Spec.KubernetesVersion))
 		}
 	}
 
@@ -335,7 +336,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		if _, ok := nodeGroupNames[aws.ToString(ng.NodegroupName)]; !ok {
 			nodeGroupNames[aws.ToString(ng.NodegroupName)] = struct{}{}
 		} else {
-			errs = append(errs, fmt.Sprintf("node group names must be unique within the [%s] cluster to avoid duplication", config.Name))
+			errs = append(errs, fmt.Sprintf("node group name [%s] is not unique within the cluster [%s (id: %s)] to avoid duplication", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name))
 		}
 
 		if ng.Version == nil {
@@ -428,7 +429,7 @@ func (h *Handler) validateCreate(ctx context.Context, config *eksv1.EKSClusterCo
 	}
 	for _, c := range eksConfigs.Items {
 		if c.Spec.DisplayName == config.Spec.DisplayName && c.Name != config.Name {
-			return fmt.Errorf("cannot create cluster [%s] because an eksclusterconfig exists with the same name", config.Spec.DisplayName)
+			return fmt.Errorf("cannot create cluster [%s (id: %s)] because an eksclusterconfig exists with the same name", config.Spec.DisplayName, config.Name)
 		}
 	}
 
@@ -442,114 +443,114 @@ func (h *Handler) validateCreate(ctx context.Context, config *eksv1.EKSClusterCo
 		}
 		for _, cluster := range listOutput.Clusters {
 			if cluster == config.Spec.DisplayName {
-				return fmt.Errorf("cannot create cluster [%s] because a cluster in EKS exists with the same name", config.Spec.DisplayName)
+				return fmt.Errorf("cannot create cluster [%s (id: %s)] because a cluster in EKS exists with the same name", config.Spec.DisplayName, config.Name)
 			}
 		}
-		cannotBeNilError := "field [%s] cannot be nil for non-import cluster [%s]"
+		cannotBeNilError := "field [%s] cannot be nil for non-import cluster [%s (id: %s)]"
 		if config.Spec.KubernetesVersion == nil {
-			return fmt.Errorf(cannotBeNilError, "kubernetesVersion", config.Name)
+			return fmt.Errorf(cannotBeNilError, "kubernetesVersion", config.Spec.DisplayName, config.Name)
 		}
 		if config.Spec.PrivateAccess == nil {
-			return fmt.Errorf(cannotBeNilError, "privateAccess", config.Name)
+			return fmt.Errorf(cannotBeNilError, "privateAccess", config.Spec.DisplayName, config.Name)
 		}
 		if config.Spec.PublicAccess == nil {
-			return fmt.Errorf(cannotBeNilError, "publicAccess", config.Name)
+			return fmt.Errorf(cannotBeNilError, "publicAccess", config.Spec.DisplayName, config.Name)
 		}
 		if config.Spec.SecretsEncryption == nil {
-			return fmt.Errorf(cannotBeNilError, "secretsEncryption", config.Name)
+			return fmt.Errorf(cannotBeNilError, "secretsEncryption", config.Spec.DisplayName, config.Name)
 		}
 		if config.Spec.Tags == nil {
-			return fmt.Errorf(cannotBeNilError, "tags", config.Name)
+			return fmt.Errorf(cannotBeNilError, "tags", config.Spec.DisplayName, config.Name)
 		}
 		if config.Spec.Subnets == nil {
-			return fmt.Errorf(cannotBeNilError, "subnets", config.Name)
+			return fmt.Errorf(cannotBeNilError, "subnets", config.Spec.DisplayName, config.Name)
 		}
 		if config.Spec.SecurityGroups == nil {
-			return fmt.Errorf(cannotBeNilError, "securityGroups", config.Name)
+			return fmt.Errorf(cannotBeNilError, "securityGroups", config.Spec.DisplayName, config.Name)
 		}
 		if config.Spec.LoggingTypes == nil {
-			return fmt.Errorf(cannotBeNilError, "loggingTypes", config.Name)
+			return fmt.Errorf(cannotBeNilError, "loggingTypes", config.Spec.DisplayName, config.Name)
 		}
 		if config.Spec.PublicAccessSources == nil {
-			return fmt.Errorf(cannotBeNilError, "publicAccessSources", config.Name)
+			return fmt.Errorf(cannotBeNilError, "publicAccessSources", config.Spec.DisplayName, config.Name)
 		}
 	}
 	for _, ng := range config.Spec.NodeGroups {
-		cannotBeNilError := "field [%s] cannot be nil for nodegroup [%s] in non-nil cluster [%s]"
+		cannotBeNilError := "field [%s] cannot be nil for nodegroup [%s] in non-nil cluster [%s (id: %s)]"
 		if !config.Spec.Imported {
 			if ng.LaunchTemplate != nil {
 				if ng.LaunchTemplate.ID == nil {
-					return fmt.Errorf(cannotBeNilError, "launchTemplate.ID", *ng.NodegroupName, config.Name)
+					return fmt.Errorf(cannotBeNilError, "launchTemplate.ID", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 				}
 				if ng.LaunchTemplate.Version == nil {
-					return fmt.Errorf(cannotBeNilError, "launchTemplate.Version", *ng.NodegroupName, config.Name)
+					return fmt.Errorf(cannotBeNilError, "launchTemplate.Version", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 				}
 			} else {
 				if ng.Ec2SshKey == nil {
-					return fmt.Errorf(cannotBeNilError, "ec2SshKey", *ng.NodegroupName, config.Name)
+					return fmt.Errorf(cannotBeNilError, "ec2SshKey", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 				}
 				if ng.ResourceTags == nil {
-					return fmt.Errorf(cannotBeNilError, "resourceTags", *ng.NodegroupName, config.Name)
+					return fmt.Errorf(cannotBeNilError, "resourceTags", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 				}
 				if ng.DiskSize == nil {
-					return fmt.Errorf(cannotBeNilError, "diskSize", *ng.NodegroupName, config.Name)
+					return fmt.Errorf(cannotBeNilError, "diskSize", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 				}
 				if !aws.ToBool(ng.RequestSpotInstances) && ng.InstanceType == "" {
-					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Name)
+					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 				}
 				if aws.ToBool(ng.Arm) && ng.InstanceType == "" {
-					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Name)
+					return fmt.Errorf(cannotBeNilError, "instanceType", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 				}
 			}
 			if ng.NodegroupName == nil {
-				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "name", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if nodeP[*ng.NodegroupName] {
-				return fmt.Errorf("node group names must be unique within the [%s] cluster to avoid duplication", config.Name)
+				return fmt.Errorf("node group name [%s] is not unique within the cluster [%s (id: %s)] to avoid duplication", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			nodeP[*ng.NodegroupName] = true
 			if ng.Version == nil {
-				return fmt.Errorf(cannotBeNilError, "version", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "version", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.MinSize == nil {
-				return fmt.Errorf(cannotBeNilError, "minSize", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "minSize", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.MaxSize == nil {
-				return fmt.Errorf(cannotBeNilError, "maxSize", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "maxSize", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.DesiredSize == nil {
-				return fmt.Errorf(cannotBeNilError, "desiredSize", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "desiredSize", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.Gpu == nil {
-				return fmt.Errorf(cannotBeNilError, "gpu", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "gpu", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.Subnets == nil {
-				return fmt.Errorf(cannotBeNilError, "subnets", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "subnets", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.Tags == nil {
-				return fmt.Errorf(cannotBeNilError, "tags", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "tags", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.Labels == nil {
-				return fmt.Errorf(cannotBeNilError, "labels", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "labels", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.RequestSpotInstances == nil {
-				return fmt.Errorf(cannotBeNilError, "requestSpotInstances", *ng.NodegroupName, config.Name)
+				return fmt.Errorf(cannotBeNilError, "requestSpotInstances", *ng.NodegroupName, config.Spec.DisplayName, config.Name)
 			}
 			if ng.NodeRole == nil {
-				logrus.Warnf("nodeRole is not specified for nodegroup [%s] in cluster [%s], the controller will generate it", *ng.NodegroupName, config.Name)
+				logrus.Warnf("nodeRole is not specified for nodegroup [%s] in cluster [%s (id: %s)], the controller will generate it", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name)
 			}
 			if aws.ToBool(ng.RequestSpotInstances) {
 				if len(ng.SpotInstanceTypes) == 0 {
-					return fmt.Errorf("nodegroup [%s] in cluster [%s]: spotInstanceTypes must be specified when requesting spot instances", *ng.NodegroupName, config.Name)
+					return fmt.Errorf("nodegroup [%s] in cluster [%s (id: %s)]: spotInstanceTypes must be specified when requesting spot instances", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name)
 				}
 				if ng.InstanceType != "" {
-					return fmt.Errorf("nodegroup [%s] in cluster [%s]: instance type should not be specified when requestSpotInstances is specified, use spotInstanceTypes instead",
-						*ng.NodegroupName, config.Name)
+					return fmt.Errorf("nodegroup [%s] in cluster [%s (id: %s)]: instance type should not be specified when requestSpotInstances is specified, use spotInstanceTypes instead",
+						aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name)
 				}
 			}
 		}
 		if aws.ToString(ng.Version) != *config.Spec.KubernetesVersion {
-			return fmt.Errorf("nodegroup [%s] version must match cluster [%s] version on create", aws.ToString(ng.NodegroupName), config.Name)
+			return fmt.Errorf("nodegroup [%s] version must match cluster [%s (id: %s)] version on create", aws.ToString(ng.NodegroupName), config.Spec.DisplayName, config.Name)
 		}
 	}
 	return nil
@@ -673,13 +674,13 @@ func (h *Handler) waitForCreationComplete(ctx context.Context, config *eksv1.EKS
 		if err := h.createCASecret(config, state); err != nil {
 			return config, err
 		}
-		logrus.Infof("cluster [%s] created successfully", config.Name)
+		logrus.Infof("Cluster [%s (id: %s)] created successfully", config.Spec.DisplayName, config.Name)
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigActivePhase
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	logrus.Infof("waiting for cluster [%s] to finish creating", config.Name)
+	logrus.Infof("Waiting for cluster [%s (id: %s)] to finish creating", config.Spec.DisplayName, config.Name)
 	h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
 
 	return config, nil
@@ -778,7 +779,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 
 	if config.Spec.NodeGroups == nil {
 		if config.Status.Phase != eksConfigActivePhase {
-			logrus.Infof("cluster [%s] finished updating", config.Name)
+			logrus.Infof("Cluster [%s (id: %s)] finished updating", config.Spec.DisplayName, config.Name)
 			config = config.DeepCopy()
 			config.Status.Phase = eksConfigActivePhase
 			return h.eksCC.UpdateStatus(config)
@@ -1005,7 +1006,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			return nil, fmt.Errorf("error checking if ebs csi driver addon is installed: %w", err)
 		}
 		if installedArn == "" {
-			logrus.Infof("enabling [ebs csi driver add-on] for cluster [%s]", config.Spec.DisplayName)
+			logrus.Infof("Enabling [ebs csi driver add-on] for cluster [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 			ebsCSIDriverInput := awsservices.EnableEBSCSIDriverInput{
 				EKSService:   awsSVCs.eks,
 				IAMService:   awsSVCs.iam,
@@ -1021,7 +1022,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 
 	// no new updates, set to active
 	if config.Status.Phase != eksConfigActivePhase {
-		logrus.Infof("cluster [%s] finished updating", config.Name)
+		logrus.Infof("Cluster [%s (id: %s)] finished updating", config.Spec.DisplayName, config.Name)
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigActivePhase
 		return h.eksCC.UpdateStatus(config)
