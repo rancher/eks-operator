@@ -8,8 +8,8 @@ COPY --from=builder /etc/shadow /etc/shadow
 
 RUN rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/*
 
-ENV KUBECONFIG /home/eks-operator/.kube/config
-ENV SSL_CERT_DIR /etc/rancher/ssl
+ENV KUBECONFIG="/home/eks-operator/.kube/config"
+ENV SSL_CERT_DIR="/etc/rancher/ssl"
 
 COPY bin/eks-operator /usr/bin/
 COPY package/entrypoint.sh /usr/bin
