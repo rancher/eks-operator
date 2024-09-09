@@ -13,7 +13,7 @@ require (
 	github.com/aws/aws-sdk-go v1.50.38
 	github.com/aws/aws-sdk-go-v2 v1.30.5
 	github.com/aws/aws-sdk-go-v2/config v1.27.31
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.31
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.32
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.53.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.177.1
 	github.com/aws/aws-sdk-go-v2/service/eks v1.48.2
@@ -53,9 +53,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.22.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.30.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.22.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.30.7 // indirect
 	github.com/aws/smithy-go v1.20.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
