@@ -1,9 +1,11 @@
 name: Scan
 on:
   pull_request:
+    branches:
+      - release-v2.9
   push:
     branches:
-      - main
+      - release-v2.9
     tags:
       - "v*"
 jobs:
