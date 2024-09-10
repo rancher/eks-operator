@@ -13,9 +13,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v3.2.0
+      - name: Build operator
+        run: make operator
       - name: Build image
         uses: docker/build-push-action@v6.7.0
         with:
@@ -23,7 +30,7 @@ jobs:
           tags: ghcr.io/rancher/eks-operator:${{ github.sha }}
           load: true
           push: false
-          file: test/e2e/Dockerfile.e2e
+          file: package/Dockerfile
           build-args: |
             TAG=${{ github.sha }}
             REPO=ghcr.io/rancher/eks-operator
