@@ -19,17 +19,24 @@ import (
 var (
 	masterURL      string
 	kubeconfigFile string
+	debug          bool
 )
 
 func init() {
 	flag.StringVar(&kubeconfigFile, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.StringVar(&masterURL, "master", "", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
+	flag.BoolVar(&debug, "debug", false, "Variable to set log level to debug; default is false")
 	flag.Parse()
 }
 
 func main() {
 	// set up signals so we handle the first shutdown signal gracefully
 	ctx := signals.SetupSignalContext()
+
+	if debug {
+		logrus.SetLevel(logrus.DebugLevel)
+		logrus.Debugf("Loglevel set to [%v]", logrus.DebugLevel)
+	}
 
 	// This will load the kubeconfig file in a style the same as kubectl
 	cfg, err := kubeconfig.GetNonInteractiveClientConfig(kubeconfigFile).ClientConfig()
