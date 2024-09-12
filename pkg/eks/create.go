@@ -282,7 +282,7 @@ func CreateNodeGroup(ctx context.Context, opts *CreateNodeGroupOptions) (string,
 		} else if arm := opts.NodeGroup.Arm; aws.ToBool(arm) {
 			nodeGroupCreateInput.AmiType = ekstypes.AMITypesAl2023Arm64Standard
 		} else if gpu := opts.NodeGroup.Gpu; aws.ToBool(gpu) {
-			nodeGroupCreateInput.AmiType = ekstypes.AMITypesAl2023X8664Nvidia
+			nodeGroupCreateInput.AmiType = ekstypes.AMITypesAl2X8664Gpu
 		} else {
 			nodeGroupCreateInput.AmiType = ekstypes.AMITypesAl2023X8664Standard
 		}
