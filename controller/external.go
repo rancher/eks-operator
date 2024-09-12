@@ -207,8 +207,9 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 				ngToAdd.Ec2SshKey = ng.Nodegroup.RemoteAccess.Ec2SshKey
 			}
 		}
-
-		if ng.Nodegroup.AmiType == ekstypes.AMITypesAl2023X8664Nvidia {
+		// TODO: Update AMITypesAl2X8664Gpu to Amazon Linux 2023 when it is available
+		// Issue https://github.com/rancher/eks-operator/issues/568
+		if ng.Nodegroup.AmiType == ekstypes.AMITypesAl2X8664Gpu {
 			ngToAdd.Gpu = aws.Bool(true)
 		} else if ng.Nodegroup.AmiType == ekstypes.AMITypesAl2023X8664Standard {
 			ngToAdd.Gpu = aws.Bool(false)
