@@ -210,18 +210,18 @@ var _ = Describe("updateCluster", func() {
 	})
 
 	It("should not allow node group versions outside version skew", func() {
-		tooNewVersion := "1.29"
-		tooNewNodeGroup := []eksv1.NodeGroup{
+		tooOldVersion := "1.21"
+		tooOldNodeGroup := []eksv1.NodeGroup{
 			{
-				NodegroupName: aws.String("ng_1.29"),
-				Version:       &tooNewVersion,
+				NodegroupName: aws.String("ng_1.21"),
+				Version:       &tooOldVersion,
 			},
 		}
 
 		eksConfig.Status.Phase = "active"
-		eksConfig.Spec.NodeGroups = append(eksConfig.Spec.NodeGroups, tooNewNodeGroup...)
+		eksConfig.Spec.NodeGroups = append(eksConfig.Spec.NodeGroups, tooOldNodeGroup...)
 		_, err := handler.OnEksConfigChanged("", eksConfig)
-		Expect(err).To(MatchError("versions for cluster [1.25] and nodegroup [1.29] not compatible: all nodegroup kubernetes versions " +
+		Expect(err).To(MatchError("versions for cluster [1.25] and nodegroup [1.21] not compatible: all nodegroup kubernetes versions " +
 			"must within version skew policy (K8s < 1.25: N-2, K8s >= 1.25: N-3)"))
 	})
 })
