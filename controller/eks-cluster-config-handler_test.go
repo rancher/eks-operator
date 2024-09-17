@@ -208,4 +208,20 @@ var _ = Describe("updateCluster", func() {
 		_, err := handler.OnEksConfigChanged("", eksConfig)
 		Expect(err).To(MatchError("node group name [ng1] is not unique within the cluster [test (id: test)] to avoid duplication"))
 	})
+
+	It("should not allow node group versions outside version skew", func() {
+		tooNewVersion := "1.29"
+		tooNewNodeGroup := []eksv1.NodeGroup{
+			{
+				NodegroupName: aws.String("ng_1.29"),
+				Version:       &tooNewVersion,
+			},
+		}
+
+		eksConfig.Status.Phase = "active"
+		eksConfig.Spec.NodeGroups = append(eksConfig.Spec.NodeGroups, tooNewNodeGroup...)
+		_, err := handler.OnEksConfigChanged("", eksConfig)
+		Expect(err).To(MatchError("versions for cluster [1.25] and nodegroup [1.29] not compatible: all nodegroup kubernetes versions " +
+			"must within version skew policy (K8s < 1.25: N-2, K8s >= 1.25: N-3)"))
+	})
 })
