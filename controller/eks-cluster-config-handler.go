@@ -325,7 +325,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		var err error
 		clusterVersion, err = semver.New(fmt.Sprintf("%s.0", aws.ToString(config.Spec.KubernetesVersion)))
 		if err != nil {
-			return fmt.Errorf("improper version format for cluster [%s (id: %s)]: %s", config.Spec.DisplayName, config.Name, aws.ToString(config.Spec.KubernetesVersion))
+			return fmt.Errorf("invalid version format for cluster [%s (id: %s)]: %s", config.Spec.DisplayName, config.Name, aws.ToString(config.Spec.KubernetesVersion))
 		}
 	}
 
@@ -344,7 +344,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		}
 		version, err := semver.New(fmt.Sprintf("%s.0", aws.ToString(ng.Version)))
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("improper version format for nodegroup [%s]: %s", aws.ToString(ng.NodegroupName), aws.ToString(ng.Version)))
+			errs = append(errs, fmt.Sprintf("invalid version format for node group [%s]: %s", aws.ToString(ng.NodegroupName), aws.ToString(ng.Version)))
 			continue
 		}
 		if clusterVersion == nil {
@@ -356,8 +356,13 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		if (clusterVersion.Minor < 25 && clusterVersion.Minor-version.Minor <= 2) || (clusterVersion.Minor >= 25 && clusterVersion.Minor-version.Minor <= 3) {
 			continue
 		}
-		errs = append(errs, fmt.Sprintf("versions for cluster [%s] and nodegroup [%s] not compatible: all nodegroup kubernetes versions "+
-			"must within version skew policy (K8s < 1.25: N-2, K8s >= 1.25: N-3)", aws.ToString(config.Spec.KubernetesVersion), aws.ToString(ng.Version)))
+		if clusterVersion.Minor < 25 {
+			errs = append(errs, fmt.Sprintf("versions for cluster [%s] and node group [%s] are not compatible: for clusters running Kubernetes < 1.25 the "+
+				"node group version may only be up to two minor versions older than the cluster version", aws.ToString(config.Spec.KubernetesVersion), aws.ToString(ng.Version)))
+		} else {
+			errs = append(errs, fmt.Sprintf("versions for cluster [%s] and node group [%s] are not compatible: for clusters running Kubernetes >= 1.25 the "+
+				"node group version may only be up to three minor versions older than the cluster version", aws.ToString(config.Spec.KubernetesVersion), aws.ToString(ng.Version)))
+		}
 	}
 	if len(errs) != 0 {
 		return fmt.Errorf("%s", strings.Join(errs, ";"))
