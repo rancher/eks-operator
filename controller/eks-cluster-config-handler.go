@@ -720,6 +720,32 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		}
 	}
 
+	updated, err := awsservices.UpdateClusterAccess(ctx, &awsservices.UpdateClusterAccessOpts{
+		EKSService:          awsSVCs.eks,
+		Config:              config,
+		UpstreamClusterSpec: upstreamSpec,
+	})
+	if err != nil && !isResourceInUse(err) {
+		return config, fmt.Errorf("error updating cluster access config: %w", err)
+	}
+	if updated {
+		return h.enqueueUpdate(config)
+	}
+
+	if config.Spec.PublicAccessSources != nil {
+		updated, err := awsservices.UpdateClusterPublicAccessSources(ctx, &awsservices.UpdateClusterPublicAccessSourcesOpts{
+			EKSService:          awsSVCs.eks,
+			Config:              config,
+			UpstreamClusterSpec: upstreamSpec,
+		})
+		if err != nil && !isResourceInUse(err) {
+			return config, fmt.Errorf("error updating cluster public access sources: %w", err)
+		}
+		if updated {
+			return h.enqueueUpdate(config)
+		}
+	}
+
 	// check tags for update
 	if config.Spec.Tags != nil {
 		updated, err := awsservices.UpdateResourceTags(ctx, &awsservices.UpdateResourceTagsOpts{
@@ -745,32 +771,6 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		})
 		if err != nil && !isResourceInUse(err) {
 			return config, fmt.Errorf("error updating logging types: %w", err)
-		}
-		if updated {
-			return h.enqueueUpdate(config)
-		}
-	}
-
-	updated, err := awsservices.UpdateClusterAccess(ctx, &awsservices.UpdateClusterAccessOpts{
-		EKSService:          awsSVCs.eks,
-		Config:              config,
-		UpstreamClusterSpec: upstreamSpec,
-	})
-	if err != nil && !isResourceInUse(err) {
-		return config, fmt.Errorf("error updating cluster access config: %w", err)
-	}
-	if updated {
-		return h.enqueueUpdate(config)
-	}
-
-	if config.Spec.PublicAccessSources != nil {
-		updated, err := awsservices.UpdateClusterPublicAccessSources(ctx, &awsservices.UpdateClusterPublicAccessSourcesOpts{
-			EKSService:          awsSVCs.eks,
-			Config:              config,
-			UpstreamClusterSpec: upstreamSpec,
-		})
-		if err != nil && !isResourceInUse(err) {
-			return config, fmt.Errorf("error updating cluster public access sources: %w", err)
 		}
 		if updated {
 			return h.enqueueUpdate(config)
