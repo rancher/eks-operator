@@ -107,41 +107,53 @@ func (h *Handler) OnEksConfigChanged(_ string, config *eksv1.EKSClusterConfig) (
 // empty string will be written to status
 func (h *Handler) recordError(onChange func(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error)) func(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
 	return func(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
-		var err error
 		var message string
-		config, err = onChange(key, config)
+		config, onChangeErr := onChange(key, config)
 		if config == nil {
 			// EKS config is likely deleting
-			return config, err
+			return config, onChangeErr
 		}
-		if err != nil {
-			if !strings.Contains(err.Error(), "currently has update") {
+		if onChangeErr != nil {
+			if !strings.Contains(onChangeErr.Error(), "currently has update") {
 				// The update is valid in that the controller should retry but there is no actionable resolution as far
 				// as a user is concerned. An update has either been initiated by the eks-operator or another source
 				// is already in progress. It is possible an update is not being immediately reflected in the upstream
 				// cluster state. The config object will reenter the controller and then the controller will wait for
 				// the update to finish.
-				message = err.Error()
+				message = onChangeErr.Error()
 			}
 		}
-
 		if config.Status.FailureMessage == message {
-			return config, err
+			return config, onChangeErr
 		}
-
-		config = config.DeepCopy()
-		if message != "" && config.Status.Phase == eksConfigActivePhase {
-			// can assume an update is failing
-			config.Status.Phase = eksConfigUpdatingPhase
+		statusUpdateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			// Fetch the latest version of the config
+			conf, err := h.eksCC.Get(config.Namespace, config.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			// Ensure we're working on a deep copy
+			conf = conf.DeepCopy()
+			// Update status with the new failure message
+			if message != "" && conf.Status.Phase == eksConfigActivePhase {
+				// Can assume an update is failing
+				conf.Status.Phase = eksConfigUpdatingPhase
+			}
+			conf.Status.FailureMessage = message
+			// Try to update status
+			updatedConfig, err := h.eksCC.UpdateStatus(conf)
+			if err == nil {
+				config = updatedConfig
+			}
+			return err
+		})
+		if statusUpdateErr != nil {
+			logrus.Errorf(
+				"Error updating status for EKSClusterConfig [%s/%s]: %v. Original error from onChange: %v",
+				config.Spec.DisplayName, config.Name, statusUpdateErr, onChangeErr,
+			)
 		}
-		config.Status.FailureMessage = message
-
-		var recordErr error
-		config, recordErr = h.eksCC.UpdateStatus(config)
-		if recordErr != nil {
-			logrus.Errorf("Error recording ekscc [%s (id: %s)] failure message: %s", config.Spec.DisplayName, config.Name, recordErr.Error())
-		}
-		return config, err
+		return config, onChangeErr
 	}
 }
 
