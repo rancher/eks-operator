@@ -353,16 +353,11 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 		if clusterVersion.EQ(*version) {
 			continue
 		}
-		if (clusterVersion.Minor < 25 && clusterVersion.Minor-version.Minor <= 2) || (clusterVersion.Minor >= 25 && clusterVersion.Minor-version.Minor <= 3) {
+		if clusterVersion.Minor-version.Minor <= 3 {
 			continue
 		}
-		if clusterVersion.Minor < 25 {
-			errs = append(errs, fmt.Sprintf("versions for cluster [%s] and node group [%s] are not compatible: for clusters running Kubernetes < 1.25 the "+
-				"node group version may only be up to two minor versions older than the cluster version", aws.ToString(config.Spec.KubernetesVersion), aws.ToString(ng.Version)))
-		} else {
-			errs = append(errs, fmt.Sprintf("versions for cluster [%s] and node group [%s] are not compatible: for clusters running Kubernetes >= 1.25 the "+
-				"node group version may only be up to three minor versions older than the cluster version", aws.ToString(config.Spec.KubernetesVersion), aws.ToString(ng.Version)))
-		}
+		errs = append(errs, fmt.Sprintf("versions for cluster [%s] and node group [%s] are not compatible: the "+
+			"node group version may only be up to three minor versions older than the cluster version", aws.ToString(config.Spec.KubernetesVersion), aws.ToString(ng.Version)))
 	}
 	if len(errs) != 0 {
 		return fmt.Errorf("%s", strings.Join(errs, ";"))
