@@ -24,7 +24,7 @@ jobs:
       - name: Build operator
         run: make operator
       - name: Build image
-        uses: docker/build-push-action@v6.7.0
+        uses: docker/build-push-action@v6.8.0
         with:
           context: .
           tags: ghcr.io/rancher/eks-operator:${{ github.sha }}
