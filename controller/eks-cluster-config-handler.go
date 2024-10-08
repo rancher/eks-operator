@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -407,7 +408,7 @@ func validateUpdate(config *eksv1.EKSClusterConfig) error {
 			"must be equal to or one minor version lower than the cluster kubernetes version", aws.StringValue(config.Spec.KubernetesVersion), aws.StringValue(ng.Version)))
 	}
 	if len(errs) != 0 {
-		return fmt.Errorf(strings.Join(errs, ";"))
+		return errors.New(strings.Join(errs, ";"))
 	}
 	return nil
 }
