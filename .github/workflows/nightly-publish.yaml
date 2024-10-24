@@ -8,5 +8,5 @@ jobs:
     uses: rancher-sandbox/highlander-reusable-workflows/.github/workflows/operator-with-latest-rancher-build.yaml@main
     with:
       operator_name: eks-operator
-      rancher_ref: release/v2.8
+      rancher_ref: main
       operator_commit: ${{ github.sha }}
