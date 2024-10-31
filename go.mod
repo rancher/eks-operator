@@ -4,10 +4,10 @@ go 1.22.0
 
 toolchain go1.22.7
 
-// to be removed when pkg/apis is updated after v1.30 support in rancher
-replace k8s.io/apiserver => k8s.io/apiserver v0.29.7
-
-replace k8s.io/client-go => k8s.io/client-go v0.30.1
+replace (
+	k8s.io/apiserver => k8s.io/apiserver v0.30.1
+	k8s.io/client-go => k8s.io/client-go v0.30.1
+)
 
 require (
 	github.com/aws/aws-sdk-go v1.50.38
@@ -26,18 +26,18 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rancher-sandbox/ele-testhelpers v0.0.0-20231206161614-20a517410736
 	github.com/rancher/lasso v0.0.0-20240705194423-b2a060d103c1
-	github.com/rancher/rancher/pkg/apis v0.0.0-20240618122559-b9ec494d4f6f
+	github.com/rancher/rancher/pkg/apis v0.0.0-20240719121207-baeda6b89fe3
 	github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e
 	github.com/rancher/wrangler/v3 v3.0.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/net v0.30.0
-	k8s.io/api v0.30.1
+	k8s.io/api v0.30.2
 	k8s.io/apiextensions-apiserver v0.30.1
-	k8s.io/apimachinery v0.30.1
+	k8s.io/apimachinery v0.30.2
 	k8s.io/apiserver v0.30.1
 	k8s.io/client-go v12.0.0+incompatible
-	sigs.k8s.io/controller-runtime v0.17.6
+	sigs.k8s.io/controller-runtime v0.18.5
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -91,18 +91,17 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
-	github.com/rancher/aks-operator v1.9.0-rc.6 // indirect
-	github.com/rancher/fleet/pkg/apis v0.10.0-rc.16 // indirect
-	github.com/rancher/gke-operator v1.9.0-rc.4 // indirect
-	github.com/rancher/norman v0.0.0-20240503193601-9f5f6586bb5b // indirect
-	github.com/rancher/rke v1.6.0-rc6 // indirect
+	github.com/rancher/aks-operator v1.9.0 // indirect
+	github.com/rancher/fleet/pkg/apis v0.10.0 // indirect
+	github.com/rancher/gke-operator v1.9.0 // indirect
+	github.com/rancher/norman v0.0.0-20240708202514-a0127673d1b9 // indirect
+	github.com/rancher/rke v1.6.0-rc9 // indirect
 	github.com/rancher/wrangler v1.1.1 // indirect
-	github.com/rancher/wrangler/v2 v2.2.0-rc6 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/mod v0.20.0 // indirect
-	golang.org/x/oauth2 v0.20.0 // indirect
+	golang.org/x/oauth2 v0.21.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/term v0.25.0 // indirect
@@ -118,8 +117,8 @@ require (
 	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
-	k8s.io/kubernetes v1.29.7 // indirect
-	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
+	k8s.io/kubernetes v1.30.1 // indirect
+	k8s.io/utils v0.0.0-20231127182322-b307cd553661 // indirect
 	sigs.k8s.io/cli-utils v0.35.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
