@@ -1,5 +1,6 @@
 name: Scan
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [ "main", "release-v*" ]
@@ -36,7 +37,10 @@ jobs:
             REPO=ghcr.io/rancher/eks-operator
             COMMIT=${{ github.sha }}
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db,public.ecr.aws/aquasecurity/trivy-db
+          TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db,public.ecr.aws/aquasecurity/trivy-java-db
         with:
           image-ref: "ghcr.io/rancher/eks-operator:${{ github.sha }}"
           format: "table"
