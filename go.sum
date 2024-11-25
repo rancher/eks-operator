@@ -457,8 +457,8 @@ github.com/rancher/wrangler v1.1.1 h1:wmqUwqc2M7ADfXnBCJTFkTB5ZREWpD78rnZMzmxwMv
 github.com/rancher/wrangler v1.1.1/go.mod h1:ioVbKupzcBOdzsl55MvEDN0R1wdGggj8iNCYGFI5JvM=
 github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e h1:UJpGtw6IKs0dHPTF+6Wd12lskeCZZAejl8/ie/fc1+0=
 github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e/go.mod h1:2lcWR98q8HU3U4mVETnXc8quNG0uXxrt8vKd6cAa/30=
-github.com/rancher/wrangler/v3 v3.0.1-rc.3 h1:C2d1GoP500SEFARVcb6EpbcNaXH3i8Yu9fzAe/0n4C0=
-github.com/rancher/wrangler/v3 v3.0.1-rc.3/go.mod h1:gUPHS1ANs2NyByfeERHwkGiQ1rlIa8BpTJZtNSgMlZw=
+github.com/rancher/wrangler/v3 v3.0.1 h1:vFsvTYpilYGLCpe6FadsoCnK5A+S0t0dE4C83Anorok=
+github.com/rancher/wrangler/v3 v3.0.1/go.mod h1:cGBYMrchAW13we6LlubfXAv1EJ3z0QzsXiGKTPr+IXg=
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rogpeppe/go-internal v1.12.0 h1:exVL4IDcn6na9z1rAb56Vxr+CgyK3nn3O+epU5NdKM8=
