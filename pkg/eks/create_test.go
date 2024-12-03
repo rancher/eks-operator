@@ -956,7 +956,7 @@ var _ = Describe("CreateNodeGroup", func() {
 			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
 			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
 			NodeRole:      aws.String("test"),
-			AmiType:       ekstypes.AMITypesAl2X8664Gpu,
+			AmiType:       ekstypes.AMITypesAl2023X8664Nvidia,
 		}).Return(nil, nil)
 
 		launchTemplateVersion, generatedNodeRole, err := CreateNodeGroup(ctx, createNodeGroupOpts)
