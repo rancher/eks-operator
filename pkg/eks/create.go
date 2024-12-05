@@ -312,7 +312,7 @@ func CreateNodeGroup(opts *CreateNodeGroupOptions) (string, string, error) {
 	}
 
 	_, err = opts.EKSService.CreateNodegroup(nodeGroupCreateInput)
-	if err != nil {
+	if err != nil && lt.ID != nil {
 		// If there was an error creating the node group, then the template version should be deleted
 		// to prevent many launch template versions from being created before the issue is fixed.
 		DeleteLaunchTemplateVersions(opts.EC2Service, *lt.ID, []*string{launchTemplateVersion})
