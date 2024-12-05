@@ -1075,6 +1075,58 @@ var _ = Describe("CreateNodeGroup", func() {
 		Expect(launchTemplateVersion).To(Equal("1"))
 		Expect(generatedNodeRole).To(Equal("test"))
 	})
+
+	It("handles no id case gracefully", func() {
+		createNodeGroupOpts.NodeGroup.ImageID = nil
+		ec2ServiceMock.EXPECT().CreateLaunchTemplateVersion(ctx, gomock.Any()).Return(&ec2.CreateLaunchTemplateVersionOutput{
+			LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{
+				LaunchTemplateName: aws.String("test"),
+				LaunchTemplateId:   nil,
+				VersionNumber:      aws.Int64(1),
+			},
+		}, nil)
+
+		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
+
+		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(
+			&cloudformation.DescribeStacksOutput{
+				Stacks: []cftypes.Stack{
+					{
+						StackStatus: createCompleteStatus,
+						Outputs: []cftypes.Output{
+							{
+								OutputKey:   aws.String("NodeInstanceRole"),
+								OutputValue: aws.String("test"),
+							},
+						},
+					},
+				},
+			}, nil)
+
+		eksServiceMock.EXPECT().CreateNodegroup(ctx, &eks.CreateNodegroupInput{
+			ClusterName:   aws.String(createNodeGroupOpts.Config.Spec.DisplayName),
+			NodegroupName: createNodeGroupOpts.NodeGroup.NodegroupName,
+			Labels:        aws.ToStringMap(createNodeGroupOpts.NodeGroup.Labels),
+			ScalingConfig: &ekstypes.NodegroupScalingConfig{
+				DesiredSize: createNodeGroupOpts.NodeGroup.DesiredSize,
+				MaxSize:     createNodeGroupOpts.NodeGroup.MaxSize,
+				MinSize:     createNodeGroupOpts.NodeGroup.MinSize,
+			},
+			CapacityType: ekstypes.CapacityTypesSpot,
+			LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
+				Id:      nil,
+				Version: aws.String("1"),
+			},
+			InstanceTypes: createNodeGroupOpts.NodeGroup.SpotInstanceTypes,
+			Subnets:       createNodeGroupOpts.NodeGroup.Subnets,
+			NodeRole:      aws.String("test"),
+			AmiType:       ekstypes.AMITypesAl2023X8664Standard,
+		}).Return(nil, errors.New("error"))
+
+		_, _, err := CreateNodeGroup(ctx, createNodeGroupOpts)
+		Expect(err).To(HaveOccurred())
+	})
+
 	It("set resource tags", func() {
 		createNodeGroupOpts.NodeGroup.ResourceTags = map[string]string{
 			"tag1": "val1",
