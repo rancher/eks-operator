@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.32.6
 	github.com/aws/aws-sdk-go-v2/config v1.28.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.47
-	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.56.0
+	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.56.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.194.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.52.1
 	github.com/aws/aws-sdk-go-v2/service/iam v1.38.1
