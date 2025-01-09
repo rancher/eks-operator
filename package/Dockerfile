@@ -11,6 +11,11 @@ RUN rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/*
 ENV KUBECONFIG="/home/eks-operator/.kube/config"
 ENV SSL_CERT_DIR="/etc/rancher/ssl"
 
+# Once this image is migrated to be SLSA compliant and the Go build happens
+# inside a build layer, we must pass the version and commit ID to the build,
+# similar to what was done in https://github.com/rancher/aks-operator/pull/803 .
+# This is just a reference for future changes, because it's needed for our VEX
+# work.
 COPY bin/eks-operator /usr/bin/
 COPY package/entrypoint.sh /usr/bin
 RUN chmod +x /usr/bin/entrypoint.sh
