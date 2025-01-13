@@ -12,9 +12,5 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
       - name: Build
-        run: make operator
+        run: make image-build
