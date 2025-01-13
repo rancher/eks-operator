@@ -16,47 +16,69 @@ on:
 #   - PUBLIC_REGISTRY_PASSWORD
 
 jobs:
-  release:
+  publish-images:
     permissions:
-      contents: write # required for creating GH release
-      id-token: write # required for reading vault secrets
+      contents: read
+      id-token: write # required for reading vault secrets and for cosign's use in ecm-distro-tools/publish-image
+    strategy:
+      matrix:
+        include:
+          # Three images are created:
+          # - Multi-arch manifest for both amd64 and arm64
+          - tag-suffix: ""
+            platforms: linux/amd64,linux/arm64
+          # - arm64 manifest
+          - tag-suffix: "-arm64"
+            platforms: linux/arm64
+          # - amd64 manifest
+          - tag-suffix: "-amd64"
+            platforms: linux/amd64
     runs-on: ubuntu-latest
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ github.ref_name}}
     - name: Read secrets
       uses: rancher-eio/read-vault-secrets@main
       with:
         secrets: |
           secret/data/github/repo/${{ github.repository }}/dockerhub/${{ github.repository_owner }}/credentials username | PUBLIC_REGISTRY_USERNAME ;
           secret/data/github/repo/${{ github.repository }}/dockerhub/${{ github.repository_owner }}/credentials password | PUBLIC_REGISTRY_PASSWORD ;
-    - name: Login to DockerHub
-      uses: docker/login-action@v3
+          secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | PRIME_REGISTRY ;
+          secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
+          secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD
+    - name: Publish images
+      uses: rancher/ecm-distro-tools/actions/publish-image@master
       with:
-        registry: ${{ vars.PUBLIC_REGISTRY }}
-        username: ${{ env.PUBLIC_REGISTRY_USERNAME }}
-        password: ${{ env.PUBLIC_REGISTRY_PASSWORD }}
-    - name: Setup QEMU
-      uses: docker/setup-qemu-action@v3
-    - name: Setup Docker Buildx
-      uses: docker/setup-buildx-action@v3
+        image: eks-operator
+        tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
+        platforms: ${{ matrix.platforms }}
+        public-registry: docker.io
+        public-repo: rancher
+        public-username: ${{ env.PUBLIC_REGISTRY_USERNAME }}
+        public-password: ${{ env.PUBLIC_REGISTRY_PASSWORD }}
+        prime-registry: ${{ env.PRIME_REGISTRY }}
+        prime-repo: rancher
+        prime-username: ${{ env.PRIME_REGISTRY_USERNAME }}
+        prime-password: ${{ env.PRIME_REGISTRY_PASSWORD }}
+        make-target: image-push
+        push-to-prime: true
+    - name: Cleanup checksum files # in order to avoid goreleaser dirty state error, remove once rancher/ecm-distro-tools/actions/publish-image@main gets updated
+      run: rm -f slsactl_*_checksums.txt*
+
+  release:
+    permissions:
+      contents: write # required for creating GH release
+    runs-on: ubuntu-latest
+    needs: publish-images
+    steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
         ref: ${{ github.ref_name}}
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: 'go.mod'
-        check-latest: true
-    - name: Build and push all image variations
-      run: |
-        make operator
-        make image-push
-        TAG="${TAG}-amd64" TARGET_PLATFORMS=linux/amd64 make image-push
-        TAG="${TAG}-arm64" TARGET_PLATFORMS=linux/arm64 make image-push
-      env:
-        TAG: ${{ github.ref_name }}
-        REPO: ${{ vars.PUBLIC_REGISTRY }}/${{ vars.PUBLIC_REGISTRY_REPO }}
     - name: Create release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # required for creating GH release
@@ -70,15 +92,15 @@ jobs:
     - name: Upload charts to release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # required for updating GH release
-        REPO: rancher/eks-operator # Docker repository to reference in `values.yaml` of the Helm chart release
+        REPO: rancher # First name component for Docker repository to reference in `values.yaml` of the Helm chart release, this is expected to be `rancher`, image name is appended to this value
         TAG: ${{ github.ref_name }} # image tag to be referenced in `values.yaml` of the Helm chart release
       run: |
         version=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.version')
         echo "Publishing helm charts (version: $version)"
-        
+
         # Both version and appVersion are set to the same value in the Chart.yaml (excluding the 'v' prefix)
         CHART_VERSION=$version GIT_TAG=$version make charts
-        
+
         for f in $(find bin/ -name '*.tgz'); do
           echo "Uploading $f to GitHub release $TAG"
           gh release upload $TAG $f
