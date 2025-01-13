@@ -11,10 +11,16 @@ ifneq ($(GIT_BRANCH), main)
 GIT_TAG?=$(shell git describe --abbrev=0 --tags 2>/dev/null || echo "v0.0.0" )
 endif
 TAG?=${GIT_TAG}-${GIT_COMMIT_SHORT}
-REPO?=docker.io/rancher/eks-operator
-IMAGE = $(REPO):$(TAG)
-TARGET_PLATFORMS := linux/amd64,linux/arm64
+REPO?=docker.io/rancher
+IMAGE = $(REPO)/eks-operator:$(TAG)
 MACHINE := rancher
+# Define the target platforms that can be used across the ecosystem.
+# Note that what would actually be used for a given project will be
+# defined in TARGET_PLATFORMS, and must be a subset of the below:
+DEFAULT_PLATFORMS := linux/amd64,linux/arm64,darwin/arm64,darwin/amd64
+TARGET_PLATFORMS := linux/amd64,linux/arm64
+BUILDX_ARGS ?= --sbom=true --attest type=provenance,mode=max
+
 E2E_CONF_FILE ?= $(ROOT_DIR)/test/e2e/config/config.yaml
 CHART_VERSION?=$(subst v,,$(GIT_TAG))
 RAWCOMMITDATE=$(shell git log -n1 --format="%at")
@@ -94,21 +100,21 @@ generate:
 	$(MAKE) generate-go
 	$(MAKE) generate-crd
 
-buildx-machine:
+buildx-machine: ## create rancher dockerbuildx machine targeting platform defined by DEFAULT_PLATFORMS
 	@docker buildx ls | grep $(MACHINE) || \
-		docker buildx create --name=$(MACHINE) --platform=$(TARGET_PLATFORMS)
+		docker buildx create --name=$(MACHINE) --platform=$(DEFAULT_PLATFORMS)
 
 .PHONY: image-build
 image-build: buildx-machine ## build (and load) the container image targeting the current platform.
 	docker buildx build -f package/Dockerfile \
-    --builder $(MACHINE) --build-arg VERSION=$(TAG) \
+    --builder $(MACHINE) --build-arg COMMIT=$(GIT_COMMIT) --build-arg VERSION=$(TAG) \
     -t "$(IMAGE)" $(BUILD_ACTION) .
 	@echo "Built $(IMAGE)"
 
 .PHONY: image-push
 image-push: buildx-machine ## build the container image targeting all platforms defined by TARGET_PLATFORMS and push to a registry.
 	docker buildx build -f package/Dockerfile \
-    --builder $(MACHINE) --build-arg VERSION=$(TAG) \
+    --builder $(MACHINE) $(IID_FILE_FLAG) $(BUILDX_ARGS) --build-arg COMMIT=$(GIT_COMMIT) --build-arg VERSION=$(TAG) \
     --platform=$(TARGET_PLATFORMS) -t "$(IMAGE)" --push .
 	@echo "Pushed $(IMAGE)"
 
@@ -137,7 +143,7 @@ operator-chart:
 	mkdir -p $(BIN_DIR)
 	cp -rf $(ROOT_DIR)/charts/eks-operator $(BIN_DIR)/chart
 	sed -i -e 's/tag:.*/tag: '${TAG}'/' $(BIN_DIR)/chart/values.yaml
-	sed -i -e 's|repository:.*|repository: '${REPO}'|' $(BIN_DIR)/chart/values.yaml
+	sed -i -e 's|repository:.*|repository: '${REPO}/eks-operator'|' $(BIN_DIR)/chart/values.yaml
 	helm package --version ${CHART_VERSION} --app-version ${GIT_TAG} -d $(BIN_DIR)/ $(BIN_DIR)/chart
 	rm -Rf $(BIN_DIR)/chart
 	
@@ -167,7 +173,7 @@ e2e-tests: $(GINKGO) charts
 
 .PHONY: kind-e2e-tests
 kind-e2e-tests: docker-build-e2e setup-kind
-	kind load docker-image --name $(CLUSTER_NAME) ${REPO}:${TAG}
+	kind load docker-image --name $(CLUSTER_NAME) ${IMAGE}
 	$(MAKE) e2e-tests
 
 kind-deploy-operator:
@@ -180,7 +186,7 @@ docker-build-e2e:
 		--build-arg "TAG=${GIT_TAG}" \
 		--build-arg "COMMIT=${GIT_COMMIT}" \
 		--build-arg "COMMITDATE=${COMMITDATE}" \
-		-t ${REPO}:${TAG} .
+		-t ${IMAGE} .
 
 .PHOHY: delete-local-kind-cluster
 delete-local-kind-cluster: ## Delete the local kind cluster
