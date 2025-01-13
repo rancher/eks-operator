@@ -23,7 +23,6 @@ jobs:
   e2e-tests:
     env:
       BRANCH: ${{ inputs.branch }}
-      REPO: ttl.sh/eks-operator-ci
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -31,47 +30,23 @@ jobs:
         with:
           ref: |
             ${{ env.BRANCH }}
-      - name: Export tag
-        id: export_tag
-        run: |
-          TAG="v0.0.0"
-          COMMITDATE=`date -d @$(git log -n1 --format="%at") "+%FT%TZ"`
-          COMMIT=`git rev-parse HEAD`
-          COMMIT_SHORT=`git rev-parse --short HEAD`
-          echo "operator_tag=$TAG" >> $GITHUB_OUTPUT
-          echo "commit_date=$COMMITDATE" >> $GITHUB_OUTPUT
-          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
-          echo "commit_short=$COMMIT_SHORT" >> $GITHUB_OUTPUT
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # v5.6.1
+      - name: Login to GHCR registry
+        uses: docker/login-action@v3
         with:
-          images: |
-            ${{ env.REPO }}
-          tags: |
-            type=raw,value=${{ steps.export_tag.outputs.operator_tag }}-${{ steps.export_tag.outputs.commit_short }}
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
       - name: Build and push image
-        uses: docker/build-push-action@b32b51a8eda65d6793cd0494a773d4f6bcef32dc # v6.11.0
-        with:
-          context: .
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          target: eks-operator
-          file: test/e2e/Dockerfile.e2e
-          build-args: |
-            TAG=${{ steps.export_tag.outputs.operator_tag }}
-            COMMITDATE=${{ steps.export_tag.outputs.commit_date }}
-            COMMIT=${{ steps.export_tag.outputs.commit }}
+        env:
+          REPO: ghcr.io/rancher
+        run: |
+          make image-push
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: 1.23.x
       - uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           version: v0.23.0
@@ -83,6 +58,7 @@ jobs:
           AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
+          REPO: ghcr.io/rancher
         run: make e2e-tests
       - name: Archive artifacts
         if: always()

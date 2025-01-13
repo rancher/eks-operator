@@ -3,7 +3,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: 0 22 * * *
-permissions: read-all
+permissions:
+  contents: read
+  packages: write # Required for pushing images to ghcr.io
 jobs:
   e2e-test-main:
     uses: ./.github/workflows/e2e-branch.yaml
