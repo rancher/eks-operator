@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	"github.com/aws/aws-sdk-go-v2/service/eks/types"
 
 	awssdkeks "github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/golang/mock/gomock"
@@ -157,11 +158,13 @@ var _ = Describe("delete stack", func() {
 
 var _ = Describe("updateCluster", func() {
 	var (
-		eksConfig *eksv1.EKSClusterConfig
-		handler   *Handler
+		eksConfig      *eksv1.EKSClusterConfig
+		handler        *Handler
+		eksServiceMock *mock_services.MockEKSServiceInterface
 	)
 
 	BeforeEach(func() {
+		eksServiceMock = mock_services.NewMockEKSServiceInterface(gomock.NewController(GinkgoT()))
 		handler = &Handler{
 			eksCC:        eksFactory.Eks().V1().EKSClusterConfig(),
 			secrets:      coreFactory.Core().V1().Secret(),
@@ -219,5 +222,172 @@ var _ = Describe("updateCluster", func() {
 		_, err := handler.OnEksConfigChanged("", eksConfig)
 		Expect(err).To(MatchError("versions for cluster [1.25] and node group [1.21] are not compatible: " +
 			"the node group version may only be up to three minor versions older than the cluster version"))
+	})
+
+	It("should set the config status to updating if there are updates in progress on the cluster", func() {
+		eksServiceMock.EXPECT().DescribeCluster(ctx,
+			&awssdkeks.DescribeClusterInput{
+				Name: aws.String(eksConfig.Spec.DisplayName),
+			},
+		).Return(&awssdkeks.DescribeClusterOutput{
+			Cluster: &types.Cluster{
+				Status: types.ClusterStatusActive,
+			},
+		}, nil).AnyTimes()
+
+		eksServiceMock.EXPECT().DescribeUpdates(ctx,
+			&awssdkeks.ListUpdatesInput{
+				Name: aws.String(eksConfig.Spec.DisplayName),
+			}, map[string]bool{},
+		).Return([]*awssdkeks.DescribeUpdateOutput{
+			{
+				Update: &types.Update{
+					Status: types.UpdateStatusInProgress,
+				},
+			},
+		}, nil).AnyTimes()
+
+		config, err := handler.checkAndUpdate(ctx, eksConfig, &awsServices{
+			eks: eksServiceMock,
+		})
+		Expect(err).To(BeNil())
+		Expect(config.Status.Phase).To(Equal(eksConfigUpdatingPhase))
+	})
+
+	It("should set the config status to updating and set new completed updates in config status", func() {
+		eksServiceMock.EXPECT().DescribeCluster(ctx,
+			&awssdkeks.DescribeClusterInput{
+				Name: aws.String(eksConfig.Spec.DisplayName),
+			},
+		).Return(&awssdkeks.DescribeClusterOutput{
+			Cluster: &types.Cluster{
+				Status: types.ClusterStatusActive,
+			},
+		}, nil).AnyTimes()
+
+		eksServiceMock.EXPECT().DescribeUpdates(ctx,
+			&awssdkeks.ListUpdatesInput{
+				Name: aws.String(eksConfig.Spec.DisplayName),
+			}, map[string]bool{},
+		).Return([]*awssdkeks.DescribeUpdateOutput{
+			{
+				Update: &types.Update{
+					Id:     aws.String("1"),
+					Status: types.UpdateStatusCancelled,
+				},
+			},
+			{
+				Update: &types.Update{
+					Id:     aws.String("2"),
+					Status: types.UpdateStatusFailed,
+				},
+			},
+			{
+				Update: &types.Update{
+					Id:     aws.String("3"),
+					Status: types.UpdateStatusSuccessful,
+				},
+			},
+			{
+				Update: &types.Update{
+					Id:     aws.String("4"),
+					Status: types.UpdateStatusInProgress,
+				},
+			},
+		}, nil).AnyTimes()
+
+		config, err := handler.checkAndUpdate(ctx, eksConfig, &awsServices{
+			eks: eksServiceMock,
+		})
+		Expect(err).To(BeNil())
+		Expect(config.Status.Phase).To(Equal(eksConfigUpdatingPhase))
+		Expect(config.Status.CompletedUpdateIDs).To(Equal([]string{"1", "2", "3"}))
+	})
+})
+
+var _ = Describe("recordError", func() {
+	var (
+		eksConfig *eksv1.EKSClusterConfig
+		handler   *Handler
+	)
+
+	BeforeEach(func() {
+		eksConfig = &eksv1.EKSClusterConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "testrecorderror",
+				Namespace: "default",
+			},
+			Spec: eksv1.EKSClusterConfigSpec{
+				DisplayName:         "test",
+				Region:              "test",
+				PrivateAccess:       aws.Bool(true),
+				PublicAccess:        aws.Bool(true),
+				PublicAccessSources: []string{"test"},
+				Tags:                map[string]string{"test": "test"},
+				LoggingTypes:        []string{"test"},
+				KubernetesVersion:   aws.String("test"),
+				SecretsEncryption:   aws.Bool(true),
+				KmsKey:              aws.String("test"),
+			},
+		}
+
+		Expect(cl.Create(ctx, eksConfig)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		Expect(test.CleanupAndWait(ctx, cl, eksConfig)).To(Succeed())
+	})
+
+	It("should return same conflict error when onChange returns a conflict error", func() {
+		oldOutput := logrus.StandardLogger().Out
+		buf := bytes.Buffer{}
+		logrus.SetOutput(&buf)
+
+		eksConfigUpdated := eksConfig.DeepCopy()
+		Expect(cl.Update(ctx, eksConfigUpdated)).To(Succeed())
+
+		var expectedErr error
+		expectedConfig := &eksv1.EKSClusterConfig{}
+		onChange := func(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
+			expectedErr = cl.Update(ctx, config)
+			return expectedConfig, expectedErr
+		}
+
+		eksConfig.ResourceVersion = "1"
+		handleFunction := handler.recordError(onChange)
+		config, err := handleFunction("", eksConfig)
+
+		Expect(config).To(Equal(expectedConfig))
+		Expect(err).To(Equal(expectedErr))
+		Expect("").To(Equal(string(buf.Bytes())))
+		logrus.SetOutput(oldOutput)
+	})
+
+	It("should return same conflict error when onChange returns a conflict error and print a debug log for the error", func() {
+		oldOutput := logrus.StandardLogger().Out
+		buf := bytes.Buffer{}
+		logrus.SetOutput(&buf)
+		logrus.SetLevel(logrus.DebugLevel)
+
+		eksConfigUpdated := eksConfig.DeepCopy()
+		Expect(cl.Update(ctx, eksConfigUpdated)).To(Succeed())
+
+		var expectedErr error
+		expectedConfig := &eksv1.EKSClusterConfig{}
+		onChange := func(key string, config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
+			expectedErr = cl.Update(ctx, config)
+			return expectedConfig, expectedErr
+		}
+
+		eksConfig.ResourceVersion = "1"
+		handleFunction := handler.recordError(onChange)
+		config, err := handleFunction("", eksConfig)
+
+		Expect(config).To(Equal(expectedConfig))
+		Expect(err).To(MatchError(expectedErr))
+
+		cleanLogOutput := strings.Replace(string(buf.Bytes()), `\"`, `"`, -1)
+		Expect(strings.Contains(cleanLogOutput, err.Error())).To(BeTrue())
+		logrus.SetOutput(oldOutput)
 	})
 })
