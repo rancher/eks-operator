@@ -155,6 +155,21 @@ func (mr *MockEKSServiceInterfaceMockRecorder) DescribeNodegroup(ctx, input inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeNodegroup", reflect.TypeOf((*MockEKSServiceInterface)(nil).DescribeNodegroup), ctx, input)
 }
 
+// DescribeUpdates mocks base method.
+func (m *MockEKSServiceInterface) DescribeUpdates(ctx context.Context, input *eks.ListUpdatesInput, completedUpdates map[string]bool) ([]*eks.DescribeUpdateOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeUpdates", ctx, input, completedUpdates)
+	ret0, _ := ret[0].([]*eks.DescribeUpdateOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeUpdates indicates an expected call of DescribeUpdates.
+func (mr *MockEKSServiceInterfaceMockRecorder) DescribeUpdates(ctx, input, completedUpdates interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeUpdates", reflect.TypeOf((*MockEKSServiceInterface)(nil).DescribeUpdates), ctx, input, completedUpdates)
+}
+
 // ListClusters mocks base method.
 func (m *MockEKSServiceInterface) ListClusters(ctx context.Context, input *eks.ListClustersInput) (*eks.ListClustersOutput, error) {
 	m.ctrl.T.Helper()

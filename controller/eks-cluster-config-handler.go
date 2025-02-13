@@ -270,6 +270,41 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 		return config, nil
 	}
 
+	inProgressUpdates, newCompletedUpdateIDs, err := awsservices.GetClusterUpdates(ctx, &awsservices.GetClusterStatusOpts{
+		EKSService: awsSVCs.eks,
+		Config:     config,
+	})
+	if err != nil {
+		logrus.Errorf("error getting cluster updates: %v", err)
+		return config, err
+	}
+
+	// add new completed updates to status
+	if len(newCompletedUpdateIDs) > 0 {
+		if config.Status.CompletedUpdateIDs == nil {
+			config.Status.CompletedUpdateIDs = newCompletedUpdateIDs
+		} else {
+			config.Status.CompletedUpdateIDs = append(config.Status.CompletedUpdateIDs, newCompletedUpdateIDs...)
+		}
+	}
+
+	if len(inProgressUpdates) > 0 {
+		// upstream cluster has some updates in progress, must wait until sending next update
+		updates := ""
+		for _, update := range inProgressUpdates {
+			updates += string(update.Type) + " "
+		}
+		logrus.Infof("Waiting for %s to finish on cluster [%s (id: %s)]", updates, config.Spec.DisplayName, config.Name)
+
+		if config.Status.Phase != eksConfigUpdatingPhase {
+			config = config.DeepCopy()
+			config.Status.Phase = eksConfigUpdatingPhase
+			return h.eksCC.UpdateStatus(config)
+		}
+		h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
+		return config, nil
+	}
+
 	ngs, err := awsSVCs.eks.ListNodegroups(ctx,
 		&eks.ListNodegroupsInput{
 			ClusterName: aws.String(config.Spec.DisplayName),
