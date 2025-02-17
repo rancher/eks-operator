@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.54
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.57.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.198.3
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.203.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.58.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.39.1
 	github.com/blang/semver v3.5.1+incompatible
@@ -51,8 +51,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.32 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.32 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.9 // indirect
@@ -78,7 +78,6 @@ require (
 	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
