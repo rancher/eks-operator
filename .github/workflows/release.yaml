@@ -106,3 +106,57 @@ jobs:
           gh release upload $TAG $f
         done
         echo "Charts successfully uploaded to GitHub release $TAG"
+  
+  dispatch-chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: publish-images
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    steps:
+      - name: Run dispatch
+        with:
+          github-token: ${{secrets.CI_BOT_TOKEN}}
+        run: |
+          case ${{ github.ref_name }} in           
+            "v1.11"*)
+              ACTION_TARGET_BRANCH="dev-v2.11"
+              ;;
+            "v1.10"*)
+              ACTION_TARGET_BRANCH="dev-v2.10"
+              ;;
+            *)
+              echo "Not a valid tag, not dispatching event"
+              exit 0
+          esac
+          echo "Running on $ACTION_TARGET_BRANCH"
+          gh workflow run "Auto Chart Bump" --repo rancher/charts --ref $ACTION_TARGET_BRANCH -F '{"chart": "rancher-eks-operator", "branch": "${{ ACTION_TARGET_BRANCH }}"}'
+
+  dispatch-dependency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: publish-images
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    steps:
+      - name: Run dispatch
+        with:
+          github-token: ${{secrets.CI_BOT_TOKEN}}
+        run: |
+          case ${{ github.ref_name }} in           
+            "v1.11"*)
+              ACTION_TARGET_BRANCH="main"
+              ;;
+            "v1.10"*)
+              ACTION_TARGET_BRANCH="release/v2.10"
+              ;;
+            "v1.9"*)
+              ACTION_TARGET_BRANCH="release/v2.9"
+              ;;
+            "v1.3"*)
+              ACTION_TARGET_BRANCH="release/v2.8"
+              ;;
+            *)
+              echo "Not a valid tag, not dispatching event"
+              exit 0
+          esac
+          echo "Running on $ACTION_TARGET_BRANCH"
+          gh workflow run "Go get" --repo rancher/rancher --ref $ACTION_TARGET_BRANCH -F goget_module=github.com/rancher/eks-operator -F goget_version=${{ github.ref_name }} -F source_author=${{ github.actor }}
