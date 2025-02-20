@@ -129,7 +129,7 @@ jobs:
             exit 0
         esac
         echo "Running on $ACTION_TARGET_BRANCH"
-        gh workflow run "Auto Chart Bump" --repo rancher/charts --ref $ACTION_TARGET_BRANCH -F '{"chart": "rancher-eks-operator", "branch": "${{ ACTION_TARGET_BRANCH }}"}'
+        gh workflow run "Auto Chart Bump" --repo rancher/charts --ref $ACTION_TARGET_BRANCH  -F "chart=rancher-eks-operator" -F "branch=$ACTION_TARGET_BRANCH"
 
   dispatch-dependency:
     runs-on: ubuntu-latest
