@@ -35,6 +35,36 @@ updates:
   - dependency-name: "github.com/aws/aws-sdk-go"
     update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
   target-branch: "main"
+# Go modules in release-v2.11 branch
+- package-ecosystem: "gomod"
+  directory: "/"
+  schedule:
+    interval: "weekly"
+  ## group all dependencies with a k8s.io prefix into a single PR.
+  groups:
+    kubernetes:
+      patterns: [ "k8s.io/*" ]
+  ignore:
+  # Ignore controller-runtime as its upgraded manually.
+  - dependency-name: "sigs.k8s.io/controller-runtime"
+    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+  # Ignore k8s and its transitives modules as they are upgraded manually
+  # together with controller-runtime.
+  - dependency-name: "k8s.io/*"
+    update-types: [ "version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch" ]
+  - dependency-name: "go.etcd.io/*"
+    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+  # Ignore wrangler
+  - dependency-name: "github.com/rancher/wrangler"
+    update-types: [ "version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch" ]
+  - dependency-name: "github.com/rancher/wrangler/v3"
+    update-types: [ "version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch" ]
+  # Ignore rancher apis
+  - dependency-name: "github.com/rancher/rancher/pkg/apis"
+  # Ignore aws-sdk-go
+  - dependency-name: "github.com/aws/aws-sdk-go"
+    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+  target-branch: "release-v2.11"
 # Go modules in release-v2.10 branch
 - package-ecosystem: "gomod"
   directory: "/"
