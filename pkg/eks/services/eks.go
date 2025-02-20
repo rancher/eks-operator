@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/sirupsen/logrus"
 )
 
 type EKSServiceInterface interface {
@@ -24,6 +26,7 @@ type EKSServiceInterface interface {
 	UntagResource(ctx context.Context, input *eks.UntagResourceInput) (*eks.UntagResourceOutput, error)
 	CreateAddon(ctx context.Context, input *eks.CreateAddonInput) (*eks.CreateAddonOutput, error)
 	DescribeAddon(ctx context.Context, input *eks.DescribeAddonInput) (*eks.DescribeAddonOutput, error)
+	DescribeUpdates(ctx context.Context, input *eks.ListUpdatesInput, completedUpdates map[string]bool) ([]*eks.DescribeUpdateOutput, error)
 }
 
 type eksService struct {
@@ -98,4 +101,47 @@ func (c *eksService) CreateAddon(ctx context.Context, input *eks.CreateAddonInpu
 
 func (c *eksService) DescribeAddon(ctx context.Context, input *eks.DescribeAddonInput) (*eks.DescribeAddonOutput, error) {
 	return c.svc.DescribeAddon(ctx, input)
+}
+
+func (c *eksService) DescribeUpdates(ctx context.Context, input *eks.ListUpdatesInput, completedUpdates map[string]bool) ([]*eks.DescribeUpdateOutput, error) {
+	var updateIDs []string
+
+	for {
+		resp, err := c.svc.ListUpdates(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list updates: %v", err)
+		}
+
+		// Ignore fetching already completed updates
+		for _, updateID := range resp.UpdateIds {
+			if completedUpdates != nil && !completedUpdates[updateID] {
+				logrus.Tracef("[%s] update already completed", updateID)
+				updateIDs = append(updateIDs, updateID)
+			}
+		}
+		if resp.NextToken == nil {
+			break
+		}
+		input.NextToken = resp.NextToken
+	}
+
+	if len(updateIDs) == 0 {
+		return []*eks.DescribeUpdateOutput{}, nil
+	}
+
+	updates := []*eks.DescribeUpdateOutput{}
+
+	for _, updateID := range updateIDs {
+		resp, err := c.svc.DescribeUpdate(ctx, &eks.DescribeUpdateInput{
+			Name:     aws.String(*input.Name),
+			UpdateId: aws.String(updateID),
+		})
+		if err != nil {
+			logrus.Errorf("Failed to describe eks update %s: %v", updateID, err)
+			return nil, err
+		}
+		updates = append(updates, resp)
+	}
+
+	return updates, nil
 }
