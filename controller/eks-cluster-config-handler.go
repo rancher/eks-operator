@@ -115,7 +115,13 @@ func (h *Handler) recordError(onChange func(key string, config *eksv1.EKSCluster
 			return config, err
 		}
 		if err != nil {
-			if !strings.Contains(err.Error(), "currently has update") {
+			if apierrors.IsConflict(err) {
+				// conflict error means the config is updated by rancher controller
+				// the changes which needs to be done by the operator controller will be handled in next
+				// reconcile call
+				logrus.Debugf("Error updating eksclusterconfig: %s", err.Error())
+				return config, err
+			} else if !strings.Contains(err.Error(), "currently has update") {
 				// The update is valid in that the controller should retry but there is no actionable resolution as far
 				// as a user is concerned. An update has either been initiated by the eks-operator or another source
 				// is already in progress. It is possible an update is not being immediately reflected in the upstream
@@ -1063,6 +1069,7 @@ func (h *Handler) importCluster(ctx context.Context, config *eksv1.EKSClusterCon
 	config.Status.Subnets = clusterState.Cluster.ResourcesVpcConfig.SubnetIds
 	config.Status.SecurityGroups = clusterState.Cluster.ResourcesVpcConfig.SecurityGroupIds
 	config.Status.Phase = eksConfigActivePhase
+
 	return h.eksCC.UpdateStatus(config)
 }
 
