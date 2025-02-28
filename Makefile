@@ -192,7 +192,7 @@ docker-build-e2e:
 delete-local-kind-cluster: ## Delete the local kind cluster
 	kind delete cluster --name=$(CLUSTER_NAME)
 
-APIDIFF_OLD_COMMIT ?= $(shell git rev-parse origin/main)
+APIDIFF_OLD_COMMIT ?= $(shell git rev-parse origin/release-v2.11)
 
 .PHONY: apidiff
 apidiff: $(GO_APIDIFF) ## Check for API differences
