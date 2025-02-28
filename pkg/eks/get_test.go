@@ -1,12 +1,14 @@
 package eks
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/eks/types"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
@@ -160,5 +162,96 @@ var _ = Describe("GetLaunchTemplateVersions", func() {
 			_, err := CheckEBSAddon(ctx, enableEBSCSIDriverInput.Config.Spec.DisplayName, enableEBSCSIDriverInput.EKSService)
 			Expect(err).ToNot(Succeed())
 		})
+	})
+})
+
+var _ = Describe("GetClusterUpdates", func() {
+	var (
+		mockController          *gomock.Controller
+		eksServiceMock          *mock_services.MockEKSServiceInterface
+		getClusterStatusOptions *GetClusterStatusOpts
+		ctx                     context.Context
+	)
+
+	BeforeEach(func() {
+		mockController = gomock.NewController(GinkgoT())
+		eksServiceMock = mock_services.NewMockEKSServiceInterface(mockController)
+		ctx = context.Background()
+
+		getClusterStatusOptions = &GetClusterStatusOpts{
+			EKSService: eksServiceMock,
+			Config: &eksv1.EKSClusterConfig{
+				Spec: eksv1.EKSClusterConfigSpec{
+					DisplayName: "test-cluster",
+				},
+				Status: eksv1.EKSClusterConfigStatus{
+					CompletedUpdateIDs: []string{"update-123"},
+				},
+			},
+		}
+	})
+
+	AfterEach(func() {
+		mockController.Finish()
+	})
+
+	It("should successfully get cluster updates", func() {
+		mockUpdates := []*eks.DescribeUpdateOutput{
+			{
+				Update: &types.Update{
+					Id:     aws.String("update-1"),
+					Status: types.UpdateStatusSuccessful,
+				},
+			},
+			{
+				Update: &types.Update{
+					Id:     aws.String("update-2"),
+					Status: types.UpdateStatusFailed,
+				},
+			},
+			{
+				Update: &types.Update{
+					Id:     aws.String("update-3"),
+					Status: types.UpdateStatusCancelled,
+				},
+			},
+			{
+				Update: &types.Update{
+					Id:     aws.String("update-4"),
+					Status: types.UpdateStatusInProgress,
+				},
+			},
+		}
+
+		eksServiceMock.EXPECT().DescribeUpdates(ctx, &eks.ListUpdatesInput{
+			Name: aws.String(getClusterStatusOptions.Config.Spec.DisplayName),
+		}, gomock.Any()).Return(mockUpdates, nil)
+
+		inProgressUpdates, completedUpdates, err := GetClusterUpdates(ctx, getClusterStatusOptions)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(inProgressUpdates).ToNot(BeNil())
+		// Only successful updates should be returned
+		Expect(completedUpdates).To(ContainElements("update-1", "update-2", "update-3"))
+		// In-progress updates should not be marked completed
+		Expect(completedUpdates).ToNot(ContainElement("update-4"))
+		Expect(inProgressUpdates).To(Equal([]*types.Update{{
+			Id:     aws.String("update-4"),
+			Status: types.UpdateStatusInProgress,
+		}}))
+	})
+
+	It("should return an error when DescribeUpdates fails", func() {
+		eksServiceMock.EXPECT().DescribeUpdates(ctx, gomock.Any(), gomock.Any()).Return(nil, errors.New("error getting updates"))
+		_, _, err := GetClusterUpdates(ctx, getClusterStatusOptions)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(Equal("error getting updates"))
+	})
+
+	It("should return an error when cluster name is empty", func() {
+		getClusterStatusOptions.Config.Spec.DisplayName = ""
+		_, _, err := GetClusterUpdates(ctx, getClusterStatusOptions)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(Equal("cluster name is empty"))
 	})
 })

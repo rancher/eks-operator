@@ -8,9 +8,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/eks/types"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	eksv1 "github.com/rancher/eks-operator/pkg/apis/eks.cattle.io/v1"
 	"github.com/rancher/eks-operator/pkg/eks/services"
+	"github.com/sirupsen/logrus"
 )
 
 type GetClusterStatusOpts struct {
@@ -23,6 +25,46 @@ func GetClusterState(ctx context.Context, opts *GetClusterStatusOpts) (*eks.Desc
 		&eks.DescribeClusterInput{
 			Name: aws.String(opts.Config.Spec.DisplayName),
 		})
+}
+
+func GetClusterUpdates(ctx context.Context, opts *GetClusterStatusOpts) ([]*types.Update, []string, error) {
+	log := logrus.WithField("function", "GetClusterUpdates")
+
+	if opts.Config.Spec.DisplayName == "" {
+		log.Error("cluster name is empty")
+		return nil, nil, errors.New("cluster name is empty")
+	}
+
+	completedUpdates := make(map[string]bool)
+	for _, updateID := range opts.Config.Status.CompletedUpdateIDs {
+		completedUpdates[updateID] = true
+	}
+	log.Debugf("completed updates: %v", completedUpdates)
+
+	log.Trace("fetching updates from EKS service")
+	updatesOut, err := opts.EKSService.DescribeUpdates(ctx, &eks.ListUpdatesInput{
+		Name: aws.String(opts.Config.Spec.DisplayName),
+	}, completedUpdates)
+	if err != nil {
+		log.Errorf("failed to fetch updates: %v", err)
+		return nil, nil, err
+	}
+
+	log.Debugf("retrieved %d updates", len(updatesOut))
+
+	var inProgressUpdates []*types.Update
+	var newCompletedUpdateIDs []string
+
+	for _, out := range updatesOut {
+		if out.Update.Status != ekstypes.UpdateStatusInProgress {
+			newCompletedUpdateIDs = append(newCompletedUpdateIDs, aws.ToString(out.Update.Id))
+		} else {
+			inProgressUpdates = append(inProgressUpdates, out.Update)
+		}
+	}
+
+	log.Debugf("new completed updates: %v", newCompletedUpdateIDs)
+	return inProgressUpdates, newCompletedUpdateIDs, nil
 }
 
 type GetLaunchTemplateVersionsOpts struct {
