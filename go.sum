@@ -42,8 +42,8 @@ github.com/aws/aws-sdk-go-v2/service/cloudformation v1.58.0 h1:noBOPOGpmwqsLeMlR
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.58.0/go.mod h1:penaZKzGmqHGZId4EUCBIW/f9l4Y7hQ5NKd45yoCYuI=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.206.0 h1:pVspPiBDDfDhVXFY+jpDd7yIOciDwQwYoPMb/80agTw=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.206.0/go.mod h1:ouvGEfHbLaIlWwpDpOVWPWR+YwO0HDv3vm5tYLq8ImY=
-github.com/aws/aws-sdk-go-v2/service/eks v1.56.5 h1:AoVtICtIPSSgRJzNhT5A6IAP9kNbah2jJu1MAnBkHtM=
-github.com/aws/aws-sdk-go-v2/service/eks v1.56.5/go.mod h1:6gWwo7rT4qfYVHwJnj0nUM4DP+XuURcTO+89H8dCvrM=
+github.com/aws/aws-sdk-go-v2/service/eks v1.60.1 h1:Q5YEz2N233+N2rKuPF5qO0OR0qp69BnukHRmrnMjV0c=
+github.com/aws/aws-sdk-go-v2/service/eks v1.60.1/go.mod h1:v1xXy6ea0PHtWkjFUvAUh6B/5wv7UF909Nru0dOIJDk=
 github.com/aws/aws-sdk-go-v2/service/iam v1.40.0 h1:1J1gm1qZfD7w7GOp7vXKapD7rRlhBM+kf3pTJZMQATc=
 github.com/aws/aws-sdk-go-v2/service/iam v1.40.0/go.mod h1:mPJkGQzeCoPs82ElNILor2JzZgYENr4UaSKUT8K27+c=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 h1:eAh2A4b5IzM/lum78bZ590jy36+d/aFLgKF/4Vd1xPE=
@@ -297,8 +297,6 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jmespath/go-jmespath v0.4.0 h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9YPoQUg=
 github.com/jmespath/go-jmespath v0.4.0/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=
-github.com/jmespath/go-jmespath/internal/testify v1.5.1 h1:shLQSRRSCCPj3f2gpwzGwWFoC7ycTf1rcQZHOlsJ6N8=
-github.com/jmespath/go-jmespath/internal/testify v1.5.1/go.mod h1:L3OGu8Wl2/fWfCI6z80xFu9LTZmf1ZRjMHUOPmWr69U=
 github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
