@@ -158,22 +158,22 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-        case ${{ github.ref_name }} in           
-          "v1.11"*)
-            ACTION_TARGET_BRANCH="main"
-            ;;
-          "v1.10"*)
-            ACTION_TARGET_BRANCH="release/v2.10"
-            ;;
-          "v1.9"*)
-            ACTION_TARGET_BRANCH="release/v2.9"
-            ;;
-          "v1.3"*)
-            ACTION_TARGET_BRANCH="release/v2.8"
-            ;;
-          *)
-            echo "Not a valid tag, not dispatching event"
-            exit 0
-        esac
-        echo "Running Go get on $ACTION_TARGET_BRANCH"
-        gh workflow run "Go get" --repo rancher/rancher --ref $ACTION_TARGET_BRANCH -F goget_module=github.com/rancher/eks-operator -F goget_version=${{ github.ref_name }} -F source_author=${{ github.actor }}
+          case ${{ github.ref_name }} in           
+            "v1.11"*)
+              ACTION_TARGET_BRANCH="main"
+              ;;
+            "v1.10"*)
+              ACTION_TARGET_BRANCH="release/v2.10"
+              ;;
+            "v1.9"*)
+              ACTION_TARGET_BRANCH="release/v2.9"
+              ;;
+            "v1.3"*)
+              ACTION_TARGET_BRANCH="release/v2.8"
+              ;;
+            *)
+              echo "Not a valid tag, not dispatching event"
+              exit 0
+          esac
+          echo "Running Go get on $ACTION_TARGET_BRANCH"
+          gh workflow run "Go get" --repo rancher/rancher --ref $ACTION_TARGET_BRANCH -F goget_module=github.com/rancher/eks-operator -F goget_version=${{ github.ref_name }} -F source_author=${{ github.actor }}
