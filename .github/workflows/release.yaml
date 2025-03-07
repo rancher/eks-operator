@@ -107,32 +107,32 @@ jobs:
         done
         echo "Charts successfully uploaded to GitHub release $TAG"
   
-  dispatch-chart:
-    permissions:
-      contents: read
-      id-token: write
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: publish-images
-    if: github.event_name == 'push' && github.ref_type == 'tag'
-    steps:
-      - name: Run dispatch
-        with:
-          github-token: ${{secrets.CI_BOT_TOKEN}}
-        run: |
-          case ${{ github.ref_name }} in           
-            "v1.11"*)
-              ACTION_TARGET_BRANCH="dev-v2.11"
-              ;;
-            "v1.10"*)
-              ACTION_TARGET_BRANCH="dev-v2.10"
-              ;;
-            *)
-              echo "Not a valid tag, not dispatching event"
-              exit 0
-          esac
-          echo "Running on $ACTION_TARGET_BRANCH"
-          gh workflow run "Auto Chart Bump" --repo rancher/charts --ref $ACTION_TARGET_BRANCH -F '{"chart": "rancher-eks-operator", "branch": "${{ ACTION_TARGET_BRANCH }}"}'
+  # dispatch-chart:
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 10
+  #   needs: publish-images
+  #   if: github.event_name == 'push' && github.ref_type == 'tag'
+  #   steps:
+  #     - name: Run dispatch
+  #       with:
+  #         github-token: ${{secrets.CI_BOT_TOKEN}}
+  #       run: |
+  #         case ${{ github.ref_name }} in           
+  #           "v1.11"*)
+  #             ACTION_TARGET_BRANCH="dev-v2.11"
+  #             ;;
+  #           "v1.10"*)
+  #             ACTION_TARGET_BRANCH="dev-v2.10"
+  #             ;;
+  #           *)
+  #             echo "Not a valid tag, not dispatching event"
+  #             exit 0
+  #         esac
+  #         echo "Running on $ACTION_TARGET_BRANCH"
+  #         gh workflow run "Auto Chart Bump" --repo rancher/charts --ref $ACTION_TARGET_BRANCH -F '{"chart": "rancher-eks-operator", "branch": "${{ ACTION_TARGET_BRANCH }}"}'
 
   dispatch-dependency:
     runs-on: ubuntu-latest
