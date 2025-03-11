@@ -597,7 +597,7 @@ func createEBSCSIDriverRole(ctx context.Context, cfService services.CloudFormati
 	}
 	buf := &bytes.Buffer{}
 	if execErr := tmpl.Execute(buf, templateData); execErr != nil {
-		return "", err
+		return "", execErr
 	}
 	finalTemplate := buf.String()
 
