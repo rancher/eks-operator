@@ -9,7 +9,7 @@ replace k8s.io/client-go => k8s.io/client-go v0.32.1
 require (
 	github.com/aws/aws-sdk-go v1.50.38
 	github.com/aws/aws-sdk-go-v2 v1.36.3
-	github.com/aws/aws-sdk-go-v2/config v1.29.8
+	github.com/aws/aws-sdk-go-v2/config v1.29.11
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.64
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.58.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.206.0
