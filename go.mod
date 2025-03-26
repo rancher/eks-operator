@@ -1,8 +1,8 @@
 module github.com/rancher/eks-operator
 
-go 1.22.0
+go 1.23.0
 
-toolchain go1.22.7
+toolchain go1.23.4
 
 replace (
 	k8s.io/apiserver => k8s.io/apiserver v0.30.1
