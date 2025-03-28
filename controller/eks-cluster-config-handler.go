@@ -652,7 +652,7 @@ func (h *Handler) createOrGetServiceRole(ctx context.Context, config *eksv1.EKSC
 
 		serviceRoleTemplate, err := templates.GetServiceRoleTemplate(config.Spec.Region)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("error getting service role template: %v", err)
 		}
 
 		stack, err := awsservices.CreateStack(ctx, &awsservices.CreateStackOptions{
