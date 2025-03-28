@@ -298,7 +298,7 @@ func CreateNodeGroup(ctx context.Context, opts *CreateNodeGroupOptions) (string,
 		if opts.Config.Status.GeneratedNodeRole == "" {
 			finalTemplate, err := templates.GetNodeInstanceRoleTemplate(opts.Config.Spec.Region)
 			if err != nil {
-				return "", "", err
+				return "", "", fmt.Errorf("error getting node instance role template: %v", err)
 			}
 
 			output, err := CreateStack(ctx, &CreateStackOptions{
@@ -588,7 +588,7 @@ func getIssuerThumbprint(issuer string) (string, error) {
 func createEBSCSIDriverRole(ctx context.Context, cfService services.CloudFormationServiceInterface, config *eksv1.EKSClusterConfig, oidcID string) (string, error) {
 	finalTemplate, err := templates.GetEBSCSIDriverTemplate(config.Spec.Region, oidcID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error getting ebs csi driver template: %v", err)
 	}
 
 	output, err := CreateStack(ctx, &CreateStackOptions{
