@@ -211,13 +211,13 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: %s
+              Service: {{.EC2Service}}
             Action: sts:AssumeRole
       Path: "/"
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
-        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKS_CNI_Policy
+        - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
 
 Outputs:
 
@@ -245,8 +245,8 @@ Resources:
           Action:
           - sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
-        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKSServicePolicy
+        - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKSClusterPolicy
 
 Outputs:
 
@@ -266,7 +266,7 @@ Parameters:
 
   AmazonEBSCSIDriverPolicyArn:
     Type: String
-    Default: arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+    Default: {{.AWSArnPrefix}}:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
     Description: The ARN of the managed policy
 
 Resources:
@@ -280,12 +280,12 @@ Resources:
         - Effect: Allow
           Principal:
             Federated:
-            - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.eks.{{.Region}}.amazonaws.com/id/{{.ProviderID}}"
+            - !Sub "{{.AWSArnPrefix}}:iam::${AWS::AccountId}:oidc-provider/oidc.eks.{{.Region}}.{{.AWSDomain}}/id/{{.ProviderID}}"
           Action: sts:AssumeRoleWithWebIdentity
           Condition:
             StringEquals: {
-              "oidc.eks.{{.Region}}.amazonaws.com/id/{{.ProviderID}}:sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa",
-              "oidc.eks.{{.Region}}.amazonaws.com/id/{{.ProviderID}}:aud": "sts.amazonaws.com"
+              "oidc.eks.{{.Region}}.{{.AWSDomain}}/id/{{.ProviderID}}:sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa",
+              "oidc.eks.{{.Region}}.{{.AWSDomain}}/id/{{.ProviderID}}:aud": "sts.{{.AWSDomain}}"
             }
       Path: "/"
       ManagedPolicyArns:

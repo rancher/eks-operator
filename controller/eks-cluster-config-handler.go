@@ -650,11 +650,16 @@ func (h *Handler) createOrGetServiceRole(ctx context.Context, config *eksv1.EKSC
 	if aws.ToString(config.Spec.ServiceRole) == "" {
 		logrus.Infof("Creating service role")
 
+		serviceRoleTemplate, err := templates.GetServiceRoleTemplate(config.Spec.Region)
+		if err != nil {
+			return "", fmt.Errorf("error getting service role template: %v", err)
+		}
+
 		stack, err := awsservices.CreateStack(ctx, &awsservices.CreateStackOptions{
 			CloudFormationService: awsSVCs.cloudformation,
 			StackName:             getServiceRoleName(config.Spec.DisplayName),
 			DisplayName:           config.Spec.DisplayName,
-			TemplateBody:          templates.ServiceRoleTemplate,
+			TemplateBody:          serviceRoleTemplate,
 			Capabilities:          []cftypes.Capability{cftypes.CapabilityCapabilityIam},
 			Parameters:            nil,
 		})
