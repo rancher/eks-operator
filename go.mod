@@ -2,7 +2,7 @@ module github.com/rancher/eks-operator
 
 go 1.23.0
 
-toolchain go1.23.4
+toolchain go1.24.1
 
 replace (
 	k8s.io/apiserver => k8s.io/apiserver v0.30.1
@@ -31,7 +31,7 @@ require (
 	github.com/rancher/wrangler/v3 v3.0.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 	k8s.io/api v0.30.2
 	k8s.io/apiextensions-apiserver v0.30.1
 	k8s.io/apimachinery v0.30.2
