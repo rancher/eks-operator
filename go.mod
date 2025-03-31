@@ -2,7 +2,7 @@ module github.com/rancher/eks-operator
 
 go 1.23.0
 
-toolchain go1.23.6
+toolchain go1.24.1
 
 replace k8s.io/client-go => k8s.io/client-go v0.32.1
 
@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.8
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.64
-	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.58.0
+	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.59.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.210.1
 	github.com/aws/aws-sdk-go-v2/service/eks v1.60.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.40.2
