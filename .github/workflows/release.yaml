@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - fix/workflow-dispatch
 
 # GitHub settings / example values:
 #
