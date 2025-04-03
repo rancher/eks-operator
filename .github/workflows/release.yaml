@@ -197,8 +197,8 @@ jobs:
       actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: publish-images
-    if: github.event_name == 'push' && github.ref_type == 'tag'
+    #needs: publish-images
+    #if: github.event_name == 'push' && github.ref_type == 'tag'
     steps:
       - name: Read App Secrets
         uses: rancher-eio/read-vault-secrets@main
