@@ -216,6 +216,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repository: |
             rancher/rancher
+            rancher/eks-operator
 
       - name: Run dispatch
         env:
