@@ -211,6 +211,9 @@ jobs:
         with:
           app-id: ${{ env.APP_ID }}
           private-key: ${{ env.PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repository: |
+            rancher/rancher
 
       - name: Run dispatch
         env:
