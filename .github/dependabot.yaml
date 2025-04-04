@@ -20,3 +20,4 @@ updates:
   - dependency-name: "go.etcd.io/*"
   # Ignore wrangler
   - dependency-name: "github.com/rancher/wrangler"
+  - dependency-name: "github.com/rancher/lasso"
