@@ -1,14 +1,12 @@
 package eks
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 	"net/url"
 	"path"
@@ -298,7 +296,11 @@ func CreateNodeGroup(ctx context.Context, opts *CreateNodeGroupOptions) (string,
 
 	if aws.ToString(opts.NodeGroup.NodeRole) == "" {
 		if opts.Config.Status.GeneratedNodeRole == "" {
-			finalTemplate := fmt.Sprintf(templates.NodeInstanceRoleTemplate, getEC2ServiceEndpoint(opts.Config.Spec.Region))
+			finalTemplate, err := templates.GetNodeInstanceRoleTemplate(opts.Config.Spec.Region)
+			if err != nil {
+				return "", "", fmt.Errorf("error getting node instance role template: %v", err)
+			}
+
 			output, err := CreateStack(ctx, &CreateStackOptions{
 				CloudFormationService: opts.CloudFormationService,
 				StackName:             fmt.Sprintf("%s-node-instance-role", opts.Config.Spec.DisplayName),
@@ -584,22 +586,10 @@ func getIssuerThumbprint(issuer string) (string, error) {
 }
 
 func createEBSCSIDriverRole(ctx context.Context, cfService services.CloudFormationServiceInterface, config *eksv1.EKSClusterConfig, oidcID string) (string, error) {
-	templateData := struct {
-		Region     string
-		ProviderID string
-	}{
-		Region:     config.Spec.Region,
-		ProviderID: oidcID,
-	}
-	tmpl, err := template.New("ebsrole").Parse(templates.EBSCSIDriverTemplate)
+	finalTemplate, err := templates.GetEBSCSIDriverTemplate(config.Spec.Region, oidcID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error getting ebs csi driver template: %v", err)
 	}
-	buf := &bytes.Buffer{}
-	if execErr := tmpl.Execute(buf, templateData); execErr != nil {
-		return "", err
-	}
-	finalTemplate := buf.String()
 
 	output, err := CreateStack(ctx, &CreateStackOptions{
 		CloudFormationService: cfService,
