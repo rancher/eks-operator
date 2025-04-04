@@ -148,45 +148,47 @@ jobs:
         git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
         git push origin "$charts_branch"
   
-  # dispatch-chart:
-  #   permissions:
-  #     actions: write
-  #     id-token: write
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 10
-  #   needs: publish-images
-  #   if: github.event_name == 'push' && github.ref_type == 'tag'
-  #   steps:
-  #   - name: Read App Secrets
-  #     uses: rancher-eio/read-vault-secrets@main
-  #     with:
-  #       secrets: |
-  #         secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
-  #         secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
+  dispatch-chart:
+    permissions:
+      actions: write
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: publish-images
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    steps:
+    - name: Read App Secrets
+      uses: rancher-eio/read-vault-secrets@main
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
+          secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
 
-  #   - name: Create App Token
-  #     uses: actions/create-github-app-token@v1
-  #     id: app-token
-  #     with:
-  #       app-id: ${{ env.APP_ID }}
-  #       private-key: ${{ env.PRIVATE_KEY }}
-  #   - name: Run dispatch
-  #     env:
-  #       GH_TOKEN: ${{ steps.app-token.outputs.token }}
-  #     run: |
-  #       case ${{ github.ref_name }} in           
-  #         "v1.11"*)
-  #           ACTION_TARGET_BRANCH="dev-v2.11"
-  #           ;;
-  #         "v1.10"*)
-  #           ACTION_TARGET_BRANCH="dev-v2.10"
-  #           ;;
-  #         *)
-  #           echo "Not a valid tag, not dispatching event"
-  #           exit 0
-  #       esac
-  #       echo "Running on $ACTION_TARGET_BRANCH"
-  #       gh workflow run "Auto Chart Bump" --repo rancher/charts --ref $ACTION_TARGET_BRANCH  -F "chart=rancher-eks-operator" -F "branch=$ACTION_TARGET_BRANCH"
+    - name: Create App Token
+      uses: actions/create-github-app-token@v1
+      id: app-token
+      with:
+        app-id: ${{ env.APP_ID }}
+        private-key: ${{ env.PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+
+    - name: Run dispatch
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        case ${{ github.ref_name }} in           
+          "v1.11"*)
+            ACTION_TARGET_BRANCH="dev-v2.11"
+            ;;
+          "v1.10"*)
+            ACTION_TARGET_BRANCH="dev-v2.10"
+            ;;
+          *)
+            echo "Not a valid tag, not dispatching event"
+            exit 0
+        esac
+        echo "Running on $ACTION_TARGET_BRANCH"
+        gh workflow run "Auto Chart Bump" --repo rancher/charts --ref $ACTION_TARGET_BRANCH -F "eventPayload={\"chart\": \"rancher-eks-operator\", \"branch\": \"$ACTION_TARGET_BRANCH\"}"
 
   dispatch-dependency:
     permissions:
@@ -211,6 +213,7 @@ jobs:
         with:
           app-id: ${{ env.APP_ID }}
           private-key: ${{ env.PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
 
       - name: Run dispatch
         env:
