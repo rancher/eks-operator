@@ -106,44 +106,42 @@ jobs:
           gh release upload $TAG $f
         done
         echo "Charts successfully uploaded to GitHub release $TAG"
-  
-  dispatch-chart:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: publish-images
-    if: github.event_name == 'push' && github.ref_type == 'tag'
-    steps:
-      - name: Run dispatch
-        with:
-          github-token: ${{secrets.CI_BOT_TOKEN}}
-        run: |
-          case ${{ github.ref_name }} in           
-            "v1.11"*)
-              ACTION_TARGET_BRANCH="dev-v2.11"
-              ;;
-            "v1.10"*)
-              ACTION_TARGET_BRANCH="dev-v2.10"
-              ;;
-            *)
-              echo "Not a valid tag, not dispatching event"
-              exit 0
-          esac
-          echo "Running on $ACTION_TARGET_BRANCH"
-          gh workflow run "Auto Chart Bump" --repo rancher/charts --ref $ACTION_TARGET_BRANCH -F '{"chart": "rancher-eks-operator", "branch": "${{ ACTION_TARGET_BRANCH }}"}'
 
   dispatch-dependency:
+    permissions:
+      contents: read
+      id-token: write
+      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: publish-images
     if: github.event_name == 'push' && github.ref_type == 'tag'
     steps:
-      - name: Run dispatch
+      - name: Read App Secrets
+        uses: rancher-eio/read-vault-secrets@main
         with:
-          github-token: ${{secrets.CI_BOT_TOKEN}}
+          secrets: |
+            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
+            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
+
+      - name: Create App Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Run dispatch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           case ${{ github.ref_name }} in           
-            "v1.11"*)
+            "v1.12"*)
               ACTION_TARGET_BRANCH="main"
+              ;;
+            "v1.11"*)
+              ACTION_TARGET_BRANCH="release/v2.11"
               ;;
             "v1.10"*)
               ACTION_TARGET_BRANCH="release/v2.10"
@@ -158,5 +156,5 @@ jobs:
               echo "Not a valid tag, not dispatching event"
               exit 0
           esac
-          echo "Running on $ACTION_TARGET_BRANCH"
+          echo "Running Go get on $ACTION_TARGET_BRANCH"
           gh workflow run "Go get" --repo rancher/rancher --ref $ACTION_TARGET_BRANCH -F goget_module=github.com/rancher/eks-operator -F goget_version=${{ github.ref_name }} -F source_author=${{ github.actor }}
