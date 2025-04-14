@@ -1,0 +1,38 @@
+name: Delete Old Images and Charts
+on:
+  schedule:
+    - cron: '0 1 * * 1,4'  # Every Mondays and Thursdays at 01:00 UTC
+  workflow_dispatch:
+
+jobs:
+  delete_old_packages:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Delete old eks-operator images
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: eks-operator
+          package-type: container
+          min-versions-to-keep: 30
+          token: ${{ secrets.GITHUB_TOKEN }}
+          owner: rancher
+
+      - name: Delete old rancher-eks-operator charts
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: rancher-eks-operator-chart/rancher-eks-operator
+          package-type: container
+          min-versions-to-keep: 7
+          token: ${{ secrets.GITHUB_TOKEN }}
+          owner: rancher
+
+      - name: Delete old rancher-eks-operator-crd charts
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: rancher-eks-operator-crd-chart/rancher-eks-operator-crd
+          package-type: container
+          min-versions-to-keep: 7
+          token: ${{ secrets.GITHUB_TOKEN }}
+          owner: rancher
