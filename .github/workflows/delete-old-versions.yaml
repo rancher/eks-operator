@@ -11,7 +11,7 @@ jobs:
       packages: write
     steps:
       - name: Delete old eks-operator images
-        uses: actions/delete-package-versions@v4
+        uses: actions/delete-package-versions@v5
         with:
           package-name: eks-operator
           package-type: container
@@ -20,7 +20,7 @@ jobs:
           owner: rancher
 
       - name: Delete old rancher-eks-operator charts
-        uses: actions/delete-package-versions@v4
+        uses: actions/delete-package-versions@v5
         with:
           package-name: rancher-eks-operator-chart/rancher-eks-operator
           package-type: container
@@ -29,7 +29,7 @@ jobs:
           owner: rancher
 
       - name: Delete old rancher-eks-operator-crd charts
-        uses: actions/delete-package-versions@v4
+        uses: actions/delete-package-versions@v5
         with:
           package-name: rancher-eks-operator-crd-chart/rancher-eks-operator-crd
           package-type: container
