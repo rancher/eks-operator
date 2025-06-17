@@ -114,15 +114,15 @@ jobs:
         branch_version=v$(echo "$version" | cut -d'.' -f1,2)
         charts_branch=charts/$branch_version
         if [ ! -e ~/.gitconfig ]; then
-          git config --global user.name "aks-operator-bot"
-          git config --global user.email aks-operator@suse.de
+          git config --global user.name "eks-operator-bot"
+          git config --global user.email eks-operator@suse.de
         fi
         echo "Publishing helm chart in the branch $charts_branch"
         if ! git ls-remote --exit-code --heads origin "$charts_branch"; then
           git checkout --orphan "$charts_branch"
           git rm -rf .
-          echo "# AKS Operator Helm Charts for $branch_version versions" > README.md
-          echo "The documentation is centralized in a unique place, checkout https://github.com/rancher/aks-operator." >> README.md
+          echo "# EKS Operator Helm Charts for $branch_version versions" > README.md
+          echo "The documentation is centralized in a unique place, checkout https://github.com/rancher/eks-operator." >> README.md
           git checkout origin/main -- License .gitignore
           git add README.md License .gitignore
           git commit -m "Initial commit for $charts_branch"
