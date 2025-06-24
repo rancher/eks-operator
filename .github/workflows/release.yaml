@@ -168,8 +168,11 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           case ${{ github.ref_name }} in           
-            "v1.12"*)
+            "v1.13"*)
               ACTION_TARGET_BRANCH="main"
+              ;;
+            "v1.12"*)
+              ACTION_TARGET_BRANCH="release/v2.12"
               ;;
             "v1.11"*)
               ACTION_TARGET_BRANCH="release/v2.11"
