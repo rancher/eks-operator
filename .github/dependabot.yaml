@@ -91,6 +91,9 @@ updates:
   # Ignore aws-sdk-go
   - dependency-name: "github.com/aws/aws-sdk-go"
     update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+  # Ignore lasso in branches earlier than release-v2.12 due to k8s dependency changes causing build failures.
+  - dependency-name: "github.com/rancher/lasso"
+    update-types: [ "version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch" ]
   target-branch: "release-v2.11"
 # Go modules in release-v2.10 branch
 - package-ecosystem: "gomod"
