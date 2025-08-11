@@ -35,7 +35,7 @@ require (
 	k8s.io/apiserver v0.33.1
 	k8s.io/client-go v12.0.0+incompatible
 	sigs.k8s.io/controller-runtime v0.21.0
-	sigs.k8s.io/yaml v1.5.0
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
