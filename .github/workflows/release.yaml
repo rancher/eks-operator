@@ -138,3 +138,38 @@ jobs:
         git commit -m "Update charts to version $version"
         git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
         git push origin "$charts_branch"
+
+  dispatch-chart-release:
+    permissions:
+      contents: read
+      id-token: write
+      actions: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    steps:
+      - name: Read App Secrets
+        uses: rancher-eio/read-vault-secrets@main
+        with:
+          secrets: |
+            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
+            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
+      - name: Create App Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - name: Dispatch to rancher/charts
+          VERSION_OVERRIDE="minor"
+          if [[ "${{ github.ref_name }}" == *"-rc"* ]]; then
+            VERSION_OVERRIDE="auto"
+          fi
+          gh workflow run "Manual Trigger for Auto Bump" \
+            --repo rancher/charts \
+            --ref dev-v2.12 \
+            -F chart=rancher-eks-operator \
+            -F branch=dev-v2.12 \
+            -F version-override=$VERSION_OVERRIDE
