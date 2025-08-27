@@ -164,9 +164,6 @@ jobs:
           owner: ${{ github.repository_owner }}
       - name: Dispatch to rancher/charts
           VERSION_OVERRIDE="minor"
-          if [[ "${{ github.ref_name }}" == *"-rc"* ]]; then
-            VERSION_OVERRIDE="auto"
-          fi
           gh workflow run "Manual Trigger for Auto Bump" \
             --repo rancher/charts \
             --ref dev-v2.12 \
