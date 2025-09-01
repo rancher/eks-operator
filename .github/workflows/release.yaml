@@ -164,12 +164,14 @@ jobs:
           owner: ${{ github.repository_owner }}
       - name: Dispatch to rancher/charts
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          CURRENT_BRANCH="${{ github.ref_name }}"
+          TARGET_BRANCH="${CURRENT_BRANCH/release-/dev-}"
           VERSION_OVERRIDE="minor"
           gh workflow run "Manual Trigger for Auto Bump" \
             --repo rancher/charts \
-            --ref dev-v2.12 \
+            --ref "$TARGET_BRANCH" \
             -F chart=rancher-eks-operator \
-            -F branch=dev-v2.12 \
+            -F branch="$TARGET_BRANCH" \
             -F version-override=$VERSION_OVERRIDE
