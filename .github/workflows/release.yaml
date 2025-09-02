@@ -138,14 +138,15 @@ jobs:
         git commit -m "Update charts to version $version"
         git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
         git push origin "$charts_branch"
-  dispatch-dependency:
+
+  dispatch-chart-release:
     permissions:
       contents: read
       id-token: write
       actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: publish-images
+    needs: release
     if: github.event_name == 'push' && github.ref_type == 'tag'
     steps:
       - name: Read App Secrets
@@ -154,7 +155,6 @@ jobs:
           secrets: |
             secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
             secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
-
       - name: Create App Token
         uses: actions/create-github-app-token@v1
         id: app-token
@@ -162,33 +162,16 @@ jobs:
           app-id: ${{ env.APP_ID }}
           private-key: ${{ env.PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-
-      - name: Run dispatch
+      - name: Dispatch to rancher/charts
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          case ${{ github.ref_name }} in           
-            "v1.13"*)
-              ACTION_TARGET_BRANCH="main"
-              ;;
-            "v1.12"*)
-              ACTION_TARGET_BRANCH="release/v2.12"
-              ;;
-            "v1.11"*)
-              ACTION_TARGET_BRANCH="release/v2.11"
-              ;;
-            "v1.10"*)
-              ACTION_TARGET_BRANCH="release/v2.10"
-              ;;
-            "v1.9"*)
-              ACTION_TARGET_BRANCH="release/v2.9"
-              ;;
-            "v1.3"*)
-              ACTION_TARGET_BRANCH="release/v2.8"
-              ;;
-            *)
-              echo "Not a valid tag, not dispatching event"
-              exit 0
-          esac
-          echo "Running Go get on $ACTION_TARGET_BRANCH"
-          gh workflow run "Go get" --repo rancher/rancher --ref $ACTION_TARGET_BRANCH -F goget_module=github.com/rancher/eks-operator -F goget_version=${{ github.ref_name }} -F source_author=${{ github.actor }}
+          CURRENT_BRANCH="${{ github.ref_name }}"
+          TARGET_BRANCH="${CURRENT_BRANCH/release-/dev-}"
+          VERSION_OVERRIDE="minor"
+          gh workflow run "Manual Trigger for Auto Bump" \
+            --repo rancher/charts \
+            --ref "$TARGET_BRANCH" \
+            -F chart=rancher-eks-operator \
+            -F branch="$TARGET_BRANCH" \
+            -F version-override=$VERSION_OVERRIDE
