@@ -106,7 +106,6 @@ jobs:
           gh release upload $TAG $f
         done
         echo "Charts successfully uploaded to GitHub release $TAG"
-    
     - name: Add charts to branch
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -139,7 +138,7 @@ jobs:
         git commit -m "Update charts to version $version"
         git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
         git push origin "$charts_branch"
-        
+
   dispatch-chart-release:
     permissions:
       contents: read
@@ -165,12 +164,16 @@ jobs:
           owner: ${{ github.repository_owner }}
       - name: Dispatch to rancher/charts
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          CURRENT_BRANCH="${{ github.ref_name }}"
+          BASE_VERSION=$(echo "$CURRENT_BRANCH" | sed -E 's/^[^v]*(v[0-9]+\.[0-9]+).*/\1/')
+          TRANSFORMED_VERSION="${BASE_VERSION/v1./v2.}"
+          TARGET_BRANCH="dev-${TRANSFORMED_VERSION}"
           VERSION_OVERRIDE="minor"
           gh workflow run "Manual Trigger for Auto Bump" \
             --repo rancher/charts \
-            --ref dev-v2.10 \
+            --ref "$TARGET_BRANCH" \
             -F chart=rancher-eks-operator \
-            -F branch=dev-v2.10 \
+            -F branch="$TARGET_BRANCH" \
             -F version-override=$VERSION_OVERRIDE
