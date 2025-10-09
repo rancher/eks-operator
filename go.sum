@@ -43,8 +43,8 @@ github.com/aws/aws-sdk-go-v2/service/cloudformation v1.67.0 h1:dXbv06SZ39MYWL70K
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.67.0/go.mod h1:/q63oDWCyO4xLLRiVYpwufJDwSkL0IbC5epFNJne8JQ=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.231.0 h1:uhIwvt6crp2kQenKojfDShGw39WEIrtPRfYZ3FAFlJk=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.231.0/go.mod h1:35jGWx7ECvCwTsApqicFYzZ7JFEnBc6oHUuOQ3xIS54=
-github.com/aws/aws-sdk-go-v2/service/eks v1.73.1 h1:Txq5jxY/ao+2Vx/kX9+65WTqkzCnxSlXnwIj+Cr/fng=
-github.com/aws/aws-sdk-go-v2/service/eks v1.73.1/go.mod h1:+hYFg3laewH0YCfJRv+o5R3bradDKmFIm/uaiaD1U7U=
+github.com/aws/aws-sdk-go-v2/service/eks v1.74.2 h1:GKqBur7gp6rnYbMZXh2+89f8g+/bu26ZKwpXfXrno80=
+github.com/aws/aws-sdk-go-v2/service/eks v1.74.2/go.mod h1:f1/1x766rRjLVUk94exobjhggT1MR3vO4wxglqOvpY4=
 github.com/aws/aws-sdk-go-v2/service/iam v1.45.0 h1:H4iGrdJQREYDugHeFeknCZSIQKi2j9xqCFuK0VG1ldI=
 github.com/aws/aws-sdk-go-v2/service/iam v1.45.0/go.mod h1:RLNjsuRZyUKWwC1Tj51dEpEKi3IgrxIvEbYdvD14WjU=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.1 h1:oegbebPEMA/1Jny7kvwejowCaHz1FWZAQ94WXFNCyTM=
