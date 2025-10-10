@@ -453,8 +453,8 @@ github.com/rancher/fleet/pkg/apis v0.10.0/go.mod h1:mjirthAmgpz0xo+qywUiaJDFpjnm
 github.com/rancher/gke-operator v1.9.1 h1:COsXcgo10QEXMzju9zuGFBA+muvHfIiaTXpRz9dwQ2I=
 github.com/rancher/gke-operator v1.9.1/go.mod h1:D/U7p7NpQtZcdHFWM+uBOmtk9/tVdlZv7BgR+TIiMAI=
 github.com/rancher/lasso v0.0.0-20200427171700-e0509f89f319/go.mod h1:6Dw19z1lDIpL887eelVjyqH/mna1hfR61ddCFOG78lw=
-github.com/rancher/lasso v0.2.5-rc.1 h1:E88eG3FDYGmccJjGDjv7HrknSaYQz4WNGgJ/gGjmGFc=
-github.com/rancher/lasso v0.2.5-rc.1/go.mod h1:71rWfv+KkdSmSxZ9Ly5QYhxAu0nEUcaq9N2ByjcHqAM=
+github.com/rancher/lasso v0.2.5 h1:K++lWDDdfeN98Ixc1kCfUq0/q6tLjoHN++Np6QntXw0=
+github.com/rancher/lasso v0.2.5/go.mod h1:71rWfv+KkdSmSxZ9Ly5QYhxAu0nEUcaq9N2ByjcHqAM=
 github.com/rancher/norman v0.7.1 h1:OfmYfN4YeJ4qosXTAbOTPgCrb5GE8W6wFWnDxWcuKCo=
 github.com/rancher/norman v0.7.1/go.mod h1:vZ5qL+eKodJ7zOMQYdl6jwMrSFrqTKpA+KYSFEKew2M=
 github.com/rancher/rancher/pkg/apis v0.0.0-20240821150307-952f563826f5 h1:embCGXbPsLXx7Bzke3AaFxaoD97SetenSx3YzXRoHBk=
@@ -466,8 +466,8 @@ github.com/rancher/wrangler v1.1.1 h1:wmqUwqc2M7ADfXnBCJTFkTB5ZREWpD78rnZMzmxwMv
 github.com/rancher/wrangler v1.1.1/go.mod h1:ioVbKupzcBOdzsl55MvEDN0R1wdGggj8iNCYGFI5JvM=
 github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e h1:UJpGtw6IKs0dHPTF+6Wd12lskeCZZAejl8/ie/fc1+0=
 github.com/rancher/wrangler-api v0.6.1-0.20200427172631-a7c2f09b783e/go.mod h1:2lcWR98q8HU3U4mVETnXc8quNG0uXxrt8vKd6cAa/30=
-github.com/rancher/wrangler/v3 v3.3.0-rc.2 h1:o/jNO0uQmcAUTxIwu7q3VBTkS82XDh7gb0Ofv0DpVoQ=
-github.com/rancher/wrangler/v3 v3.3.0-rc.2/go.mod h1:0RpxDgbQ4Lgzfuy7JPNk5jZfTKJQoCN6qUhlrDgNY9E=
+github.com/rancher/wrangler/v3 v3.3.1 h1:YFqRfhxjuLNudUrvWrn+64wUPZ8pnn2KWbTsha75JLg=
+github.com/rancher/wrangler/v3 v3.3.1/go.mod h1:0D4kZDaOUkP5W2Zfww/75tQwF9w7kaZgzpZG+4XQDAI=
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rogpeppe/go-internal v1.12.0/go.mod h1:E+RYuTGaKKdloAfM02xzb0FW3Paa99yedzYV+kq4uf4=
