@@ -8,7 +8,7 @@ RUN zypper -n update && \
 
 ENV GOLANG_ARCH_amd64=amd64 GOLANG_ARCH_arm=armv6l GOLANG_ARCH_arm64=arm64 GOLANG_ARCH=GOLANG_ARCH_${ARCH} \
     GOPATH=/go CGO_ENABLED=0 PATH=/go/bin:/usr/local/go/bin:${PATH} SHELL=/bin/bash
-RUN curl -sLf https://storage.googleapis.com/golang/go1.23.6.linux-${ARCH}.tar.gz | tar -xzf - -C /usr/local/
+RUN curl -sLf https://storage.googleapis.com/golang/go1.24.9.linux-${ARCH}.tar.gz | tar -xzf - -C /usr/local/
 # workaround for https://bugzilla.suse.com/show_bug.cgi?id=1183043
 RUN if [ "${ARCH}" == "arm64" ]; then \
         zypper -n install binutils-gold ; \
