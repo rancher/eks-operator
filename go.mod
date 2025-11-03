@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.15
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.20
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.68.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.251.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.260.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.6
 	github.com/aws/aws-sdk-go-v2/service/iam v1.47.3
 	github.com/blang/semver v3.5.1+incompatible
