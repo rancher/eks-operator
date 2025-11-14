@@ -16,7 +16,7 @@ import (
 )
 
 func newAWSConfigV2(ctx context.Context, secretClient wranglerv1.SecretClient, spec eksv1.EKSClusterConfigSpec) (aws.Config, error) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithUseDualStackEndpoint(aws.DualStackEndpointStateEnabled))
 	if err != nil {
 		return cfg, fmt.Errorf("error loading default AWS config: %w", err)
 	}
