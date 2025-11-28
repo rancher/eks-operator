@@ -617,7 +617,7 @@ func (h *Handler) generateAndSetNetworking(ctx context.Context, config *eksv1.EK
 		config.Status.SecurityGroups = config.Spec.SecurityGroups
 		config.Status.NetworkFieldsSource = "provided"
 	} else {
-		isIPv6 := config.Spec.IpFamily != "" && strings.EqualFold(config.Spec.IpFamily, IPv6)
+		isIPv6 := config.Spec.IPFamily != "" && strings.EqualFold(config.Spec.IPFamily, IPv6)
 
 		templateBody := templates.VpcTemplate
 
