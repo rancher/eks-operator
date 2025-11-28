@@ -615,12 +615,17 @@ func (h *Handler) generateAndSetNetworking(ctx context.Context, config *eksv1.EK
 		config.Status.SecurityGroups = config.Spec.SecurityGroups
 		config.Status.NetworkFieldsSource = "provided"
 	} else {
+		templateBody := templates.VpcTemplate
+		if templates.IsIPv6(config.Spec.IPFamily) {
+			templateBody = templates.VpcIPv6Template
+		}
+
 		logrus.Infof("Bringing up vpc")
 		stack, err := awsservices.CreateStack(ctx, &awsservices.CreateStackOptions{
 			CloudFormationService: awsSVCs.cloudformation,
 			StackName:             getVPCStackName(config.Spec.DisplayName),
 			DisplayName:           config.Spec.DisplayName,
-			TemplateBody:          templates.VpcTemplate,
+			TemplateBody:          templateBody,
 			Capabilities:          []cftypes.Capability{},
 			Parameters:            []cftypes.Parameter{},
 		})

@@ -55,6 +55,10 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 	upstreamSpec.Imported = true
 	upstreamSpec.DisplayName = name
 
+	// set ip family
+	if clusterState.Cluster.KubernetesNetworkConfig != nil {
+		upstreamSpec.IPFamily = aws.String(string(clusterState.Cluster.KubernetesNetworkConfig.IpFamily))
+	}
 	// set kubernetes version
 	upstreamVersion := aws.ToString(clusterState.Cluster.Version)
 	if upstreamVersion == "" {
