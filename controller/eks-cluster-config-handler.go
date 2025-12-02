@@ -38,6 +38,8 @@ const (
 	eksConfigUpdatingPhase   = "updating"
 	eksConfigImportingPhase  = "importing"
 	eksClusterConfigKind     = "EKSClusterConfig"
+	IPv4                     = "ipv4"
+	IPv6                     = "ipv6"
 )
 
 type Handler struct {
@@ -615,12 +617,20 @@ func (h *Handler) generateAndSetNetworking(ctx context.Context, config *eksv1.EK
 		config.Status.SecurityGroups = config.Spec.SecurityGroups
 		config.Status.NetworkFieldsSource = "provided"
 	} else {
+		isIPv6 := config.Spec.IPFamily != "" && strings.EqualFold(config.Spec.IPFamily, IPv6)
+
+		templateBody := templates.VpcTemplate
+
+		if isIPv6 {
+			templateBody = templates.VpcIPv6Template
+		}
+
 		logrus.Infof("Bringing up vpc")
 		stack, err := awsservices.CreateStack(ctx, &awsservices.CreateStackOptions{
 			CloudFormationService: awsSVCs.cloudformation,
 			StackName:             getVPCStackName(config.Spec.DisplayName),
 			DisplayName:           config.Spec.DisplayName,
-			TemplateBody:          templates.VpcTemplate,
+			TemplateBody:          templateBody,
 			Capabilities:          []cftypes.Capability{},
 			Parameters:            []cftypes.Parameter{},
 		})

@@ -76,6 +76,16 @@ func newClusterInput(config *eksv1.EKSClusterConfig, roleARN string) *eks.Create
 		Version: config.Spec.KubernetesVersion,
 	}
 
+	if config.Spec.IPFamily != "" && strings.EqualFold(config.Spec.IPFamily, "ipv6") {
+		createClusterInput.KubernetesNetworkConfig = &ekstypes.KubernetesNetworkConfigRequest{
+			IpFamily: ekstypes.IpFamilyIpv6,
+		}
+	} else {
+		createClusterInput.KubernetesNetworkConfig = &ekstypes.KubernetesNetworkConfigRequest{
+			IpFamily: ekstypes.IpFamilyIpv4,
+		}
+	}
+
 	if aws.ToBool(config.Spec.SecretsEncryption) {
 		createClusterInput.EncryptionConfig = []ekstypes.EncryptionConfig{
 			{
