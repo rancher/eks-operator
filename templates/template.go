@@ -470,6 +470,8 @@ Resources:
               Action:
                 - ec2:AssignIpv6Addresses
                 - ec2:UnassignIpv6Addresses
+                - ec2:AssignPrivateIpAddresses
+                - ec2:UnassignPrivateIpAddresses
               Resource: "*"
       
 

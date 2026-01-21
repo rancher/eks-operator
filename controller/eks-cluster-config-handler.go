@@ -749,6 +749,12 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 	if awsSVCs == nil {
 		return config, fmt.Errorf("aws services not initialized")
 	}
+	if upstreamSpec.IPFamily != "" && config.Spec.IPFamily != upstreamSpec.IPFamily {
+		logrus.Infof("Syncing IPFamily [%s] for cluster [%s]", upstreamSpec.IPFamily, config.Spec.DisplayName)
+		config = config.DeepCopy()
+		config.Spec.IPFamily = upstreamSpec.IPFamily
+		return h.eksCC.Update(config)
+	}
 
 	if config.Spec.KubernetesVersion != nil && upstreamSpec.KubernetesVersion != nil {
 		configVersion, err := semver.ParseTolerant(aws.ToString(config.Spec.KubernetesVersion))
