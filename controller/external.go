@@ -56,11 +56,10 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 	upstreamSpec.DisplayName = name
 
 	// set ip family
+	upstreamSpec.IPFamily = "ipv4"
 	if clusterState.Cluster.KubernetesNetworkConfig != nil {
 		if clusterState.Cluster.KubernetesNetworkConfig.IpFamily == ekstypes.IpFamilyIpv6 {
 			upstreamSpec.IPFamily = "ipv6"
-		} else {
-			upstreamSpec.IPFamily = "ipv4"
 		}
 	}
 	// set kubernetes version
