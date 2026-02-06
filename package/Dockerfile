@@ -1,7 +1,7 @@
 # Image that provides cross compilation tooling.
 FROM --platform=$BUILDPLATFORM rancher/mirrored-tonistiigi-xx:1.5.0 AS xx
 
-FROM registry.suse.com/bci/bci-base:15.6 AS base
+FROM registry.suse.com/bci/bci-base:15.7 AS base
 RUN sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd
 RUN useradd --uid 1007 eks-operator
 
