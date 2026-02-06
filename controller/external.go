@@ -55,6 +55,13 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 	upstreamSpec.Imported = true
 	upstreamSpec.DisplayName = name
 
+	// set ip family
+	upstreamSpec.IPFamily = "ipv4"
+	if clusterState.Cluster.KubernetesNetworkConfig != nil {
+		if clusterState.Cluster.KubernetesNetworkConfig.IpFamily == ekstypes.IpFamilyIpv6 {
+			upstreamSpec.IPFamily = "ipv6"
+		}
+	}
 	// set kubernetes version
 	upstreamVersion := aws.ToString(clusterState.Cluster.Version)
 	if upstreamVersion == "" {
