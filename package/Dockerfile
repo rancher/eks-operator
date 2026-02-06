@@ -30,7 +30,7 @@ RUN xx-go build -ldflags \
        -o /eks-operator && \
        xx-verify /eks-operator
 
-FROM registry.suse.com/bci/bci-micro:15.6
+FROM registry.suse.com/bci/bci-micro:15.7
 COPY --from=base /etc/passwd /etc/passwd
 COPY --from=base /etc/shadow /etc/shadow
 COPY --from=builder /eks-operator /usr/bin/eks-operator
