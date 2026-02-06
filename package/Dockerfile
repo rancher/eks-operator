@@ -5,7 +5,7 @@ FROM registry.suse.com/bci/bci-base:15.6 AS base
 RUN sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd
 RUN useradd --uid 1007 eks-operator
 
-FROM --platform=$BUILDPLATFORM registry.suse.com/bci/golang:1.24 AS builder
+FROM --platform=$BUILDPLATFORM registry.suse.com/bci/golang:1.25 AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
