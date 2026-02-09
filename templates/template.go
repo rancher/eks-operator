@@ -462,7 +462,7 @@ Resources:
         - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKS_CNI_Policy
         - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
       Policies:
-      - PolicyName: AllowIPv6ForCNI
+      - PolicyName: RancherManaged_AllowIPv6ForCNI
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
