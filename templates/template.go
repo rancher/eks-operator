@@ -432,7 +432,7 @@ Resources:
 
 Outputs:
   SubnetIds:
-    Description: All private subnets in the VPC
+    Description: All public subnets in the VPC
     Value: !Join [ ",", [ !Ref SubnetPublic01, !Ref SubnetPublic02 ] ]
 
   VpcId:
