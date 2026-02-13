@@ -14,6 +14,7 @@ TAG?=${GIT_TAG}-${GIT_COMMIT_SHORT}
 REPO?=docker.io/rancher
 IMAGE = $(REPO)/eks-operator:$(TAG)
 MACHINE := rancher
+KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.34.1
 # Define the target platforms that can be used across the ecosystem.
 # Note that what would actually be used for a given project will be
 # defined in TARGET_PLATFORMS, and must be a subset of the below:
