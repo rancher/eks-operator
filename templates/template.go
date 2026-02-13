@@ -461,6 +461,35 @@ Resources:
         - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKS_CNI_Policy
         - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+Outputs:
+
+  NodeInstanceRole:
+    Description: The node instance role
+    Value: !GetAtt NodeInstanceRole.Arn
+`
+	NodeInstanceRoleIPv6Template = `---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EKS - Node Group (IPv6)
+
+
+Resources:
+
+  NodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: {{.EC2Service}}
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEKS_CNI_Policy
+        - {{.AWSArnPrefix}}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
       Policies:
       - PolicyName: RancherManaged_AllowIPv6ForCNI
         PolicyDocument:
@@ -473,8 +502,6 @@ Resources:
                 - ec2:AssignPrivateIpAddresses
                 - ec2:UnassignPrivateIpAddresses
               Resource: "*"
-      
-
 
 Outputs:
 
