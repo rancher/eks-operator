@@ -42,11 +42,11 @@ GINKGO_VER := v2.20.2
 GINKGO_BIN := ginkgo
 GINKGO := $(BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 
-GO_APIDIFF_VER := v0.8.2
+GO_APIDIFF_VER := v0.8.3
 GO_APIDIFF_BIN := go-apidiff
 GO_APIDIFF := $(BIN_DIR)/$(GO_APIDIFF_BIN)-$(GO_APIDIFF_VER)
 
-SETUP_ENVTEST_VER := release-0.19
+SETUP_ENVTEST_VER := v0.0.0-20260212170801-679fb347b532
 SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER)
 
@@ -133,9 +133,8 @@ verify-generate: generate
 
 .PHONY: test
 test: $(SETUP_ENVTEST) $(GINKGO)
-	@echo "Setting up envtest..."
-	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION) --use-env -p path)" $(GINKGO) -v -r -p --trace ./pkg/... ./controller/...
-
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" $(GINKGO) -v -r -p --trace ./pkg/... ./controller/...
+	
 .PHONY: clean
 clean:
 	rm -rf build bin dist
