@@ -14,6 +14,7 @@ TAG?=${GIT_TAG}-${GIT_COMMIT_SHORT}
 REPO?=docker.io/rancher
 IMAGE = $(REPO)/eks-operator:$(TAG)
 MACHINE := rancher
+KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.34.1
 # Define the target platforms that can be used across the ecosystem.
 # Note that what would actually be used for a given project will be
 # defined in TARGET_PLATFORMS, and must be a subset of the below:
@@ -45,7 +46,7 @@ GO_APIDIFF_VER := v0.8.2
 GO_APIDIFF_BIN := go-apidiff
 GO_APIDIFF := $(BIN_DIR)/$(GO_APIDIFF_BIN)-$(GO_APIDIFF_VER)
 
-SETUP_ENVTEST_VER := v0.0.0-20211110210527-619e6b92dab9
+SETUP_ENVTEST_VER := release-0.19
 SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER)
 
@@ -132,7 +133,8 @@ verify-generate: generate
 
 .PHONY: test
 test: $(SETUP_ENVTEST) $(GINKGO)
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" $(GINKGO) -v -r -p --trace ./pkg/... ./controller/...
+	@echo "Setting up envtest..."
+	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION) --use-env -p path)" $(GINKGO) -v -r -p --trace ./pkg/... ./controller/...
 
 .PHONY: clean
 clean:
