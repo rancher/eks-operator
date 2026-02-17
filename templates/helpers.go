@@ -2,7 +2,10 @@ package templates
 
 import (
 	"bytes"
+	"strings"
 	"text/template"
+
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 )
@@ -59,8 +62,13 @@ func GetServiceRoleTemplate(region string) (string, error) {
 	return buf.String(), nil
 }
 
-func GetNodeInstanceRoleTemplate(region string) (string, error) {
-	tmpl, err := template.New("nodeInstanceRole").Parse(NodeInstanceRoleTemplate)
+func GetNodeInstanceRoleTemplate(region string, ipFamily *string) (string, error) {
+	nodeInstanceRoleTmpl := NodeInstanceRoleTemplate
+	if IsIPv6(ipFamily) {
+		nodeInstanceRoleTmpl = NodeInstanceRoleIPv6Template
+	}
+
+	tmpl, err := template.New("nodeInstanceRole").Parse(nodeInstanceRoleTmpl)
 	if err != nil {
 		return "", err
 	}
@@ -101,4 +109,8 @@ func GetEBSCSIDriverTemplate(region string, providerID string) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+func IsIPv6(ipFamily *string) bool {
+	return ipFamily != nil && strings.EqualFold(*ipFamily, string(ekstypes.IpFamilyIpv6))
 }
