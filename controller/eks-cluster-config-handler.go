@@ -615,12 +615,17 @@ func (h *Handler) generateAndSetNetworking(ctx context.Context, config *eksv1.EK
 		config.Status.SecurityGroups = config.Spec.SecurityGroups
 		config.Status.NetworkFieldsSource = "provided"
 	} else {
+		templateBody := templates.VpcTemplate
+		if templates.IsIPv6(config.Spec.IPFamily) {
+			templateBody = templates.VpcIPv6Template
+		}
+
 		logrus.Infof("Bringing up vpc")
 		stack, err := awsservices.CreateStack(ctx, &awsservices.CreateStackOptions{
 			CloudFormationService: awsSVCs.cloudformation,
 			StackName:             getVPCStackName(config.Spec.DisplayName),
 			DisplayName:           config.Spec.DisplayName,
-			TemplateBody:          templates.VpcTemplate,
+			TemplateBody:          templateBody,
 			Capabilities:          []cftypes.Capability{},
 			Parameters:            []cftypes.Parameter{},
 		})
@@ -738,6 +743,14 @@ func (h *Handler) waitForCreationComplete(ctx context.Context, config *eksv1.EKS
 func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *eksv1.EKSClusterConfigSpec, config *eksv1.EKSClusterConfig, awsSVCs *awsServices, clusterARN string, ngARNs map[string]string) (*eksv1.EKSClusterConfig, error) {
 	if awsSVCs == nil {
 		return config, fmt.Errorf("aws services not initialized")
+	}
+
+	if templates.IsIPv6(config.Spec.IPFamily) {
+		logrus.Infof("Ensuring OIDC Provider exists for IPv6 cluster [%s]", config.Spec.DisplayName)
+		_, err := awsservices.ConfigureOIDCProvider(ctx, awsSVCs.iam, awsSVCs.eks, config)
+		if err != nil {
+			return config, fmt.Errorf("error configuring OIDC provider for IPv6: %w", err)
+		}
 	}
 
 	if config.Spec.KubernetesVersion != nil && upstreamSpec.KubernetesVersion != nil {
