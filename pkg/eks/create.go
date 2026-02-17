@@ -76,6 +76,16 @@ func newClusterInput(config *eksv1.EKSClusterConfig, roleARN string) *eks.Create
 		Version: config.Spec.KubernetesVersion,
 	}
 
+	if templates.IsIPv6(config.Spec.IPFamily) {
+		createClusterInput.KubernetesNetworkConfig = &ekstypes.KubernetesNetworkConfigRequest{
+			IpFamily: ekstypes.IpFamilyIpv6,
+		}
+	} else {
+		createClusterInput.KubernetesNetworkConfig = &ekstypes.KubernetesNetworkConfigRequest{
+			IpFamily: ekstypes.IpFamilyIpv4,
+		}
+	}
+
 	if aws.ToBool(config.Spec.SecretsEncryption) {
 		createClusterInput.EncryptionConfig = []ekstypes.EncryptionConfig{
 			{
@@ -296,7 +306,7 @@ func CreateNodeGroup(ctx context.Context, opts *CreateNodeGroupOptions) (string,
 
 	if aws.ToString(opts.NodeGroup.NodeRole) == "" {
 		if opts.Config.Status.GeneratedNodeRole == "" {
-			finalTemplate, err := templates.GetNodeInstanceRoleTemplate(opts.Config.Spec.Region)
+			finalTemplate, err := templates.GetNodeInstanceRoleTemplate(opts.Config.Spec.Region, opts.Config.Spec.IPFamily)
 			if err != nil {
 				return "", "", fmt.Errorf("error getting node instance role template: %v", err)
 			}
@@ -497,7 +507,7 @@ type EnableEBSCSIDriverInput struct {
 // EnableEBSCSIDriver manages the installation of the EBS CSI driver for EKS, including the
 // creation of the OIDC Provider, the IAM role and the validation and installation of the EKS add-on
 func EnableEBSCSIDriver(ctx context.Context, opts *EnableEBSCSIDriverInput) error {
-	oidcID, err := configureOIDCProvider(ctx, opts.IAMService, opts.EKSService, opts.Config)
+	oidcID, err := ConfigureOIDCProvider(ctx, opts.IAMService, opts.EKSService, opts.Config)
 	if err != nil {
 		return fmt.Errorf("could not configure oidc provider: %w", err)
 	}
@@ -512,7 +522,7 @@ func EnableEBSCSIDriver(ctx context.Context, opts *EnableEBSCSIDriverInput) erro
 	return nil
 }
 
-func configureOIDCProvider(ctx context.Context, iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
+func ConfigureOIDCProvider(ctx context.Context, iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
 	output, err := iamService.ListOIDCProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
 	if err != nil {
 		return "", err
@@ -534,14 +544,19 @@ func configureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 		}
 	}
 
-	thumbprint, err := getIssuerThumbprint(*clusterOutput.Cluster.Identity.Oidc.Issuer)
+	oidcIssuer := clusterOutput.Cluster.Identity.Oidc.Issuer
+	if templates.IsIPv6(config.Spec.IPFamily) {
+		oidcIssuer = transformOIDC(oidcIssuer)
+	}
+
+	thumbprint, err := getIssuerThumbprint(*oidcIssuer)
 	if err != nil {
 		return "", err
 	}
 	input := &iam.CreateOpenIDConnectProviderInput{
 		ClientIDList:   []string{string(defaultAudienceOpenIDConnect)},
 		ThumbprintList: []string{thumbprint},
-		Url:            clusterOutput.Cluster.Identity.Oidc.Issuer,
+		Url:            oidcIssuer,
 		Tags:           []iamtypes.Tag{},
 	}
 	newOIDC, err := iamService.CreateOIDCProvider(ctx, input)
@@ -626,4 +641,17 @@ func installEBSAddon(ctx context.Context, eksService services.EKSServiceInterfac
 	}
 
 	return *addonOutput.Addon.AddonArn, nil
+}
+
+// TransformOIDC converts a standard EKS OIDC URL to a dual-stack URL.
+func transformOIDC(issuerURL *string) *string {
+	if issuerURL == nil {
+		return nil
+	}
+	// 1. Replace "https://oidc.eks." with "https://oidc-eks."
+	url := strings.Replace(*issuerURL, "https://oidc.eks.", "https://oidc-eks.", 1)
+
+	// 2. Replace ".amazonaws.com/" with ".api.aws/"
+	url = strings.Replace(url, ".amazonaws.com/", ".api.aws/", 1)
+	return &url
 }
