@@ -1247,7 +1247,7 @@ var _ = Describe("installEBSCSIDriver", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
 		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().CreateOIDCProvider(ctx, gomock.Any()).Return(oidcCreateProviderOutput, nil)
-		_, err := configureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		_, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).To(Succeed())
 	})
 
@@ -1257,13 +1257,13 @@ var _ = Describe("installEBSCSIDriver", func() {
 		}
 		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
-		_, err := configureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		_, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).To(Succeed())
 	})
 
 	It("should fail to list oidc providers", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to list oidc providers"))
-		_, err := configureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		_, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).ToNot(Succeed())
 	})
 
@@ -1274,7 +1274,7 @@ var _ = Describe("installEBSCSIDriver", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
 		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().CreateOIDCProvider(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to create oidc provider"))
-		_, err := configureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		_, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).ToNot(Succeed())
 	})
 

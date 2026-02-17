@@ -745,6 +745,14 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		return config, fmt.Errorf("aws services not initialized")
 	}
 
+	if templates.IsIPv6(config.Spec.IPFamily) {
+		logrus.Infof("Ensuring OIDC Provider exists for IPv6 cluster [%s]", config.Spec.DisplayName)
+		_, err := awsservices.ConfigureOIDCProvider(ctx, awsSVCs.iam, awsSVCs.eks, config)
+		if err != nil {
+			return config, fmt.Errorf("error configuring OIDC provider for IPv6: %w", err)
+		}
+	}
+
 	if config.Spec.KubernetesVersion != nil && upstreamSpec.KubernetesVersion != nil {
 		configVersion, err := semver.ParseTolerant(aws.ToString(config.Spec.KubernetesVersion))
 		if err != nil {
