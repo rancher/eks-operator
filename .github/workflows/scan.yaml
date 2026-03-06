@@ -2,6 +2,7 @@ name: Scan
 on:
   workflow_dispatch:
   pull_request:
+    branches: [ "main", "release-v*" ]
   push:
     branches: [ "main", "release-v*" ]
     tags:
