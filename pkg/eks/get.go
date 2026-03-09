@@ -109,5 +109,10 @@ func CheckEBSAddon(ctx context.Context, clusterName string, eksService services.
 		return "", nil
 	}
 
+	if output.Addon.Status == ekstypes.AddonStatusCreateFailed ||
+		output.Addon.Status == ekstypes.AddonStatusDegraded {
+		return "", nil
+	}
+
 	return *output.Addon.AddonArn, nil
 }
