@@ -540,7 +540,7 @@ func ConfigureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 
 	for _, prov := range output.OpenIDConnectProviderList {
 		if strings.Contains(*prov.Arn, id) {
-			return "", nil
+			return id, nil
 		}
 	}
 
