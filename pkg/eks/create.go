@@ -545,9 +545,6 @@ func ConfigureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 	}
 
 	oidcIssuer := clusterOutput.Cluster.Identity.Oidc.Issuer
-	if templates.IsIPv6(config.Spec.IPFamily) {
-		oidcIssuer = transformOIDC(oidcIssuer)
-	}
 
 	thumbprint, err := getIssuerThumbprint(*oidcIssuer)
 	if err != nil {
@@ -641,17 +638,4 @@ func installEBSAddon(ctx context.Context, eksService services.EKSServiceInterfac
 	}
 
 	return *addonOutput.Addon.AddonArn, nil
-}
-
-// TransformOIDC converts a standard EKS OIDC URL to a dual-stack URL.
-func transformOIDC(issuerURL *string) *string {
-	if issuerURL == nil {
-		return nil
-	}
-	// 1. Replace "https://oidc.eks." with "https://oidc-eks."
-	url := strings.Replace(*issuerURL, "https://oidc.eks.", "https://oidc-eks.", 1)
-
-	// 2. Replace ".amazonaws.com/" with ".api.aws/"
-	url = strings.Replace(url, ".amazonaws.com/", ".api.aws/", 1)
-	return &url
 }
