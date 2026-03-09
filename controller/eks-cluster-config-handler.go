@@ -747,7 +747,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 
 	if templates.IsIPv6(config.Spec.IPFamily) {
 		logrus.Infof("Ensuring OIDC Provider exists for IPv6 cluster [%s]", config.Spec.DisplayName)
-		_, err := awsservices.ConfigureOIDCProvider(ctx, awsSVCs.iam, awsSVCs.eks, config)
+		_, _, err := awsservices.ConfigureOIDCProvider(ctx, awsSVCs.iam, awsSVCs.eks, config)
 		if err != nil {
 			return config, fmt.Errorf("error configuring OIDC provider for IPv6: %w", err)
 		}
