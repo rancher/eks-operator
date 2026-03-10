@@ -507,48 +507,59 @@ type EnableEBSCSIDriverInput struct {
 // EnableEBSCSIDriver manages the installation of the EBS CSI driver for EKS, including the
 // creation of the OIDC Provider, the IAM role and the validation and installation of the EKS add-on
 func EnableEBSCSIDriver(ctx context.Context, opts *EnableEBSCSIDriverInput) error {
-	oidcID, err := ConfigureOIDCProvider(ctx, opts.IAMService, opts.EKSService, opts.Config)
+	oidcID, oidcHost, err := ConfigureOIDCProvider(ctx, opts.IAMService, opts.EKSService, opts.Config)
 	if err != nil {
 		return fmt.Errorf("could not configure oidc provider: %w", err)
 	}
-	roleArn, err := createEBSCSIDriverRole(ctx, opts.CFService, opts.Config, oidcID)
+	roleArn, err := createEBSCSIDriverRole(ctx, opts.CFService, opts.Config, oidcID, oidcHost)
 	if err != nil {
 		return fmt.Errorf("could not create ebs csi driver role: %w", err)
 	}
 	if _, err := installEBSAddon(ctx, opts.EKSService, opts.Config, roleArn, opts.AddonVersion); err != nil {
 		return fmt.Errorf("failed to install ebs csi driver addon: %w", err)
 	}
-
 	return nil
 }
 
-func ConfigureOIDCProvider(ctx context.Context, iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, error) {
+func ConfigureOIDCProvider(ctx context.Context, iamService services.IAMServiceInterface, eksService services.EKSServiceInterface, config *eksv1.EKSClusterConfig) (string, string, error) {
 	output, err := iamService.ListOIDCProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	clusterOutput, err := eksService.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: aws.String(config.Spec.DisplayName),
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if clusterOutput == nil {
-		return "", fmt.Errorf("could not find cluster [%s (id: %s)]", config.Spec.DisplayName, config.Name)
+		return "", "", fmt.Errorf("could not find cluster [%s (id: %s)]", config.Spec.DisplayName, config.Name)
 	}
 	id := path.Base(*clusterOutput.Cluster.Identity.Oidc.Issuer)
 
+	oidcIssuer := clusterOutput.Cluster.Identity.Oidc.Issuer // ← CHANGE: transform mat karo
+
+	parsedIssuer, err := url.Parse(*oidcIssuer)
+	if err != nil {
+		return "", "", fmt.Errorf("parsing oidc issuer: %w", err)
+	}
+
+	oidcHost := parsedIssuer.Host
+
 	for _, prov := range output.OpenIDConnectProviderList {
 		if strings.Contains(*prov.Arn, id) {
-			return id, nil
+			return id, oidcHost, nil
 		}
 	}
 
-	oidcIssuer := clusterOutput.Cluster.Identity.Oidc.Issuer
+	thumbprintIssuer := oidcIssuer
+	if templates.IsIPv6(config.Spec.IPFamily) {
+		thumbprintIssuer = transformOIDC(oidcIssuer)
+	}
 
-	thumbprint, err := getIssuerThumbprint(*oidcIssuer)
+	thumbprint, err := getIssuerThumbprint(*thumbprintIssuer)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	input := &iam.CreateOpenIDConnectProviderInput{
 		ClientIDList:   []string{string(defaultAudienceOpenIDConnect)},
@@ -558,10 +569,10 @@ func ConfigureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 	}
 	newOIDC, err := iamService.CreateOIDCProvider(ctx, input)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return path.Base(*newOIDC.OpenIDConnectProviderArn), nil
+	return path.Base(*newOIDC.OpenIDConnectProviderArn), oidcHost, nil
 }
 
 func getIssuerThumbprint(issuer string) (string, error) {
@@ -597,8 +608,8 @@ func getIssuerThumbprint(issuer string) (string, error) {
 	return fmt.Sprintf("%x", sha1.Sum(root.Raw)), nil
 }
 
-func createEBSCSIDriverRole(ctx context.Context, cfService services.CloudFormationServiceInterface, config *eksv1.EKSClusterConfig, oidcID string) (string, error) {
-	finalTemplate, err := templates.GetEBSCSIDriverTemplate(config.Spec.Region, oidcID)
+func createEBSCSIDriverRole(ctx context.Context, cfService services.CloudFormationServiceInterface, config *eksv1.EKSClusterConfig, oidcID, oidcHost string) (string, error) {
+	finalTemplate, err := templates.GetEBSCSIDriverTemplate(config.Spec.Region, oidcID, oidcHost)
 	if err != nil {
 		return "", fmt.Errorf("error getting ebs csi driver template: %v", err)
 	}
@@ -638,4 +649,16 @@ func installEBSAddon(ctx context.Context, eksService services.EKSServiceInterfac
 	}
 
 	return *addonOutput.Addon.AddonArn, nil
+}
+
+func transformOIDC(issuerURL *string) *string {
+	if issuerURL == nil {
+		return nil
+	}
+	// 1. Replace "https://oidc.eks." with "https://oidc-eks."
+	url := strings.Replace(*issuerURL, "https://oidc.eks.", "https://oidc-eks.", 1)
+
+	// 2. Replace ".amazonaws.com/" with ".api.aws/"
+	url = strings.Replace(url, ".amazonaws.com/", ".api.aws/", 1)
+	return &url
 }

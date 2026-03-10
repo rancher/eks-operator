@@ -15,6 +15,7 @@ type EBSCSIDriverTemplateData struct {
 	Region       string
 	ProviderID   string
 	AWSDomain    string
+	OIDCHost     string
 }
 
 type NodeInstanceRoleTemplateData struct {
@@ -88,7 +89,7 @@ func GetNodeInstanceRoleTemplate(region string, ipFamily *string) (string, error
 	return buf.String(), nil
 }
 
-func GetEBSCSIDriverTemplate(region string, providerID string) (string, error) {
+func GetEBSCSIDriverTemplate(region string, providerID, oidcHost string) (string, error) {
 	tmpl, err := template.New("ebsrole").Parse(EBSCSIDriverTemplate)
 	if err != nil {
 		return "", err
@@ -100,6 +101,7 @@ func GetEBSCSIDriverTemplate(region string, providerID string) (string, error) {
 		AWSDomain:    getAWSDNSSuffix(region),
 		Region:       region,
 		ProviderID:   providerID,
+		OIDCHost:     oidcHost,
 	}
 
 	// Execute the template
