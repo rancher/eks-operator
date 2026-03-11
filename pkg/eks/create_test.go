@@ -1247,7 +1247,7 @@ var _ = Describe("installEBSCSIDriver", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
 		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().CreateOIDCProvider(ctx, gomock.Any()).Return(oidcCreateProviderOutput, nil)
-		_, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		_, _, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).To(Succeed())
 	})
 
@@ -1257,13 +1257,13 @@ var _ = Describe("installEBSCSIDriver", func() {
 		}
 		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
-		_, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		_, _, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).To(Succeed())
 	})
 
 	It("should fail to list oidc providers", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to list oidc providers"))
-		_, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		_, _, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).ToNot(Succeed())
 	})
 
@@ -1274,7 +1274,7 @@ var _ = Describe("installEBSCSIDriver", func() {
 		iamServiceMock.EXPECT().ListOIDCProviders(ctx, gomock.Any()).Return(oidcListProvidersOutput, nil)
 		eksServiceMock.EXPECT().DescribeCluster(ctx, gomock.Any()).Return(eksClusterOutput, nil)
 		iamServiceMock.EXPECT().CreateOIDCProvider(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to create oidc provider"))
-		_, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
+		_, _, err := ConfigureOIDCProvider(ctx, enableEBSCSIDriverInput.IAMService, enableEBSCSIDriverInput.EKSService, enableEBSCSIDriverInput.Config)
 		Expect(err).ToNot(Succeed())
 	})
 
@@ -1294,14 +1294,14 @@ var _ = Describe("installEBSCSIDriver", func() {
 					},
 				},
 			}, nil)
-		_, err := createEBSCSIDriverRole(ctx, enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "")
+		_, err := createEBSCSIDriverRole(ctx, enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "", "oidc.eks.region.amazonaws.com")
 		Expect(err).To(Succeed())
 	})
 
 	It("should fail to create driver iam role", func() {
 		cloudFormationServiceMock.EXPECT().CreateStack(ctx, gomock.Any()).Return(nil, nil)
 		cloudFormationServiceMock.EXPECT().DescribeStacks(ctx, gomock.Any()).Return(nil, fmt.Errorf("failed to describe stack"))
-		_, err := createEBSCSIDriverRole(ctx, enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "")
+		_, err := createEBSCSIDriverRole(ctx, enableEBSCSIDriverInput.CFService, enableEBSCSIDriverInput.Config, "", "oidc.eks.region.amazonaws.com")
 		Expect(err).ToNot(Succeed())
 	})
 
