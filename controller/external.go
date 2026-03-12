@@ -53,7 +53,7 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 	upstreamSpec := &eksv1.EKSClusterConfigSpec{}
 
 	upstreamSpec.Imported = true
-	upstreamSpec.DisplayName = name
+	upstreamSpec.DisplayName = aws.ToString(clusterState.Cluster.Name)
 
 	// set ip family
 	if clusterState.Cluster.KubernetesNetworkConfig != nil {
@@ -105,9 +105,9 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 
 	// set ebs csi driver
 	upstreamSpec.EBSCSIDriver = aws.Bool(false)
-	currentARN, err := awsservices.CheckEBSAddon(ctx, name, eksService)
+	currentARN, err := awsservices.CheckEBSAddon(ctx, aws.ToString(clusterState.Cluster.Name), eksService)
 	if err != nil {
-		return nil, "", fmt.Errorf("error checking if ebs csi driver addon is installed: %w", err)
+		return nil, "", fmt.Errorf("error checking if ebs csi driver addon is installed in cluster [%s]: %w", name, err)
 	}
 	if strings.Contains(currentARN, "aws-ebs-csi-driver") {
 		upstreamSpec.EBSCSIDriver = aws.Bool(true)
@@ -172,15 +172,15 @@ func BuildUpstreamClusterState(ctx context.Context, name, managedTemplateID stri
 
 						return nil, "", fmt.Errorf("rancher-managed launch template for node group [%s] in cluster [%s] not found, must create new node group and destroy existing",
 							aws.ToString(ngToAdd.NodegroupName),
-							upstreamSpec.DisplayName,
+							name,
 						)
 					}
-					return nil, "", fmt.Errorf("error getting launch template info for node group [%s] in cluster [%s]", aws.ToString(ngToAdd.NodegroupName), upstreamSpec.DisplayName)
+					return nil, "", fmt.Errorf("error getting launch template info for node group [%s] in cluster [%s]", aws.ToString(ngToAdd.NodegroupName), name)
 				}
 				launchTemplateData := launchTemplateRequestOutput.LaunchTemplateVersions[0].LaunchTemplateData
 
 				if len(launchTemplateData.BlockDeviceMappings) == 0 {
-					return nil, "", fmt.Errorf("launch template for node group [%s] in cluster [%s] is malformed", aws.ToString(ngToAdd.NodegroupName), upstreamSpec.DisplayName)
+					return nil, "", fmt.Errorf("launch template for node group [%s] in cluster [%s] is malformed", aws.ToString(ngToAdd.NodegroupName), name)
 				}
 				ngToAdd.DiskSize = launchTemplateData.BlockDeviceMappings[0].Ebs.VolumeSize
 				ngToAdd.Ec2SshKey = launchTemplateData.KeyName
