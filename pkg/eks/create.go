@@ -537,7 +537,7 @@ func ConfigureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 	}
 	id := path.Base(*clusterOutput.Cluster.Identity.Oidc.Issuer)
 
-	oidcIssuer := clusterOutput.Cluster.Identity.Oidc.Issuer // ← CHANGE: transform mat karo
+	oidcIssuer := clusterOutput.Cluster.Identity.Oidc.Issuer 
 
 	parsedIssuer, err := url.Parse(*oidcIssuer)
 	if err != nil {
