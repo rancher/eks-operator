@@ -16,6 +16,8 @@ updates:
   groups:
     kubernetes:
       patterns: [ "k8s.io/*" ]
+    aws-sdk:
+      patterns: [ "github.com/aws/aws-sdk*" ] 
   ignore:
   # Ignore controller-runtime as its upgraded manually.
   - dependency-name: "sigs.k8s.io/controller-runtime"
@@ -44,6 +46,8 @@ updates:
   groups:
     kubernetes:
       patterns: [ "k8s.io/*" ]
+    aws-sdk:
+      patterns: [ "github.com/aws/aws-sdk*" ] 
   ignore:
   # Ignore controller-runtime as its upgraded manually.
   - dependency-name: "sigs.k8s.io/controller-runtime"
@@ -76,6 +80,8 @@ updates:
   groups:
     kubernetes:
       patterns: [ "k8s.io/*" ]
+    aws-sdk:
+      patterns: [ "github.com/aws/aws-sdk*" ] 
   ignore:
   # Ignore controller-runtime as its upgraded manually.
   - dependency-name: "sigs.k8s.io/controller-runtime"
@@ -108,6 +114,8 @@ updates:
   groups:
     kubernetes:
       patterns: [ "k8s.io/*" ]
+    aws-sdk:
+      patterns: [ "github.com/aws/aws-sdk*" ] 
   ignore:
   # Ignore controller-runtime as its upgraded manually.
   - dependency-name: "sigs.k8s.io/controller-runtime"
