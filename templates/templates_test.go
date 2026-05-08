@@ -94,7 +94,7 @@ var _ = Describe("Templates", func() {
 		Describe("GetEBSCSIDriverTemplate", func() {
 			It("should generate a valid EBS CSI driver template for us-east-1", func() {
 				providerID := "ABCDEF12345678"
-				tmpl, err := GetEBSCSIDriverTemplate("us-east-1", providerID)
+				tmpl, err := GetEBSCSIDriverTemplate("us-east-1", providerID, "oidc.eks.us-east-1.amazonaws.com")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(tmpl).To(ContainSubstring("AWSEBSCSIDriverRoleForAmazonEKS"))
 				Expect(tmpl).To(ContainSubstring("arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"))
@@ -105,7 +105,7 @@ var _ = Describe("Templates", func() {
 
 			It("should generate a valid EBS CSI driver template for cn-north-1", func() {
 				providerID := "ABCDEF12345678"
-				tmpl, err := GetEBSCSIDriverTemplate("cn-north-1", providerID)
+				tmpl, err := GetEBSCSIDriverTemplate("cn-north-1", providerID, "oidc.eks.cn-north-1.amazonaws.com.cn")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(tmpl).To(ContainSubstring("arn:aws-cn:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"))
 				Expect(tmpl).To(ContainSubstring("oidc.eks.cn-north-1.amazonaws.com.cn/id/" + providerID))
@@ -114,7 +114,7 @@ var _ = Describe("Templates", func() {
 
 			It("should generate a valid EBS CSI driver template for us-gov-west-1", func() {
 				providerID := "ABCDEF12345678"
-				tmpl, err := GetEBSCSIDriverTemplate("us-gov-west-1", providerID)
+				tmpl, err := GetEBSCSIDriverTemplate("us-gov-west-1", providerID, "oidc.eks.us-gov-west-1.amazonaws.com")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(tmpl).To(ContainSubstring("arn:aws-us-gov:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"))
 				Expect(tmpl).To(ContainSubstring("oidc.eks.us-gov-west-1.amazonaws.com/id/" + providerID))
