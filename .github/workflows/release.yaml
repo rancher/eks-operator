@@ -61,7 +61,7 @@ jobs:
         prime-username: ${{ env.PRIME_REGISTRY_USERNAME }}
         prime-password: ${{ env.PRIME_REGISTRY_PASSWORD }}
         make-target: image-push
-        push-to-prime: true
+        push-to-prime: ${{ !contains(github.ref_name, '-rc') }}
     - name: Cleanup checksum files # in order to avoid goreleaser dirty state error, remove once rancher/ecm-distro-tools/actions/publish-image@main gets updated
       run: rm -f slsactl_*_checksums.txt*
   release:
@@ -109,14 +109,14 @@ jobs:
           	install -m 755 goreleaser /usr/local/bin/goreleaser
           fi
           rm -f "${FILE}" goreleaser
-      - name: Create release
+      - name: Create release (DRAFT)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # required for creating GH release
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }} # specify the tag to be released
         id: goreleaser
         shell: bash
         run: |-
-          goreleaser release --clean --verbose
+          goreleaser release --clean --verbose --draft
           if [[ ! -f dist/metadata.json ]] || [[ ! -s dist/metadata.json ]]; then
             echo "Missing required file: dist/metadata.json"
             exit 1
@@ -176,6 +176,13 @@ jobs:
           git commit -m "Update charts to version $version"
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git push origin "$charts_branch"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" --draft=false
+          
   dispatch-chart-release:
     permissions:
       contents: read
