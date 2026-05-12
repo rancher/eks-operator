@@ -1,6 +1,9 @@
 global:
   cattle:
     systemDefaultRegistry: ""
+    # imagePullSecrets:
+    #   - name: secret1
+    imagePullSecrets: []
 
 eksOperator:
   image:
