@@ -47,7 +47,7 @@ jobs:
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD
     - name: Publish images
-      uses: rancher/ecm-distro-tools/actions/publish-image@dcb1a0f50ca91f9f9a1f34fa335a9182686234d5 # v0.66.3
+      uses: rancher/ecm-distro-tools/actions/publish-image@da9f5b6e258c327660eeab3db97952b612f1cf9f # v0.69.3
       with:
         image: eks-operator
         tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
@@ -61,7 +61,7 @@ jobs:
         prime-username: ${{ env.PRIME_REGISTRY_USERNAME }}
         prime-password: ${{ env.PRIME_REGISTRY_PASSWORD }}
         make-target: image-push
-        push-to-prime: true
+        push-to-prime: ${{ !contains(github.ref_name, '-rc') }}
     - name: Cleanup checksum files # in order to avoid goreleaser dirty state error, remove once rancher/ecm-distro-tools/actions/publish-image@main gets updated
       run: rm -f slsactl_*_checksums.txt*
 
@@ -110,14 +110,14 @@ jobs:
           	install -m 755 goreleaser /usr/local/bin/goreleaser
           fi
           rm -f "${FILE}" goreleaser
-      - name: Create release
+      - name: Create release (DRAFT)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # required for creating GH release
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }} # specify the tag to be released
         id: goreleaser
         shell: bash
         run: |-
-          goreleaser release --clean --verbose
+          goreleaser release --clean --verbose --draft
           if [[ ! -f dist/metadata.json ]] || [[ ! -s dist/metadata.json ]]; then
             echo "Missing required file: dist/metadata.json"
             exit 1
@@ -177,6 +177,11 @@ jobs:
           git commit -m "Update charts to version $version"
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git push origin "$charts_branch"
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" --draft=false
   dispatch-chart-release:
     permissions:
       contents: read
@@ -194,7 +199,7 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
             secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
       - name: Create App Token
-        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         id: app-token
         with:
           app-id: ${{ env.APP_ID }}
