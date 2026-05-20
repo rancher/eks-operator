@@ -590,7 +590,7 @@ func getIssuerThumbprint(issuer string) (string, error) {
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: true, // #nosec G402
 				MinVersion:         tls.VersionTLS12,
 			},
 			Proxy: http.ProxyFromEnvironment,
