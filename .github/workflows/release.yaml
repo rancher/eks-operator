@@ -47,7 +47,7 @@ jobs:
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD
     - name: Publish images
-      uses: rancher/ecm-distro-tools/actions/publish-image@3a1c5e3106195b82d8700f8f760107aa634fecdf # v0.70.0
+      uses: rancher/ecm-distro-tools/actions/publish-image@03cb52c4bd23670a192d47ef7b49d566928738d6 # v0.72.0
       with:
         image: eks-operator
         tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
