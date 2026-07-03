@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks/types"
 
 	awssdkeks "github.com/aws/aws-sdk-go-v2/service/eks"
+	awssdksts "github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -305,6 +307,118 @@ var _ = Describe("updateCluster", func() {
 		Expect(err).To(BeNil())
 		Expect(config.Status.Phase).To(Equal(eksConfigUpdatingPhase))
 		Expect(config.Status.CompletedUpdateIDs).To(Equal([]string{"1", "2", "3"}))
+	})
+})
+
+var _ = Describe("validateCreate display name uniqueness", func() {
+	var (
+		handler        *Handler
+		existingConfig *eksv1.EKSClusterConfig
+		mockController *gomock.Controller
+		stsServiceMock *mock_services.MockSTSServiceInterface
+	)
+
+	BeforeEach(func() {
+		mockController = gomock.NewController(GinkgoT())
+		stsServiceMock = mock_services.NewMockSTSServiceInterface(mockController)
+		handler = &Handler{
+			eksCC:        eksFactory.Eks().V1().EKSClusterConfig(),
+			secrets:      coreFactory.Core().V1().Secret(),
+			secretsCache: coreFactory.Core().V1().Secret().Cache(),
+		}
+	})
+
+	AfterEach(func() {
+		if existingConfig != nil {
+			Expect(test.CleanupAndWait(ctx, cl, existingConfig)).To(Succeed())
+			existingConfig = nil
+		}
+		mockController.Finish()
+	})
+
+	newImportedConfig := func(name, displayName, region, credential string) *eksv1.EKSClusterConfig {
+		return &eksv1.EKSClusterConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: "default",
+			},
+			Spec: eksv1.EKSClusterConfigSpec{
+				DisplayName:            displayName,
+				Region:                 region,
+				AmazonCredentialSecret: credential,
+				Imported:               true,
+			},
+		}
+	}
+
+	It("should reject a cluster with the same name, region and credentials", func() {
+		existingConfig = newImportedConfig("existing-dup", "dup", "us-east-1", "default:cred")
+		Expect(cl.Create(ctx, existingConfig)).To(Succeed())
+
+		newConfig := newImportedConfig("new-dup", "dup", "us-east-1", "default:cred")
+		err := handler.validateCreate(ctx, newConfig, &awsServices{sts: stsServiceMock})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("an eksclusterconfig exists with the same name"))
+	})
+
+	It("should allow a cluster with the same name in a different region", func() {
+		existingConfig = newImportedConfig("existing-region", "dup-region", "us-east-1", "default:cred")
+		Expect(cl.Create(ctx, existingConfig)).To(Succeed())
+
+		newConfig := newImportedConfig("new-region", "dup-region", "us-west-2", "default:cred")
+		err := handler.validateCreate(ctx, newConfig, &awsServices{sts: stsServiceMock})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should allow a cluster with the same name and region but a different AWS account", func() {
+		existingConfig = newImportedConfig("existing-account", "dup-account", "us-east-1", "default:cred-a")
+		Expect(cl.Create(ctx, existingConfig)).To(Succeed())
+
+		// The current cluster resolves to a concrete account ID, while the
+		// existing cluster's credentials cannot be resolved (its secret does
+		// not exist), so the two are treated as different accounts.
+		stsServiceMock.EXPECT().GetCallerIdentity(gomock.Any(), gomock.Any()).
+			Return(&awssdksts.GetCallerIdentityOutput{Account: aws.String("111111111111")}, nil)
+
+		newConfig := newImportedConfig("new-account", "dup-account", "us-east-1", "default:cred-b")
+		err := handler.validateCreate(ctx, newConfig, &awsServices{sts: stsServiceMock})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should allow a cluster when both credentials resolve to different AWS accounts", func() {
+		existingConfig = newImportedConfig("existing-diff", "dup-diff", "us-east-1", "default:cred-a")
+		Expect(cl.Create(ctx, existingConfig)).To(Succeed())
+
+		// The current cluster resolves to one concrete account ID and the
+		// existing cluster resolves to a different concrete account ID, so
+		// they are treated as different clusters.
+		stsServiceMock.EXPECT().GetCallerIdentity(gomock.Any(), gomock.Any()).
+			Return(&awssdksts.GetCallerIdentityOutput{Account: aws.String("111111111111")}, nil)
+		handler.accountIDForSpec = func(_ context.Context, _ eksv1.EKSClusterConfigSpec) string {
+			return "222222222222"
+		}
+
+		newConfig := newImportedConfig("new-diff", "dup-diff", "us-east-1", "default:cred-b")
+		err := handler.validateCreate(ctx, newConfig, &awsServices{sts: stsServiceMock})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should reject a cluster when different credentials resolve to the same AWS account", func() {
+		existingConfig = newImportedConfig("existing-same", "dup-same", "us-east-1", "default:cred-a")
+		Expect(cl.Create(ctx, existingConfig)).To(Succeed())
+
+		// Different credential secrets that both resolve to the same concrete
+		// account ID identify the same cluster and must be rejected.
+		stsServiceMock.EXPECT().GetCallerIdentity(gomock.Any(), gomock.Any()).
+			Return(&awssdksts.GetCallerIdentityOutput{Account: aws.String("333333333333")}, nil)
+		handler.accountIDForSpec = func(_ context.Context, _ eksv1.EKSClusterConfigSpec) string {
+			return "333333333333"
+		}
+
+		newConfig := newImportedConfig("new-same", "dup-same", "us-east-1", "default:cred-b")
+		err := handler.validateCreate(ctx, newConfig, &awsServices{sts: stsServiceMock})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("an eksclusterconfig exists with the same name"))
 	})
 })
 
