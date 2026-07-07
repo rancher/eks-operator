@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/blang/semver"
 	wranglerv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -38,6 +39,11 @@ const (
 	eksConfigUpdatingPhase   = "updating"
 	eksConfigImportingPhase  = "importing"
 	eksClusterConfigKind     = "EKSClusterConfig"
+
+	// stsAccountIDTimeout bounds the STS GetCallerIdentity call used during
+	// duplicate name validation so a slow or hung STS endpoint cannot stall
+	// the reconcile loop.
+	stsAccountIDTimeout = 10 * time.Second
 )
 
 type Handler struct {
@@ -46,6 +52,10 @@ type Handler struct {
 	eksEnqueue      func(namespace, name string)
 	secrets         wranglerv1.SecretClient
 	secretsCache    wranglerv1.SecretCache
+	// accountIDForSpec resolves the AWS account ID for the credentials
+	// referenced by an existing cluster spec. It defaults to
+	// getAWSAccountIDForSpec and is overridable in tests.
+	accountIDForSpec func(ctx context.Context, spec eksv1.EKSClusterConfigSpec) string
 }
 
 type awsServices struct {
@@ -53,6 +63,7 @@ type awsServices struct {
 	eks            services.EKSServiceInterface
 	ec2            services.EC2ServiceInterface
 	iam            services.IAMServiceInterface
+	sts            services.STSServiceInterface
 }
 
 func Register(
@@ -463,13 +474,53 @@ func (h *Handler) validateCreate(ctx context.Context, config *eksv1.EKSClusterCo
 		return fmt.Errorf("aws services not initialized")
 	}
 
-	// Check for existing eksclusterconfigs with the same display name
+	// Check for existing eksclusterconfigs with the same display name. Two EKS
+	// clusters are only considered the same when they share the same cluster
+	// name, region and AWS account. This allows importing clusters with the
+	// same name from different AWS accounts (or regions).
 	eksConfigs, err := h.eksCC.List(config.Namespace, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("cannot list eksclusterconfigs for display name check")
 	}
+	// newAccountID caches the account ID of the new cluster being validated;
+	// it is resolved lazily and only once (newAccountIDResolved guards against
+	// re-resolving after a failure). Account IDs for existing clusters are
+	// cached separately in accountIDCache, keyed by their credential secret.
+	var newAccountID string
+	var newAccountIDResolved bool
+	accountIDForSpec := h.accountIDForSpec
+	if accountIDForSpec == nil {
+		accountIDForSpec = h.getAWSAccountIDForSpec
+	}
+	accountIDCache := make(map[string]string)
 	for _, c := range eksConfigs.Items {
-		if c.Spec.DisplayName == config.Spec.DisplayName && c.Name != config.Name {
+		if c.Name == config.Name || c.Spec.DisplayName != config.Spec.DisplayName {
+			continue
+		}
+		// A different region means a different cluster.
+		if c.Spec.Region != config.Spec.Region {
+			continue
+		}
+		// Identical credentials necessarily resolve to the same AWS account.
+		if c.Spec.AmazonCredentialSecret == config.Spec.AmazonCredentialSecret {
+			return fmt.Errorf("cannot create cluster [%s (id: %s)] because an eksclusterconfig exists with the same name", config.Spec.DisplayName, config.Name)
+		}
+		// On a name+region collision with different credentials, compare the
+		// resolved AWS account IDs. A failure to resolve either account ID
+		// falls back to treating them as different accounts so a transient
+		// error does not block cluster creation. Account IDs are cached per
+		// credential secret to avoid redundant STS calls for clusters that
+		// share credentials.
+		if !newAccountIDResolved {
+			newAccountID = h.getAWSAccountID(ctx, awsSVCs.sts)
+			newAccountIDResolved = true
+		}
+		existingAccountID, cached := accountIDCache[c.Spec.AmazonCredentialSecret]
+		if !cached {
+			existingAccountID = accountIDForSpec(ctx, c.Spec)
+			accountIDCache[c.Spec.AmazonCredentialSecret] = existingAccountID
+		}
+		if newAccountID != "" && newAccountID == existingAccountID {
 			return fmt.Errorf("cannot create cluster [%s (id: %s)] because an eksclusterconfig exists with the same name", config.Spec.DisplayName, config.Name)
 		}
 	}
@@ -595,6 +646,39 @@ func (h *Handler) validateCreate(ctx context.Context, config *eksv1.EKSClusterCo
 		}
 	}
 	return nil
+}
+
+// getAWSAccountID resolves the AWS account ID for the given STS service by
+// calling GetCallerIdentity. Any failure (invalid credentials, network error,
+// etc.) returns an empty string so callers can fall back to treating the
+// credentials as a different account rather than blocking cluster creation on
+// a transient issue.
+func (h *Handler) getAWSAccountID(ctx context.Context, stsSVC services.STSServiceInterface) string {
+	if stsSVC == nil {
+		return ""
+	}
+	// Bound the STS call so a slow or unresponsive endpoint cannot stall the
+	// reconcile loop when the passed-in context has no deadline of its own.
+	ctx, cancel := context.WithTimeout(ctx, stsAccountIDTimeout)
+	defer cancel()
+	out, err := stsSVC.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		logrus.Warnf("EKS duplicate name validation: failed to get AWS account ID: %v", err)
+		return ""
+	}
+	return aws.ToString(out.Account)
+}
+
+// getAWSAccountIDForSpec resolves the AWS account ID for the credentials
+// referenced by the given cluster spec. It returns an empty string when the
+// account cannot be determined.
+func (h *Handler) getAWSAccountIDForSpec(ctx context.Context, spec eksv1.EKSClusterConfigSpec) string {
+	awsSVCs, err := newAWSv2Services(ctx, h.secrets, spec)
+	if err != nil {
+		logrus.Warnf("EKS duplicate name validation: failed to create AWS services for credential [%s]: %v", spec.AmazonCredentialSecret, err)
+		return ""
+	}
+	return h.getAWSAccountID(ctx, awsSVCs.sts)
 }
 
 func (h *Handler) generateAndSetNetworking(ctx context.Context, config *eksv1.EKSClusterConfig, awsSVCs *awsServices) (*eksv1.EKSClusterConfig, error) {
