@@ -58,6 +58,7 @@ func newAWSv2Services(ctx context.Context, secretClient wranglerv1.SecretClient,
 		cloudformation: services.NewCloudFormationService(cfg),
 		iam:            services.NewIAMService(cfg),
 		ec2:            services.NewEC2Service(cfg),
+		sts:            services.NewSTSService(cfg),
 	}, nil
 }
 
