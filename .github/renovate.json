@@ -1,0 +1,67 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>rancher/renovate-config#release"
+  ],
+  "baseBranchPatterns": [
+    "main",
+    "release-v2.15",
+    "release-v2.14",
+    "release-v2.13",
+    "release-v2.12",
+    "release-v2.11"
+  ],
+  "prHourlyLimit": 2,
+  "packageRules": [
+    {
+      "matchBaseBranches": ["release-v2.15"],
+      "extends": ["github>rancher/renovate-config//rancher-2.15#release"]
+    },
+    {
+      "matchBaseBranches": ["release-v2.14"],
+      "extends": ["github>rancher/renovate-config//rancher-2.14#release"]
+    },
+    {
+      "matchBaseBranches": ["release-v2.13"],
+      "extends": ["github>rancher/renovate-config//rancher-2.13#release"]
+    },
+    {
+      "matchBaseBranches": ["release-v2.12"],
+      "extends": ["github>rancher/renovate-config//rancher-2.12#release"]
+    },
+    {
+      "matchBaseBranches": ["release-v2.11"],
+      "extends": ["github>rancher/renovate-config//rancher-2.11#release"]
+    },
+    {
+      "description": "Group all aws-sdk-go-v2 packages into a single PR",
+      "matchPackageNames": ["github.com/aws/aws-sdk-go-v2/**"],
+      "groupName": "aws-sdk"
+    },
+    {
+      "description": "Ignore manually managed dependencies across all branches",
+      "matchPackageNames": [
+        "k8s.io/**",
+        "github.com/rancher/wrangler",
+        "github.com/rancher/wrangler/v3",
+        "github.com/rancher/lasso",
+        "github.com/rancher/rancher/pkg/apis"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Ignore major/minor for controller-runtime, go.etcd.io, aws-sdk-go patch still allowed",
+      "matchPackageNames": [
+        "sigs.k8s.io/controller-runtime",
+        "go.etcd.io/**",
+        "github.com/aws/aws-sdk-go"
+      ],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true
+  },
+  "osvVulnerabilityAlerts": true
+}
