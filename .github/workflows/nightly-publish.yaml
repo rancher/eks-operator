@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 jobs:
   publish_nightly:
-    uses: rancher-sandbox/hosted-providers-reusable-workflows/.github/workflows/operator-with-latest-rancher-build.yaml@a8c5ab146fed1a6ba07b5947d045fa05593b8173 # main
+    uses: rancher-sandbox/hosted-providers-reusable-workflows/.github/workflows/operator-with-latest-rancher-build.yaml@db73b8b138c3602843ee0b0ec58fd4f36484ff6a # main
     with:
       operator_name: eks-operator
       operator_commit: ${{ github.sha }}
@@ -16,9 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -40,9 +40,9 @@ jobs:
     needs: publish_images
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -50,7 +50,7 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 3.8.0
+          version: 3.21.3
       - name: Set image tag and chart version
         run: |
           echo "TAG=v0.0.0-$(date +'%Y%m%d')" >> "$GITHUB_ENV"
