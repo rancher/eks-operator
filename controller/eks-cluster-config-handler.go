@@ -259,13 +259,27 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 	}
 
 	if clusterState.Cluster.Status == ekstypes.ClusterStatusUpdating {
+		message := fmt.Sprintf(
+			"Waiting for cluster [%s (id: %s)] to finish updating",
+			config.Spec.DisplayName,
+			config.Name,
+		)
+		logrus.Infof("%s", message)
+
 		// upstream cluster is already updating, must wait until sending next update
-		logrus.Infof("Waiting for cluster [%s (id: %s)] to finish updating", config.Spec.DisplayName, config.Name)
 		if config.Status.Phase != eksConfigUpdatingPhase {
 			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
+			config.Status.Message = message
 			return h.eksCC.UpdateStatus(config)
 		}
+
+		if config.Status.Message != message {
+			config = config.DeepCopy()
+			config.Status.Message = message
+			return h.eksCC.UpdateStatus(config)
+		}
+
 		h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
 		return config, nil
 	}
@@ -281,6 +295,7 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 
 	// add new completed updates to status
 	if len(newCompletedUpdateIDs) > 0 {
+		config = config.DeepCopy()
 		if config.Status.CompletedUpdateIDs == nil {
 			config.Status.CompletedUpdateIDs = newCompletedUpdateIDs
 		} else {
@@ -294,13 +309,32 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 		for _, update := range inProgressUpdates {
 			updates += string(update.Type) + " "
 		}
-		logrus.Infof("Waiting for %s to finish on cluster [%s (id: %s)]", updates, config.Spec.DisplayName, config.Name)
+
+		message := fmt.Sprintf(
+			"Waiting for %s to finish on cluster [%s (id: %s)]",
+			strings.TrimSpace(updates),
+			config.Spec.DisplayName,
+			config.Name,
+		)
+		logrus.Infof("%s", message)
 
 		if config.Status.Phase != eksConfigUpdatingPhase {
 			config = config.DeepCopy()
 			config.Status.Phase = eksConfigUpdatingPhase
-			return h.eksCC.UpdateStatus(config)
+			config.Status.Message = message
+			config, err = h.eksCC.UpdateStatus(config)
+			if err != nil {
+				return config, err
+			}
+		} else if config.Status.Message != message {
+			config = config.DeepCopy()
+			config.Status.Message = message
+			config, err = h.eksCC.UpdateStatus(config)
+			if err != nil {
+				return config, err
+			}
 		}
+
 		h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
 		return config, nil
 	}
@@ -327,15 +361,31 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 		}
 		if status := ng.Nodegroup.Status; status == ekstypes.NodegroupStatusUpdating || status == ekstypes.NodegroupStatusDeleting ||
 			status == ekstypes.NodegroupStatusCreating {
+			message := fmt.Sprintf(
+				"Waiting for cluster [%s (id: %s)] to update nodegroup [%s]",
+				config.Spec.DisplayName,
+				config.Name,
+				ngName,
+			)
+			logrus.Infof("%s", message)
+
 			if config.Status.Phase != eksConfigUpdatingPhase {
 				config = config.DeepCopy()
 				config.Status.Phase = eksConfigUpdatingPhase
+				config.Status.Message = message
+				config, err = h.eksCC.UpdateStatus(config)
+				if err != nil {
+					return config, err
+				}
+			} else if config.Status.Message != message {
+				config = config.DeepCopy()
+				config.Status.Message = message
 				config, err = h.eksCC.UpdateStatus(config)
 				if err != nil {
 					return config, err
 				}
 			}
-			logrus.Infof("Waiting for cluster [%s (id: %s)] to update nodegroups [%s]", config.Spec.DisplayName, config.Name, ngName)
+
 			h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
 			return config, nil
 		}
@@ -416,8 +466,16 @@ func (h *Handler) create(ctx context.Context, config *eksv1.EKSClusterConfig, aw
 	}
 
 	if config.Spec.Imported {
+		message := fmt.Sprintf(
+			"Importing cluster [%s (id: %s)]",
+			config.Spec.DisplayName,
+			config.Name,
+		)
+		logrus.Infof("%s", message)
+
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigImportingPhase
+		config.Status.Message = message
 		return h.eksCC.UpdateStatus(config)
 	}
 
@@ -452,6 +510,12 @@ func (h *Handler) create(ctx context.Context, config *eksv1.EKSClusterConfig, aw
 		}
 		config.Status.Phase = eksConfigCreatingPhase
 		config.Status.FailureMessage = ""
+		returnMessage := fmt.Sprintf(
+			"Waiting for cluster [%s (id: %s)] to finish creating",
+			config.Spec.DisplayName,
+			config.Name,
+		)
+		config.Status.Message = returnMessage
 		config, err = h.eksCC.UpdateStatus(config)
 		return err
 	})
@@ -723,10 +787,26 @@ func (h *Handler) waitForCreationComplete(ctx context.Context, config *eksv1.EKS
 		logrus.Infof("Cluster [%s (id: %s)] created successfully", config.Spec.DisplayName, config.Name)
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigActivePhase
+		config.Status.Message = ""
 		return h.eksCC.UpdateStatus(config)
 	}
 
-	logrus.Infof("Waiting for cluster [%s (id: %s)] to finish creating", config.Spec.DisplayName, config.Name)
+	message := fmt.Sprintf(
+		"Waiting for cluster [%s (id: %s)] to finish creating",
+		config.Spec.DisplayName,
+		config.Name,
+	)
+	logrus.Infof("%s", message)
+
+	if config.Status.Message != message {
+		config = config.DeepCopy()
+		config.Status.Message = message
+		config, err = h.eksCC.UpdateStatus(config)
+		if err != nil {
+			return config, err
+		}
+	}
+
 	h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
 
 	return config, nil
@@ -761,7 +841,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 				return config, fmt.Errorf("error updating cluster version: %w", err)
 			}
 			if updated {
-				return h.enqueueUpdate(config)
+				return h.enqueueUpdate(config, "Updating Kubernetes version")
 			}
 		}
 	}
@@ -775,7 +855,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		return config, fmt.Errorf("error updating cluster access config: %w", err)
 	}
 	if updated {
-		return h.enqueueUpdate(config)
+		return h.enqueueUpdate(config, "Updating cluster access configuration")
 	}
 
 	if config.Spec.PublicAccessSources != nil {
@@ -788,7 +868,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			return config, fmt.Errorf("error updating cluster public access sources: %w", err)
 		}
 		if updated {
-			return h.enqueueUpdate(config)
+			return h.enqueueUpdate(config, "Updating cluster public access sources")
 		}
 	}
 
@@ -804,7 +884,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			return config, fmt.Errorf("error updating cluster tags: %w", err)
 		}
 		if updated {
-			return h.enqueueUpdate(config)
+			return h.enqueueUpdate(config, "Updating cluster tags")
 		}
 	}
 
@@ -819,7 +899,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			return config, fmt.Errorf("error updating logging types: %w", err)
 		}
 		if updated {
-			return h.enqueueUpdate(config)
+			return h.enqueueUpdate(config, "Updating logging configuration")
 		}
 	}
 
@@ -828,6 +908,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			logrus.Infof("Cluster [%s (id: %s)] finished updating", config.Spec.DisplayName, config.Name)
 			config = config.DeepCopy()
 			config.Status.Phase = eksConfigActivePhase
+			config.Status.Message = ""
 			return h.eksCC.UpdateStatus(config)
 		}
 
@@ -853,21 +934,34 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 
 	// check if node groups need to be created
 	var updatingNodegroups bool
+	var nodeGroupMessage string
 	templateVersionsToAdd := make(map[string]string)
 	for _, ng := range config.Spec.NodeGroups {
-		if _, ok := upstreamNgs[aws.ToString(ng.NodegroupName)]; ok {
+		nodeGroupName := aws.ToString(ng.NodegroupName)
+
+		if _, ok := upstreamNgs[nodeGroupName]; ok {
 			continue
 		}
+
 		if err := awsservices.CreateLaunchTemplate(ctx, &awsservices.CreateLaunchTemplateOptions{
 			EC2Service: awsSVCs.ec2,
 			Config:     config,
 		}); err != nil && !isResourceInUse(err) {
 			return config, fmt.Errorf("error getting or creating launch template: %w", err)
 		}
+
 		// in this case update is set right away because creating the
 		// nodegroup may not be immediate
 		if config.Status.Phase != eksConfigUpdatingPhase {
 			config.Status.Phase = eksConfigUpdatingPhase
+			config.Status.Message = fmt.Sprintf("Creating node group [%s]", nodeGroupName)
+			var err error
+			config, err = h.eksCC.UpdateStatus(config)
+			if err != nil {
+				return config, err
+			}
+		} else if config.Status.Message != fmt.Sprintf("Creating node group [%s]", nodeGroupName) {
+			config.Status.Message = fmt.Sprintf("Creating node group [%s]", nodeGroupName)
 			var err error
 			config, err = h.eksCC.UpdateStatus(config)
 			if err != nil {
@@ -895,35 +989,40 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		if err != nil {
 			return config, err
 		}
-		templateVersionsToAdd[aws.ToString(ng.NodegroupName)] = ltVersion
+		templateVersionsToAdd[nodeGroupName] = ltVersion
 		updatingNodegroups = true
+		nodeGroupMessage = fmt.Sprintf("Creating node group [%s]", nodeGroupName)
 	}
 
 	// check for node groups need to be deleted
 	templateVersionsToDelete := make(map[string]string)
 	for _, ng := range upstreamSpec.NodeGroups {
-		if _, ok := ngs[aws.ToString(ng.NodegroupName)]; ok {
+		nodeGroupName := aws.ToString(ng.NodegroupName)
+		if _, ok := ngs[nodeGroupName]; ok {
 			continue
 		}
+
 		templateVersionToDelete, _, err := deleteNodeGroup(ctx, config, ng, awsSVCs.eks)
 		if err != nil {
 			return config, err
 		}
 		updatingNodegroups = true
+		nodeGroupMessage = fmt.Sprintf("Deleting node group [%s]", nodeGroupName)
 		if templateVersionToDelete != nil {
-			templateVersionsToDelete[aws.ToString(ng.NodegroupName)] = *templateVersionToDelete
+			templateVersionsToDelete[nodeGroupName] = *templateVersionToDelete
 		}
 	}
 
 	if updatingNodegroups {
 		if len(templateVersionsToDelete) != 0 || len(templateVersionsToAdd) != 0 {
 			config.Status.Phase = eksConfigUpdatingPhase
+			config.Status.Message = nodeGroupMessage
 			config.Status.TemplateVersionsToDelete = append(config.Status.TemplateVersionsToDelete, utils.ValuesFromMap(templateVersionsToDelete)...)
 			config.Status.ManagedLaunchTemplateVersions = utils.SubtractMaps(config.Status.ManagedLaunchTemplateVersions, templateVersionsToDelete)
 			config.Status.ManagedLaunchTemplateVersions = utils.MergeMaps(config.Status.ManagedLaunchTemplateVersions, templateVersionsToAdd)
 			return h.eksCC.UpdateStatus(config)
 		}
-		return h.enqueueUpdate(config)
+		return h.enqueueUpdate(config, nodeGroupMessage)
 	}
 
 	// check node groups for kubernetes version updates
@@ -947,8 +1046,9 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		// happen together
 
 		ng := ngs[aws.ToString(upstreamNg.NodegroupName)]
+		nodeGroupName := aws.ToString(ng.NodegroupName)
 		ngVersionInput := &eks.UpdateNodegroupVersionInput{
-			NodegroupName: aws.String(aws.ToString(ng.NodegroupName)),
+			NodegroupName: aws.String(nodeGroupName),
 			ClusterName:   aws.String(config.Spec.DisplayName),
 		}
 
@@ -969,9 +1069,9 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 
 				if lt != nil {
 					if upstreamTemplateVersion > 0 {
-						templateVersionsToDelete[aws.ToString(upstreamNg.NodegroupName)] = strconv.FormatInt(upstreamTemplateVersion, 10)
+						templateVersionsToDelete[nodeGroupName] = strconv.FormatInt(upstreamTemplateVersion, 10)
 					}
-					templateVersionsToAdd[aws.ToString(ng.NodegroupName)] = strconv.FormatInt(*lt.Version, 10)
+					templateVersionsToAdd[nodeGroupName] = strconv.FormatInt(*lt.Version, 10)
 				}
 			}
 
@@ -986,8 +1086,8 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		// a node group created from a custom launch template can only be updated with a new version of the launch template
 		// that uses an AMI with the desired kubernetes version, hence, only update on version mismatch if the node group was created with a rancher-managed launch template
 		if ng.Version != nil && rancherManagedLaunchTemplate {
-			if aws.ToString(upstreamNg.Version) != desiredNgVersions[aws.ToString(ng.NodegroupName)] {
-				ngVersionInput.Version = aws.String(desiredNgVersions[aws.ToString(ng.NodegroupName)])
+			if aws.ToString(upstreamNg.Version) != desiredNgVersions[nodeGroupName] {
+				ngVersionInput.Version = aws.String(desiredNgVersions[nodeGroupName])
 			}
 		}
 
@@ -1003,8 +1103,10 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			}); err != nil && !isResourceInUse(err) {
 				return config, err
 			}
+			nodeGroupMessage = fmt.Sprintf("Updating node group [%s] version", nodeGroupName)
 			continue
 		}
+
 		updateNodegroupConfig, sendUpdateNodegroupConfig := getNodegroupConfigUpdate(config.Spec.DisplayName, ng, upstreamNg)
 
 		if sendUpdateNodegroupConfig {
@@ -1013,6 +1115,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			if err != nil {
 				return config, err
 			}
+			nodeGroupMessage = fmt.Sprintf("Updating node group [%s] configuration", nodeGroupName)
 			continue
 		}
 
@@ -1022,10 +1125,13 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 				EKSService:   awsSVCs.eks,
 				Tags:         aws.ToStringMap(ng.Tags),
 				UpstreamTags: aws.ToStringMap(upstreamNg.Tags),
-				ResourceARN:  ngARNs[aws.ToString(ng.NodegroupName)],
+				ResourceARN:  ngARNs[nodeGroupName],
 			})
 			if err != nil {
 				return config, fmt.Errorf("error updating cluster tags: %w", err)
+			}
+			if updateNodegroupProperties {
+				nodeGroupMessage = fmt.Sprintf("Updating node group [%s] tags", nodeGroupName)
 			}
 		}
 	}
@@ -1040,9 +1146,10 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			config.Status.ManagedLaunchTemplateVersions = utils.SubtractMaps(config.Status.ManagedLaunchTemplateVersions, templateVersionsToAdd)
 			config.Status.ManagedLaunchTemplateVersions = utils.MergeMaps(config.Status.ManagedLaunchTemplateVersions, templateVersionsToAdd)
 			config.Status.Phase = eksConfigUpdatingPhase
+			config.Status.Message = nodeGroupMessage
 			return h.eksCC.UpdateStatus(config)
 		}
-		return h.enqueueUpdate(config)
+		return h.enqueueUpdate(config, nodeGroupMessage)
 	}
 
 	// check if ebs csi driver needs to be enabled
@@ -1052,7 +1159,13 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			return nil, fmt.Errorf("error checking if ebs csi driver addon is installed: %w", err)
 		}
 		if installedArn == "" {
-			logrus.Infof("Enabling [ebs csi driver add-on] for cluster [%s (id: %s)]", config.Spec.DisplayName, config.Name)
+			message := fmt.Sprintf(
+				"Enabling [ebs csi driver add-on] for cluster [%s (id: %s)]",
+				config.Spec.DisplayName,
+				config.Name,
+			)
+			logrus.Infof("%s", message)
+
 			ebsCSIDriverInput := awsservices.EnableEBSCSIDriverInput{
 				EKSService:   awsSVCs.eks,
 				IAMService:   awsSVCs.iam,
@@ -1063,6 +1176,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 			if err := awsservices.EnableEBSCSIDriver(ctx, &ebsCSIDriverInput); err != nil {
 				return config, fmt.Errorf("error enabling ebs csi driver addon: %w", err)
 			}
+			return h.enqueueUpdate(config, message)
 		}
 	}
 
@@ -1071,6 +1185,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		logrus.Infof("Cluster [%s (id: %s)] finished updating", config.Spec.DisplayName, config.Name)
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigActivePhase
+		config.Status.Message = ""
 		return h.eksCC.UpdateStatus(config)
 	}
 
@@ -1109,6 +1224,7 @@ func (h *Handler) importCluster(ctx context.Context, config *eksv1.EKSClusterCon
 	config.Status.Subnets = clusterState.Cluster.ResourcesVpcConfig.SubnetIds
 	config.Status.SecurityGroups = clusterState.Cluster.ResourcesVpcConfig.SecurityGroupIds
 	config.Status.Phase = eksConfigActivePhase
+	config.Status.Message = ""
 
 	return h.eksCC.UpdateStatus(config)
 }
@@ -1144,13 +1260,21 @@ func (h *Handler) createCASecret(config *eksv1.EKSClusterConfig, clusterState *e
 // enqueueUpdate enqueues the config if it is already in the updating phase. Otherwise, the
 // phase is updated to "updating". This is important because the object needs to reenter the
 // onChange handler to start waiting on the update.
-func (h *Handler) enqueueUpdate(config *eksv1.EKSClusterConfig) (*eksv1.EKSClusterConfig, error) {
+func (h *Handler) enqueueUpdate(config *eksv1.EKSClusterConfig, message string) (*eksv1.EKSClusterConfig, error) {
 	if config.Status.Phase == eksConfigUpdatingPhase {
+		if config.Status.Message != message {
+			config = config.DeepCopy()
+			config.Status.Message = message
+			return h.eksCC.UpdateStatus(config)
+		}
+
 		h.eksEnqueue(config.Namespace, config.Name)
 		return config, nil
 	}
+
 	config = config.DeepCopy()
 	config.Status.Phase = eksConfigUpdatingPhase
+	config.Status.Message = message
 	return h.eksCC.UpdateStatus(config)
 }
 
