@@ -64,6 +64,7 @@ type EKSClusterConfigStatus struct {
 	// describes how the above network fields were provided. Valid values are provided and generated
 	NetworkFieldsSource string   `json:"networkFieldsSource"`
 	FailureMessage      string   `json:"failureMessage"`
+	Message             string   `json:"message"`
 	GeneratedNodeRole   string   `json:"generatedNodeRole"`
 	CompletedUpdateIDs  []string `json:"completedUpdateIDs,omitempty"`
 }

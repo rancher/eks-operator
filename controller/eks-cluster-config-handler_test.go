@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 
@@ -171,9 +172,11 @@ var _ = Describe("updateCluster", func() {
 	BeforeEach(func() {
 		eksServiceMock = mock_services.NewMockEKSServiceInterface(gomock.NewController(GinkgoT()))
 		handler = &Handler{
-			eksCC:        eksFactory.Eks().V1().EKSClusterConfig(),
-			secrets:      coreFactory.Core().V1().Secret(),
-			secretsCache: coreFactory.Core().V1().Secret().Cache(),
+			eksCC:           eksFactory.Eks().V1().EKSClusterConfig(),
+			secrets:         coreFactory.Core().V1().Secret(),
+			secretsCache:    coreFactory.Core().V1().Secret().Cache(),
+			eksEnqueueAfter: func(namespace, name string, duration time.Duration) {},
+			eksEnqueue:      func(namespace, name string) {},
 		}
 
 		eksConfig = &eksv1.EKSClusterConfig{
