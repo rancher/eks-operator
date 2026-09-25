@@ -264,20 +264,12 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 			config.Spec.DisplayName,
 			config.Name,
 		)
-		logrus.Infof("%s", statusMessage)
+		logrus.Info(statusMessage)
 
 		// upstream cluster is already updating, must wait until sending next update
-		if config.Status.Phase != eksConfigUpdatingPhase {
-			config = config.DeepCopy()
-			config.Status.Phase = eksConfigUpdatingPhase
-			config.Status.Message = statusMessage
-			return h.eksCC.UpdateStatus(config)
-		}
-
-		if config.Status.Message != statusMessage {
-			config = config.DeepCopy()
-			config.Status.Message = statusMessage
-			return h.eksCC.UpdateStatus(config)
+		config, err = h.updateStatus(config, eksConfigUpdatingPhase, statusMessage)
+		if err != nil {
+			return config, err
 		}
 
 		h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
@@ -316,23 +308,11 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 			config.Spec.DisplayName,
 			config.Name,
 		)
-		logrus.Infof("%s", statusMessage)
+		logrus.Info(statusMessage)
 
-		if config.Status.Phase != eksConfigUpdatingPhase {
-			config = config.DeepCopy()
-			config.Status.Phase = eksConfigUpdatingPhase
-			config.Status.Message = statusMessage
-			config, err = h.eksCC.UpdateStatus(config)
-			if err != nil {
-				return config, err
-			}
-		} else if config.Status.Message != statusMessage {
-			config = config.DeepCopy()
-			config.Status.Message = statusMessage
-			config, err = h.eksCC.UpdateStatus(config)
-			if err != nil {
-				return config, err
-			}
+		config, err = h.updateStatus(config, eksConfigUpdatingPhase, statusMessage)
+		if err != nil {
+			return config, err
 		}
 
 		h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
@@ -367,23 +347,11 @@ func (h *Handler) checkAndUpdate(ctx context.Context, config *eksv1.EKSClusterCo
 				config.Name,
 				ngName,
 			)
-			logrus.Infof("%s", statusMessage)
+			logrus.Info(statusMessage)
 
-			if config.Status.Phase != eksConfigUpdatingPhase {
-				config = config.DeepCopy()
-				config.Status.Phase = eksConfigUpdatingPhase
-				config.Status.Message = statusMessage
-				config, err = h.eksCC.UpdateStatus(config)
-				if err != nil {
-					return config, err
-				}
-			} else if config.Status.Message != statusMessage {
-				config = config.DeepCopy()
-				config.Status.Message = statusMessage
-				config, err = h.eksCC.UpdateStatus(config)
-				if err != nil {
-					return config, err
-				}
+			config, err = h.updateStatus(config, eksConfigUpdatingPhase, statusMessage)
+			if err != nil {
+				return config, err
 			}
 
 			h.eksEnqueueAfter(config.Namespace, config.Name, 30*time.Second)
@@ -471,7 +439,7 @@ func (h *Handler) create(ctx context.Context, config *eksv1.EKSClusterConfig, aw
 			config.Spec.DisplayName,
 			config.Name,
 		)
-		logrus.Infof("%s", statusMessage)
+		logrus.Info(statusMessage)
 
 		config = config.DeepCopy()
 		config.Status.Phase = eksConfigImportingPhase
@@ -510,12 +478,12 @@ func (h *Handler) create(ctx context.Context, config *eksv1.EKSClusterConfig, aw
 		}
 		config.Status.Phase = eksConfigCreatingPhase
 		config.Status.FailureMessage = ""
-		returnMessage := fmt.Sprintf(
+		statusMessage := fmt.Sprintf(
 			"Waiting for cluster [%s (id: %s)] to finish creating",
 			config.Spec.DisplayName,
 			config.Name,
 		)
-		config.Status.Message = returnMessage
+		config.Status.Message = statusMessage
 		config, err = h.eksCC.UpdateStatus(config)
 		return err
 	})
@@ -796,7 +764,7 @@ func (h *Handler) waitForCreationComplete(ctx context.Context, config *eksv1.EKS
 		config.Spec.DisplayName,
 		config.Name,
 	)
-	logrus.Infof("%s", statusMessage)
+	logrus.Info(statusMessage)
 
 	if config.Status.Message != statusMessage {
 		config = config.DeepCopy()
@@ -952,21 +920,10 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 
 		// in this case update is set right away because creating the
 		// nodegroup may not be immediate
-		if config.Status.Phase != eksConfigUpdatingPhase {
-			config.Status.Phase = eksConfigUpdatingPhase
-			config.Status.Message = fmt.Sprintf("Creating node group [%s]", nodeGroupName)
-			var err error
-			config, err = h.eksCC.UpdateStatus(config)
-			if err != nil {
-				return config, err
-			}
-		} else if config.Status.Message != fmt.Sprintf("Creating node group [%s]", nodeGroupName) {
-			config.Status.Message = fmt.Sprintf("Creating node group [%s]", nodeGroupName)
-			var err error
-			config, err = h.eksCC.UpdateStatus(config)
-			if err != nil {
-				return config, err
-			}
+		statusMessage := fmt.Sprintf("Creating node group [%s]", nodeGroupName)
+		config, err = h.updateStatus(config, eksConfigUpdatingPhase, statusMessage)
+		if err != nil {
+			return config, err
 		}
 
 		ltVersion, generatedNodeRole, err := awsservices.CreateNodeGroup(ctx, &awsservices.CreateNodeGroupOptions{
@@ -991,7 +948,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 		}
 		templateVersionsToAdd[nodeGroupName] = ltVersion
 		updatingNodegroups = true
-		nodeGroupMessage = fmt.Sprintf("Creating node group [%s]", nodeGroupName)
+		nodeGroupMessage = statusMessage
 	}
 
 	// check for node groups need to be deleted
@@ -1164,7 +1121,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 				config.Spec.DisplayName,
 				config.Name,
 			)
-			logrus.Infof("%s", statusMessage)
+			logrus.Info(statusMessage)
 
 			ebsCSIDriverInput := awsservices.EnableEBSCSIDriverInput{
 				EKSService:   awsSVCs.eks,
@@ -1183,10 +1140,7 @@ func (h *Handler) updateUpstreamClusterState(ctx context.Context, upstreamSpec *
 	// no new updates, set to active
 	if config.Status.Phase != eksConfigActivePhase {
 		logrus.Infof("Cluster [%s (id: %s)] finished updating", config.Spec.DisplayName, config.Name)
-		config = config.DeepCopy()
-		config.Status.Phase = eksConfigActivePhase
-		config.Status.Message = ""
-		return h.eksCC.UpdateStatus(config)
+		return h.updateStatus(config, eksConfigActivePhase, "")
 	}
 
 	// check for node groups updates here
@@ -1257,25 +1211,28 @@ func (h *Handler) createCASecret(config *eksv1.EKSClusterConfig, clusterState *e
 	return err
 }
 
-// enqueueUpdate enqueues the config if it is already in the updating phase. Otherwise, the
-// phase is updated to "updating". This is important because the object needs to reenter the
-// onChange handler to start waiting on the update.
-func (h *Handler) enqueueUpdate(config *eksv1.EKSClusterConfig, statusMessage string) (*eksv1.EKSClusterConfig, error) {
-	if config.Status.Phase == eksConfigUpdatingPhase {
-		if config.Status.Message != statusMessage {
-			config = config.DeepCopy()
-			config.Status.Message = statusMessage
-			return h.eksCC.UpdateStatus(config)
-		}
-
-		h.eksEnqueue(config.Namespace, config.Name)
+// updateStatus updates the phase and message together when either has changed.
+func (h *Handler) updateStatus(config *eksv1.EKSClusterConfig, phase, message string) (*eksv1.EKSClusterConfig, error) {
+	if config.Status.Phase == phase && config.Status.Message == message {
 		return config, nil
 	}
 
 	config = config.DeepCopy()
-	config.Status.Phase = eksConfigUpdatingPhase
-	config.Status.Message = statusMessage
+	config.Status.Phase = phase
+	config.Status.Message = message
 	return h.eksCC.UpdateStatus(config)
+}
+
+// enqueueUpdate enqueues the config if it is already in the updating phase. Otherwise, the
+// phase is updated to "updating". This is important because the object needs to reenter the
+// onChange handler to start waiting on the update.
+func (h *Handler) enqueueUpdate(config *eksv1.EKSClusterConfig, statusMessage string) (*eksv1.EKSClusterConfig, error) {
+	if config.Status.Phase == eksConfigUpdatingPhase && config.Status.Message == statusMessage {
+		h.eksEnqueue(config.Namespace, config.Name)
+		return config, nil
+	}
+
+	return h.updateStatus(config, eksConfigUpdatingPhase, statusMessage)
 }
 
 func getVPCStackName(name string) string {
