@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"text/template"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+
+	"github.com/rancher/eks-operator/utils"
 )
 
 type EBSCSIDriverTemplateData struct {
@@ -20,10 +22,7 @@ type NodeInstanceRoleTemplateData struct {
 }
 
 func getAWSDNSSuffix(region string) string {
-	if p, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), region); ok {
-		return p.DNSSuffix()
-	}
-	return endpoints.AwsPartition().DNSSuffix()
+	return utils.AWSDNSSuffix(region)
 }
 
 func getEC2ServiceEndpoint(region string) string {
@@ -31,10 +30,7 @@ func getEC2ServiceEndpoint(region string) string {
 }
 
 func getArnPrefixForRegion(region string) string {
-	if p, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), region); ok {
-		return "arn:" + p.ID()
-	}
-	return "arn:" + endpoints.AwsPartition().ID()
+	return utils.AWSARNPrefix(region)
 }
 
 func GetServiceRoleTemplate(region string) (string, error) {
