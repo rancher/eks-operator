@@ -16,7 +16,16 @@ import (
 )
 
 func newAWSConfigV2(ctx context.Context, secretClient wranglerv1.SecretClient, spec eksv1.EKSClusterConfigSpec) (aws.Config, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithUseDualStackEndpoint(aws.DualStackEndpointStateEnabled))
+	// Dual-stack endpoints are only requested in the partitions publishing them
+	// for every AWS service used by the operator. Requesting them elsewhere, for
+	// example in the AWS China partition where EC2 has no dual-stack endpoint,
+	// makes the requests fail against a host that does not resolve.
+	options := []func(*config.LoadOptions) error{}
+	if utils.SupportsDualStackEndpoints(spec.Region) {
+		options = append(options, config.WithUseDualStackEndpoint(aws.DualStackEndpointStateEnabled))
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, options...)
 	if err != nil {
 		return cfg, fmt.Errorf("error loading default AWS config: %w", err)
 	}
