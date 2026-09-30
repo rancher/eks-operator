@@ -1332,3 +1332,14 @@ var _ = Describe("installEBSCSIDriver", func() {
 		Expect(err).ToNot(Succeed())
 	})
 })
+
+var _ = Describe("transformOIDC", func() {
+	It("should convert the issuer into its dual-stack equivalent", func() {
+		issuer := "https://oidc.eks.us-east-1.amazonaws.com/id/AAABBBCCCDDDEEEFFF11122233344455"
+		Expect(*transformOIDC(&issuer)).To(Equal("https://oidc-eks.us-east-1.api.aws/id/AAABBBCCCDDDEEEFFF11122233344455"))
+	})
+
+	It("should keep a nil issuer unchanged", func() {
+		Expect(transformOIDC(nil)).To(BeNil())
+	})
+})

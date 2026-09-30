@@ -15,14 +15,36 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// dualStackEndpointDefault is an AWS config source holding the dual-stack
+// endpoint preference the operator defaults to. The SDK resolves the first
+// config source that has a value set, so appending it after the sources loaded
+// by the SDK keeps an explicit user preference, set through the
+// AWS_USE_DUALSTACK_ENDPOINT environment variable or the use_dualstack_endpoint
+// shared configuration option, taking precedence over it.
+type dualStackEndpointDefault aws.DualStackEndpointState
+
+// GetUseDualStackEndpoint implements the dual-stack endpoint provider interface
+// the AWS SDK looks for in the config sources of a client.
+func (d dualStackEndpointDefault) GetUseDualStackEndpoint(context.Context) (aws.DualStackEndpointState, bool, error) {
+	return aws.DualStackEndpointState(d), true, nil
+}
+
 func newAWSConfigV2(ctx context.Context, secretClient wranglerv1.SecretClient, spec eksv1.EKSClusterConfigSpec) (aws.Config, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithUseDualStackEndpoint(aws.DualStackEndpointStateEnabled))
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return cfg, fmt.Errorf("error loading default AWS config: %w", err)
 	}
 
 	if region := spec.Region; region != "" {
 		cfg.Region = region
+	}
+
+	// Dual-stack endpoints are only requested in the partitions publishing them
+	// for every AWS service used by the operator. Requesting them elsewhere, for
+	// example in the AWS China partition where EC2 has no dual-stack endpoint,
+	// makes the requests fail against a host that does not resolve.
+	if utils.SupportsDualStackEndpoints(cfg.Region) {
+		cfg.ConfigSources = append(cfg.ConfigSources, dualStackEndpointDefault(aws.DualStackEndpointStateEnabled))
 	}
 
 	if amazonCredentialSecret := spec.AmazonCredentialSecret; amazonCredentialSecret != "" {
