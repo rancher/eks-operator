@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"text/template"
 
-	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
-
 	"github.com/rancher/eks-operator/utils"
 )
 

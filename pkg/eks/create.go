@@ -534,13 +534,12 @@ func configureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 		}
 	}
 
-	thumbprintIssuer := oidcIssuer
-	// For IPv6 enabled clusters, transform the OIDC issuer to use the dual-stack
-	// endpoint so it can be resolved in an IPv6-only EKS Operator environment.
+	thumbprintIssuer := clusterOutput.Cluster.Identity.Oidc.Issuer
+	// Transform the OIDC issuer to use the dual-stack endpoint when the region supports it.
 	// AWS China regions do not support dual-stack endpoints, so the issuer must
 	// remain unchanged there.
-	if templates.IsIPv6(config.Spec.IPFamily) && utils.SupportsDualStackEndpoints(config.Spec.Region) {
-		thumbprintIssuer = transformOIDC(oidcIssuer)
+	if utils.SupportsDualStackEndpoints(config.Spec.Region) {
+		thumbprintIssuer = transformOIDC(thumbprintIssuer)
 	}
 
 	thumbprint, err := getIssuerThumbprint(*thumbprintIssuer)
@@ -573,7 +572,7 @@ func getIssuerThumbprint(issuer string) (string, error) {
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: true, // #nosec G402
 				MinVersion:         tls.VersionTLS12,
 			},
 			Proxy: http.ProxyFromEnvironment,
