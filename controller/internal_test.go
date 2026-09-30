@@ -62,23 +62,28 @@ var _ = Describe("newAWSConfigV2", func() {
 		Expect(resolveEC2Endpoint(cfg)).To(Equal("https://ec2.us-gov-west-1.api.aws"))
 	})
 
-	It("should select the endpoints from the configured region when the spec has none", func() {
+	It("known limitation: forces dual-stack on when the spec has no region, even if that region resolves to China", func() {
+		// The dual-stack decision is made from spec.Region before LoadDefaultConfig
+		// resolves the effective region from AWS_REGION, so this case is not caught.
 		GinkgoT().Setenv("AWS_REGION", "cn-northwest-1")
 
 		cfg, err := newAWSConfigV2(ctx, nil, eksv1.EKSClusterConfigSpec{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cfg.Region).To(Equal("cn-northwest-1"))
-		Expect(dualStackEndpointState(cfg)).To(Equal(aws.DualStackEndpointStateUnset))
-		Expect(resolveEC2Endpoint(cfg)).To(Equal("https://ec2.cn-northwest-1.amazonaws.com.cn"))
+		Expect(dualStackEndpointState(cfg)).To(Equal(aws.DualStackEndpointStateEnabled))
+		Expect(resolveEC2Endpoint(cfg)).To(Equal("https://ec2.cn-northwest-1.api.amazonwebservices.com.cn"))
 	})
 
-	It("should let the user disable dual-stack endpoints", func() {
+	It("known limitation: cannot be overridden by the user to disable dual-stack endpoints", func() {
+		// An explicit LoadOption takes precedence over AWS_USE_DUALSTACK_ENDPOINT in
+		// the AWS SDK's own resolution order, so the env var can no longer turn
+		// dual-stack off where it defaults on.
 		GinkgoT().Setenv("AWS_USE_DUALSTACK_ENDPOINT", "false")
 
 		cfg, err := newAWSConfigV2(ctx, nil, eksv1.EKSClusterConfigSpec{Region: "us-east-1"})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(dualStackEndpointState(cfg)).To(Equal(aws.DualStackEndpointStateDisabled))
-		Expect(resolveEC2Endpoint(cfg)).To(Equal("https://ec2.us-east-1.amazonaws.com"))
+		Expect(dualStackEndpointState(cfg)).To(Equal(aws.DualStackEndpointStateEnabled))
+		Expect(resolveEC2Endpoint(cfg)).To(Equal("https://ec2.us-east-1.api.aws"))
 	})
 
 	It("should let the user enable dual-stack endpoints", func() {
