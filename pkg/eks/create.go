@@ -556,7 +556,11 @@ func ConfigureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 	}
 
 	thumbprintIssuer := oidcIssuer
-	if templates.IsIPv6(config.Spec.IPFamily) {
+	// For IPv6 enabled clusters, transform the OIDC issuer to use the dual-stack
+	// endpoint so it can be resolved in an IPv6-only EKS Operator environment.
+	// AWS China regions do not support dual-stack endpoints, so the issuer must
+	// remain unchanged there.
+	if templates.IsIPv6(config.Spec.IPFamily) && utils.SupportsDualStackEndpoints(config.Spec.Region) {
 		thumbprintIssuer = transformOIDC(oidcIssuer)
 	}
 
@@ -654,10 +658,13 @@ func installEBSAddon(ctx context.Context, eksService services.EKSServiceInterfac
 	return *addonOutput.Addon.AddonArn, nil
 }
 
+// transformOIDC converts a standard EKS OIDC issuer URL into its dual-stack
+// equivalent.
 func transformOIDC(issuerURL *string) *string {
 	if issuerURL == nil {
 		return nil
 	}
+
 	// 1. Replace "https://oidc.eks." with "https://oidc-eks."
 	url := strings.Replace(*issuerURL, "https://oidc.eks.", "https://oidc-eks.", 1)
 
