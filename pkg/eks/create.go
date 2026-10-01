@@ -534,7 +534,15 @@ func configureOIDCProvider(ctx context.Context, iamService services.IAMServiceIn
 		}
 	}
 
-	thumbprint, err := getIssuerThumbprint(*clusterOutput.Cluster.Identity.Oidc.Issuer)
+	thumbprintIssuer := clusterOutput.Cluster.Identity.Oidc.Issuer
+	// Transform the OIDC issuer to use the dual-stack endpoint when the region supports it.
+	// AWS China regions do not support dual-stack endpoints, so the issuer must
+	// remain unchanged there.
+	if utils.SupportsDualStackEndpoints(config.Spec.Region) {
+		thumbprintIssuer = transformOIDC(thumbprintIssuer)
+	}
+
+	thumbprint, err := getIssuerThumbprint(*thumbprintIssuer)
 	if err != nil {
 		return "", err
 	}
@@ -564,7 +572,7 @@ func getIssuerThumbprint(issuer string) (string, error) {
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: true, // #nosec G402
 				MinVersion:         tls.VersionTLS12,
 			},
 			Proxy: http.ProxyFromEnvironment,
@@ -626,4 +634,19 @@ func installEBSAddon(ctx context.Context, eksService services.EKSServiceInterfac
 	}
 
 	return *addonOutput.Addon.AddonArn, nil
+}
+
+// transformOIDC converts a standard EKS OIDC issuer URL into its dual-stack
+// equivalent.
+func transformOIDC(issuerURL *string) *string {
+	if issuerURL == nil {
+		return nil
+	}
+
+	// 1. Replace "https://oidc.eks." with "https://oidc-eks."
+	url := strings.Replace(*issuerURL, "https://oidc.eks.", "https://oidc-eks.", 1)
+
+	// 2. Replace ".amazonaws.com/" with ".api.aws/"
+	url = strings.Replace(url, ".amazonaws.com/", ".api.aws/", 1)
+	return &url
 }
