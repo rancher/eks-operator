@@ -462,6 +462,43 @@ var _ = Describe("UpdateClusterPublicAccessSources", func() {
 		Expect(updated).To(BeFalse())
 		Expect(err).To(HaveOccurred())
 	})
+
+	It("should not update public access sources for an IPv6 cluster when spec ipFamily is unset (recovered from ::/0)", func() {
+		// Imported IPv6 cluster whose desired spec never received ipFamily.
+		// AWS only permits ::/0 on IPv6 clusters, so its presence lets filterPublicAccessSources
+		// recover the ipv6 context and normalize both sides to [], producing no update.
+		updateClusterPublicAccessSourcesOpts.Config.Spec.PublicAccessSources = []string{"0.0.0.0/0", "::/0"}
+		updateClusterPublicAccessSourcesOpts.Config.Spec.IPFamily = nil
+		updateClusterPublicAccessSourcesOpts.UpstreamClusterSpec.PublicAccessSources = []string{"0.0.0.0/0", "::/0"}
+		updateClusterPublicAccessSourcesOpts.UpstreamClusterSpec.IPFamily = aws.String("ipv6")
+
+		// No UpdateClusterConfig call is expected; the strict mock fails the test if one occurs.
+		updated, err := UpdateClusterPublicAccessSources(ctx, updateClusterPublicAccessSourcesOpts)
+		Expect(updated).To(BeFalse())
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should treat an 'already at the desired configuration' error as success", func() {
+		eksServiceMock.EXPECT().UpdateClusterConfig(ctx, gomock.Any()).Return(
+			nil, &ekstypes.InvalidParameterException{
+				Message: aws.String("Requested VPC config is already at the desired configuration"),
+			},
+		)
+		updated, err := UpdateClusterPublicAccessSources(ctx, updateClusterPublicAccessSourcesOpts)
+		Expect(updated).To(BeFalse())
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should still return an error for an unrelated InvalidParameterException", func() {
+		eksServiceMock.EXPECT().UpdateClusterConfig(ctx, gomock.Any()).Return(
+			nil, &ekstypes.InvalidParameterException{
+				Message: aws.String("some other invalid parameter"),
+			},
+		)
+		updated, err := UpdateClusterPublicAccessSources(ctx, updateClusterPublicAccessSourcesOpts)
+		Expect(updated).To(BeFalse())
+		Expect(err).To(HaveOccurred())
+	})
 })
 
 var _ = Describe("UpdateNodegroupVersion", func() {
