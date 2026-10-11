@@ -4,7 +4,7 @@ FROM --platform=$BUILDPLATFORM rancher/mirrored-tonistiigi-xx:1.6.1 AS xx
 FROM registry.suse.com/bci/bci-base:16.1 AS base
 RUN useradd --uid 1007 eks-operator
 
-FROM --platform=$BUILDPLATFORM registry.suse.com/bci/golang:1.26 AS builder
+FROM --platform=$BUILDPLATFORM registry.suse.com/bci/golang:1.27 AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
