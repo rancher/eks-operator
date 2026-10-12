@@ -200,6 +200,9 @@ spec:
                   type: string
                 nullable: true
                 type: object
+              message:
+                nullable: true
+                type: string
               networkFieldsSource:
                 nullable: true
                 type: string
