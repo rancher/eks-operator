@@ -50,7 +50,7 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 3.22.0
+          version: 3.22.1
       - name: Set image tag and chart version
         run: |
           echo "TAG=v0.0.0-$(date +'%Y%m%d')" >> "$GITHUB_ENV"
