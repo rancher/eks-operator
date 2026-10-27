@@ -47,7 +47,7 @@ jobs:
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD
     - name: Publish images
-      uses: rancher/ecm-distro-tools/actions/publish-image@b558c3371d4a363f131e31a87d5c47dae2bbebe7 # v0.75.1
+      uses: rancher/ecm-distro-tools/actions/publish-image@aa63973420722265b20b4b2dd71c8a737d7494e1 # v0.78.1
       with:
         image: eks-operator
         tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
@@ -199,7 +199,7 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
             secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
       - name: Create App Token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: app-token
         with:
           app-id: ${{ env.APP_ID }}
