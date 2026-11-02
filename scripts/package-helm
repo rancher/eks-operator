@@ -15,6 +15,7 @@ cp -rf charts build/
 sed -i \
     -e 's/^version:.*/version: '${HELM_VERSION}'/' \
     -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
+    -e 's|\(image: .*/eks-operator\):.*|\1:'${HELM_TAG}'|' \
     build/charts/eks-operator/Chart.yaml
 
 sed -i \
