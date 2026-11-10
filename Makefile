@@ -33,10 +33,6 @@ else
 	COMMITDATE?=$(shell date -d @"${RAWCOMMITDATE}" "+%FT%TZ")
 endif
 
-MOCKGEN_VER := v1.6.0
-MOCKGEN_BIN := mockgen
-MOCKGEN := $(BIN_DIR)/$(MOCKGEN_BIN)-$(MOCKGEN_VER)
-
 GINKGO_VER := v2.28.1
 GINKGO_BIN := ginkgo
 GINKGO := $(BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
@@ -58,9 +54,6 @@ endif
 default: operator
 
 
-$(MOCKGEN):
-	GOBIN=$(BIN_DIR) $(GO_INSTALL) github.com/golang/mock/mockgen $(MOCKGEN_BIN) $(MOCKGEN_VER)
-
 $(GINKGO):
 	GOBIN=$(BIN_DIR) $(GO_INSTALL) github.com/onsi/ginkgo/v2/ginkgo $(GINKGO_BIN) $(GINKGO_VER)
 
@@ -78,11 +71,11 @@ operator:
         -o bin/eks-operator .
 
 .PHONY: generate-go
-generate-go: $(MOCKGEN)
+generate-go:
 	go generate ./pkg/eks/...
 
 .PHONY: generate-crd
-generate-crd: $(MOCKGEN)
+generate-crd:
 	go generate main.go
 
 .PHONY: generate
