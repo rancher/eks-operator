@@ -1,8 +1,6 @@
 module github.com/rancher/eks-operator/gotools/mockgen
 
-go 1.26.0
-
-toolchain go1.26.9
+go 1.27.0
 
 tool github.com/golang/mock/mockgen
 
