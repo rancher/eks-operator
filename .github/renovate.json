@@ -1,19 +1,20 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "github>rancher/renovate-config#release"
-  ],
+  "extends": ["github>rancher/renovate-config//default#release"],
   "baseBranchPatterns": [
     "main",
     "release-v2.16",
     "release-v2.15",
     "release-v2.14",
     "release-v2.13",
-    "release-v2.12",
-    "release-v2.11"
+    "release-v2.12"
   ],
   "prHourlyLimit": 2,
   "packageRules": [
+    {
+      "matchBaseBranches": ["release-v2.16"],
+      "extends": ["github>rancher/renovate-config//rancher-2.16#release"]
+    },
     {
       "matchBaseBranches": ["release-v2.15"],
       "extends": ["github>rancher/renovate-config//rancher-2.15#release"]
@@ -29,10 +30,6 @@
     {
       "matchBaseBranches": ["release-v2.12"],
       "extends": ["github>rancher/renovate-config//rancher-2.12#release"]
-    },
-    {
-      "matchBaseBranches": ["release-v2.11"],
-      "extends": ["github>rancher/renovate-config//rancher-2.11#release"]
     },
     {
       "description": "Group all aws-sdk-go-v2 packages into a single PR",
