@@ -14,7 +14,7 @@ RUN echo "eks-operator:x:1007:1007::/home/eks-operator:/usr/bin/false" >> /final
 # RFD 0070. Pinned to MAJOR.MINOR.PATCH so the toolchain is deterministic and
 # bumped by Renovate. It has no package manager, and does not need one: Go
 # cross compiles with GOOS/GOARCH, as rancher/rancher does.
-FROM --platform=$BUILDPLATFORM registry.suse.com/rancher/appco-go:1.27.3 AS builder
+FROM --platform=$BUILDPLATFORM registry.suse.com/rancher/appco-go:1.27.4 AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
