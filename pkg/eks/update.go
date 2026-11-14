@@ -2,7 +2,9 @@ package eks
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
@@ -165,6 +167,8 @@ func UpdateClusterPublicAccessSources(ctx context.Context, opts *UpdateClusterPu
 	if !utils.CompareStringSliceElements(filteredSpecPublicAccessSources, filteredUpstreamPublicAccessSources) {
 		logrus.Infof("Updating public access source config to %v  for cluster [%s (id: %s)]", opts.Config.Spec.PublicAccessSources, opts.Config.Spec.DisplayName, opts.Config.Name)
 		logrus.Debugf("config: %v, upstream: %v", opts.Config.Spec.PublicAccessSources, opts.UpstreamClusterSpec.PublicAccessSources)
+		// --- Log the values that were compared, not the input values, as the filtered data can be changed by filterPublicAccessSources() ---
+		logrus.Debugf("[filtered] config: %v, upstream: %v", filteredSpecPublicAccessSources, filteredUpstreamPublicAccessSources)
 		_, err := opts.EKSService.UpdateClusterConfig(ctx,
 			&eks.UpdateClusterConfigInput{
 				Name: aws.String(opts.Config.Spec.DisplayName),
@@ -174,6 +178,13 @@ func UpdateClusterPublicAccessSources(ctx context.Context, opts *UpdateClusterPu
 			},
 		)
 		if err != nil {
+			// --- Check if AWS configuration already matches ---
+			if isAlreadyConfigured(err) {
+				logrus.Infof("Cluster [%s] is already at the desired configuration in AWS. Dropping error and treating as success.", opts.Config.Spec.DisplayName)
+				return updated, nil // Returning nil as there is nothing to sync
+			}
+			// ------------------------------------
+
 			return false, fmt.Errorf("error updating cluster [%s (id: %s)] public access sources: %w", opts.Config.Spec.DisplayName, opts.Config.Name, err)
 		}
 
@@ -281,6 +292,21 @@ func filterPublicAccessSources(sources []string, ipFamily *string) []string {
 		return []string{}
 	}
 
+	// --- RECOVERY BLOCK FOR existing IMPORTED IPv6 EKS CLUSTERS ---
+	// If Rancher's metadata is missing ipFamily, but we clearly see an IPv6 range,
+	// recover the context in-memory so this compare realizes it's an IPv6 cluster.
+	if ipFamily == nil || *ipFamily == "" {
+		for _, source := range sources {
+			if source == allOpenIPv6 {
+				ipv6String := "ipv6" // string constant that templates.IsIPv6 expects
+				ipFamily = &ipv6String
+				logrus.Infof("Inferred missing ipFamily metadata: ipv4 clusters cannot have ipv6 CIDRs, like ::/0, in public access sources.")
+				break
+			}
+		}
+	}
+	// -----------------------------------------------------
+
 	isIPv6 := templates.IsIPv6(ipFamily)
 
 	if isIPv6 {
@@ -299,4 +325,23 @@ func filterPublicAccessSources(sources []string, ipFamily *string) []string {
 	}
 
 	return sources
+}
+
+func isAlreadyConfigured(err error) bool {
+	// There is no better way of doing this because AWS returns a generic InvalidParameterException
+	// both when the requested configuration already matches the cluster's current state and for other
+	// invalid-parameter conditions, so we have to parse the error message to tell them apart.
+
+	// 1. Clean strongly-typed check using the explicit exception type
+	var ipe *ekstypes.InvalidParameterException
+	if errors.As(err, &ipe) {
+		return strings.Contains(err.Error(), "already at the desired configuration")
+	}
+
+	// 2. Hybrid fallback check in case it's wrapped as a generic string upstream
+	if err != nil {
+		return strings.Contains(err.Error(), "InvalidParameterException") &&
+			strings.Contains(err.Error(), "already at the desired configuration")
+	}
+	return false
 }
