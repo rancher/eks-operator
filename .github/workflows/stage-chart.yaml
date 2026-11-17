@@ -9,7 +9,6 @@ name: Stage chart
 # gh workflow run stage-chart.yaml --ref <tag>
 
 on:
-  workflow_call:
   workflow_dispatch:
 
 permissions: {}
