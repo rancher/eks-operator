@@ -220,3 +220,10 @@ jobs:
             -F chart=rancher-eks-operator \
             -F branch="$TARGET_BRANCH" \
             -F version-override=$VERSION_OVERRIDE
+ # Charts v2. The chart steps above are the old path, dropped once it is retired.
+  stage-chart:
+    permissions:
+      contents: read
+      id-token: write # required by the called workflow to log in to Vault
+    needs: publish-images
+    uses: ./.github/workflows/stage-chart.yaml

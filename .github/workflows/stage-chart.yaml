@@ -1,0 +1,51 @@
+name: Stage chart
+
+# Charts v2: stage the rancher-eks-operator and rancher-eks-operator-crd charts in
+# the staging registry with cargueiro and notify rancher/charts. See
+# https://github.com/rancher/cargueiro/blob/main/docs/CHART_OWNER.md
+#
+# release.yaml calls it once the images are published, and keeps the old chart path
+# until that is retired. To stage a tag again by hand:
+# gh workflow run stage-chart.yaml --ref <tag>
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: stage-rancher-eks-operator-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  stage-chart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for vault
+    steps:
+      - name: Ensure ref is a tag
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "::error::This workflow must run on a tag ref (got ${GITHUB_REF_TYPE} '${GITHUB_REF}')"
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Prepare the charts
+        env:
+          TAG: ${{ github.ref_name }}
+        run: ./.github/workflows/scripts/prepare-charts.sh "$TAG" "$RUNNER_TEMP/charts"
+
+      - name: Stage the charts and notify rancher/charts
+        uses: rancher/charts/.github/actions/ship-family-staged@5b6d8660b09f1eeef144c56d455d191e67ac405a # chart-owners
+        with:
+          family: rancher-eks-operator
+          chart-dirs: |
+            ${{ runner.temp }}/charts/rancher-eks-operator
+            ${{ runner.temp }}/charts/rancher-eks-operator-crd
