@@ -25,6 +25,10 @@ for src in "$SRC_MAIN" "$SRC_CRD"; do
     echo "Error: $src/Chart.yaml not found, run this script from the repository root" >&2
     exit 1
   fi
+  if grep -q 'helm\.sh/images:' "$src/Chart.yaml"; then
+    echo "Error: remove the helm.sh/images annotation from $src/Chart.yaml, cargueiro writes it from values.yaml" >&2
+    exit 1
+  fi
 done
 
 # Tag v1.N.x is for Rancher 2.N, but cargueiro takes the chart major from the
@@ -42,12 +46,12 @@ CRD_DIR="$OUT_DIR/rancher-eks-operator-crd"
 rm -rf "$MAIN_DIR" "$CRD_DIR"
 mkdir -p "$OUT_DIR"
 
-# The operator chart: the appVersion, the image of the helm.sh/images annotation
-# and the image tag. Only the tag right after the eks-operator repository.
+# The operator chart: the appVersion and the image tag. Only the tag right 
+# after the eks-operator repository. Note: helm.sh/images annotation is removed
+# to let cargueiro generate it in the final chart.
 cp -r "$SRC_MAIN" "$MAIN_DIR"
 sed -i.bak \
   -e "s|^appVersion:.*|appVersion: ${APP_VERSION}|" \
-  -e "s|image: rancher/eks-operator:.*|image: rancher/eks-operator:${TAG}|" \
   "$MAIN_DIR/Chart.yaml"
 sed -i.bak -e "/repository: rancher\/eks-operator$/{n;s|tag: .*|tag: ${TAG}|;}" "$MAIN_DIR/values.yaml"
 
@@ -64,10 +68,6 @@ for dir in "$MAIN_DIR" "$CRD_DIR"; do
     exit 1
   fi
 done
-if ! grep -qF "image: rancher/eks-operator:${TAG}" "$MAIN_DIR/Chart.yaml"; then
-  echo "Error: could not set the image 'rancher/eks-operator:${TAG}' in $MAIN_DIR/Chart.yaml" >&2
-  exit 1
-fi
 if ! grep -A1 'repository: rancher/eks-operator$' "$MAIN_DIR/values.yaml" | grep -qF "tag: ${TAG}"; then
   echo "Error: could not set the eks-operator tag in $MAIN_DIR/values.yaml" >&2
   exit 1

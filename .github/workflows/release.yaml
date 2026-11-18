@@ -205,25 +205,19 @@ jobs:
           app-id: ${{ env.APP_ID }}
           private-key: ${{ env.PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-      - name: Dispatch to rancher/charts
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          CURRENT_BRANCH="${{ github.ref_name }}"
-          BASE_VERSION=$(echo "$CURRENT_BRANCH" | sed -E 's/^[^v]*(v[0-9]+\.[0-9]+).*/\1/')
-          TRANSFORMED_VERSION="${BASE_VERSION/v1./v2.}"
-          TARGET_BRANCH="dev-${TRANSFORMED_VERSION}"
-          VERSION_OVERRIDE="minor"
-          gh workflow run "Manual Trigger for Auto Bump" \
-            --repo rancher/charts \
-            --ref "$TARGET_BRANCH" \
-            -F chart=rancher-eks-operator \
-            -F branch="$TARGET_BRANCH" \
-            -F version-override=$VERSION_OVERRIDE
+      # - name: Dispatch to rancher/charts
+      #   env:
+      #     GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      #   run: |
+      #     CURRENT_BRANCH="${{ github.ref_name }}"
+      #     BASE_VERSION=$(echo "$CURRENT_BRANCH" | sed -E 's/^[^v]*(v[0-9]+\.[0-9]+).*/\1/')
+      #     TRANSFORMED_VERSION="${BASE_VERSION/v1./v2.}"
+      #     TARGET_BRANCH="dev-${TRANSFORMED_VERSION}"
+      #     VERSION_OVERRIDE="minor"
+      #     gh workflow run "Manual Trigger for Auto Bump" \
+      #       --repo rancher/charts \
+      #       --ref "$TARGET_BRANCH" \
+      #       -F chart=rancher-eks-operator \
+      #       -F branch="$TARGET_BRANCH" \
+      #       -F version-override=$VERSION_OVERRIDE
  # Charts v2. The chart steps above are the old path, dropped once it is retired.
-  stage-chart:
-    permissions:
-      contents: read
-      id-token: write # required by the called workflow to log in to Vault
-    needs: publish-images
-    uses: ./.github/workflows/stage-chart.yaml
