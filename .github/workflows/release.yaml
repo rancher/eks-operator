@@ -47,7 +47,7 @@ jobs:
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD
     - name: Publish images
-      uses: rancher/ecm-distro-tools/actions/publish-image@ee852bce72b895986f953b67d03430130dfae62d # v0.78.2
+      uses: rancher/ecm-distro-tools/actions/publish-image@b8127344173a5750da03068316ee40c547652c15 # v0.78.3
       with:
         image: eks-operator
         tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
@@ -86,9 +86,9 @@ jobs:
           fi
 
           # renovate-local: goreleaser-x86_64
-          GORELEASER_VERSION="v2.19.0"
-          # renovate-local: goreleaser-x86_64=v2.19.0
-          GORELEASER_CHECKSUM_x86_64="ebc3194ad1d1b1787614405285a0039665cd4c5bd3305215a1b201600f90630b"
+          GORELEASER_VERSION="v2.20.1"
+          # renovate-local: goreleaser-x86_64=v2.20.1
+          GORELEASER_CHECKSUM_x86_64="79e0589ca9efd70e8db85158a21334cbb57811d4034b39b61d55789f361341a5"
 
           ARCH=$(uname -m)
           CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
