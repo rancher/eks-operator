@@ -61,13 +61,12 @@ jobs:
         public-username: ${{ env.PUBLIC_REGISTRY_USERNAME }}
         public-password: ${{ env.PUBLIC_REGISTRY_PASSWORD }}
         make-target: image-push
-        push-to-prime: true
         prime-repo: rancher
         identity-registry: ${{ env.PRIME_REGISTRY }}
         prime-registry: ${{ env.STAGE_REGISTRY }}
         prime-username: ${{ env.STAGE_REGISTRY_USERNAME }}
         prime-password: ${{ env.STAGE_REGISTRY_PASSWORD }}
-        prime-make-target: image-push
+        prime-make-target: push-prime-image
     - name: Publish images to Prime
       if: ${{ !contains(github.ref_name, '-rc') }} # never push pre-release images to prime
       uses: rancher/ecm-distro-tools/actions/publish-image@b8127344173a5750da03068316ee40c547652c15 # v0.78.3
@@ -76,12 +75,11 @@ jobs:
         tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
         platforms: ${{ matrix.platforms }}
         push-to-public: false
-        push-to-prime: true
         prime-repo: rancher
         prime-registry: ${{ env.PRIME_REGISTRY }}
         prime-username: ${{ env.PRIME_REGISTRY_USERNAME }}
         prime-password: ${{ env.PRIME_REGISTRY_PASSWORD }}
-        prime-make-target: image-push
+        prime-make-target: push-prime-image
     - name: Cleanup checksum files # in order to avoid goreleaser dirty state error, remove once rancher/ecm-distro-tools/actions/publish-image@main gets updated
       run: rm -f slsactl_*_checksums.txt*
 
