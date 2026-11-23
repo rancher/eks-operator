@@ -45,7 +45,10 @@ jobs:
           secret/data/github/repo/${{ github.repository }}/dockerhub/${{ github.repository_owner }}/credentials password | PUBLIC_REGISTRY_PASSWORD ;
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | PRIME_REGISTRY ;
           secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
-          secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD
+          secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD ;
+          secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials registry | STAGE_REGISTRY ;
+          secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials username | STAGE_REGISTRY_USERNAME ;
+          secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials password | STAGE_REGISTRY_PASSWORD
     - name: Publish images
       uses: rancher/ecm-distro-tools/actions/publish-image@ee852bce72b895986f953b67d03430130dfae62d # v0.78.2
       with:
@@ -62,6 +65,20 @@ jobs:
         prime-password: ${{ env.PRIME_REGISTRY_PASSWORD }}
         make-target: image-push
         push-to-prime: ${{ !contains(github.ref_name, '-rc') }}
+    - name: Publish images to staging registry
+      uses: rancher/ecm-distro-tools/actions/publish-image@ee852bce72b895986f953b67d03430130dfae62d # v0.78.2
+      with:
+        image: eks-operator
+        tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
+        platforms: ${{ matrix.platforms }}
+        push-to-public: false
+        push-to-prime: true
+        identity-registry: ${{ env.PRIME_REGISTRY }}
+        prime-registry: ${{ env.STAGE_REGISTRY }}
+        prime-repo: rancher
+        prime-username: ${{ env.STAGE_REGISTRY_USERNAME }}
+        prime-password: ${{ env.STAGE_REGISTRY_PASSWORD }}
+        make-target: image-push
     - name: Cleanup checksum files # in order to avoid goreleaser dirty state error, remove once rancher/ecm-distro-tools/actions/publish-image@main gets updated
       run: rm -f slsactl_*_checksums.txt*
 
