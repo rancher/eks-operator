@@ -88,6 +88,24 @@ After pushing the release tag, you need to run 2 Github actions. You can find th
 * `Update EKS operator in rancher/rancher` - This action will update the EKS operator in rancher/rancher repo. It will bump go dependencies.
 * `Update EKS Operator in rancher/charts` - This action will update the EKS operator in rancher/charts repo. It will bump the chart version.
 
+#### Chart releases (charts v2)
+
+Once the images of a `v*` tag are published, the release workflow runs the
+[Stage chart](.github/workflows/stage-chart.yaml) workflow. It stages the `rancher-eks-operator` and
+`rancher-eks-operator-crd` charts in
+the staging registry with
+[cargueiro](https://github.com/rancher/cargueiro/blob/main/docs/CHART_OWNER.md) and opens a pull
+request against the `staging` branch of `rancher/charts`. The charts come from `charts/eks-operator`
+and `charts/eks-operator-crd`, prepared for the tag by
+[prepare-charts.sh](.github/workflows/scripts/prepare-charts.sh); the chart version is worked out
+from the `catalog.cattle.io/rancher-version` annotation, the app version and the versions already
+released. The chart steps of the release workflow stay until the old chart path is retired.
+
+A tag `v1.N.x` is for Rancher 2.N. Before the first tag of a new minor, update the
+`catalog.cattle.io/rancher-version` and `kube-version` annotations in `charts/eks-operator/Chart.yaml`:
+the workflow refuses a tag that does not match them, before anything is pushed. If it fails, fix the
+cause and run it again on the tag with `gh workflow run stage-chart.yaml --ref <tag>`; what to do
+after a push is in [When something fails](https://github.com/rancher/cargueiro/blob/main/docs/CHART_OWNER.md#when-something-fails).
 #### How do I unRC?
 
 UnRC is the process of removing the rc from a KEv2 operator tag and means the released version is stable and ready for use. Release the KEv2 operator but instead of bumping the rc, remove the rc. For example, if the latest release of EKS operator is:
