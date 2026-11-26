@@ -1,3 +1,8 @@
+# check=skip=InvalidDefaultArgInFrom
+# Go builder image. Passed in by the Makefile and CI from go.mod, so the
+# toolchain version is never hardcoded here.
+ARG GO_CONTAINER_IMAGE
+
 # Minimal BCI base image, as recommended by RFD 0070.
 FROM registry.suse.com/bci/bci-nano:16.1 AS base
 
@@ -11,10 +16,9 @@ RUN echo "eks-operator:x:1007:1007::/home/eks-operator:/usr/bin/false" >> /final
     install -dv -m 0755 -o 1007 -g 1007 /final/etc/rancher/ssl
 
 # Builds with the Go compiler from the AppCo Go image, as recommended by
-# RFD 0070. Pinned to MAJOR.MINOR.PATCH so the toolchain is deterministic and
-# bumped by Renovate. It has no package manager, and does not need one: Go
-# cross compiles with GOOS/GOARCH, as rancher/rancher does.
-FROM --platform=$BUILDPLATFORM registry.suse.com/rancher/appco-go:1.27.4 AS builder
+# RFD 0070. It has no package manager, and does not need one: Go cross
+# compiles with GOOS/GOARCH, as rancher/rancher does.
+FROM --platform=$BUILDPLATFORM ${GO_CONTAINER_IMAGE} AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
