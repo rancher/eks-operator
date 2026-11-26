@@ -27,22 +27,8 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build operator
         run: make operator
-      - name: Get Go container image
-        id: go-image
-        run: echo "image=registry.suse.com/rancher/appco-go:$(awk '/^toolchain /{print $2}' go.mod | sed 's/^go//')" >> "$GITHUB_OUTPUT"
       - name: Build image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          tags: ghcr.io/rancher/eks-operator:${{ github.sha }}
-          load: true
-          push: false
-          file: package/Dockerfile
-          build-args: |
-            TAG=${{ github.sha }}
-            REPO=ghcr.io/rancher/eks-operator
-            COMMIT=${{ github.sha }}
-            GO_CONTAINER_IMAGE=${{ steps.go-image.outputs.image }}
+        run: make image-build REPO=ghcr.io/rancher TAG=${{ github.sha }} BUILD_ACTION=--load
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
