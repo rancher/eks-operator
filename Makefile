@@ -21,6 +21,11 @@ DEFAULT_PLATFORMS := linux/amd64,linux/arm64,darwin/arm64,darwin/amd64
 TARGET_PLATFORMS := linux/amd64,linux/arm64
 BUILDX_ARGS ?= --sbom=true --attest type=provenance,mode=max
 
+# Go builder image for package/Dockerfile. The version comes from go.mod, so
+# Renovate bumps it there and no separate image bump is needed.
+GO_VERSION ?= $(shell awk '/^toolchain /{print $$2}' go.mod | sed 's/^go//')
+GO_CONTAINER_IMAGE ?= registry.suse.com/rancher/appco-go:$(GO_VERSION)
+
 E2E_CONF_FILE ?= $(ROOT_DIR)/test/e2e/config/config.yaml
 CHART_VERSION?=$(subst v,,$(GIT_TAG))
 RAWCOMMITDATE=$(shell git log -n1 --format="%at")
@@ -91,6 +96,7 @@ buildx-machine: ## create rancher dockerbuildx machine targeting platform define
 image-build: buildx-machine ## build (and load) the container image targeting the current platform.
 	docker buildx build -f package/Dockerfile \
     --builder $(MACHINE) --build-arg COMMIT=$(GIT_COMMIT) --build-arg VERSION=$(TAG) \
+    --build-arg GO_CONTAINER_IMAGE=$(GO_CONTAINER_IMAGE) \
     -t "$(IMAGE)" $(BUILD_ACTION) .
 	@echo "Built $(IMAGE)"
 
@@ -98,6 +104,7 @@ image-build: buildx-machine ## build (and load) the container image targeting th
 image-push: buildx-machine ## build the container image targeting all platforms defined by TARGET_PLATFORMS and push to a registry.
 	docker buildx build -f package/Dockerfile \
     --builder $(MACHINE) $(IID_FILE_FLAG) $(BUILDX_ARGS) --build-arg COMMIT=$(GIT_COMMIT) --build-arg VERSION=$(TAG) \
+    --build-arg GO_CONTAINER_IMAGE=$(GO_CONTAINER_IMAGE) \
     --platform=$(TARGET_PLATFORMS) -t "$(IMAGE)" --push .
 	@echo "Pushed $(IMAGE)"
 
