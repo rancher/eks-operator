@@ -104,9 +104,9 @@ jobs:
           fi
 
           # renovate-local: goreleaser-x86_64
-          GORELEASER_VERSION="v2.20.1"
-          # renovate-local: goreleaser-x86_64=v2.20.1
-          GORELEASER_CHECKSUM_x86_64="79e0589ca9efd70e8db85158a21334cbb57811d4034b39b61d55789f361341a5"
+          GORELEASER_VERSION="v2.20.3"
+          # renovate-local: goreleaser-x86_64=v2.20.3
+          GORELEASER_CHECKSUM_x86_64="a36d5d7d07a5e538e052cef2a9f93f1cd4af493cf5a3712b9177c1ebe360f0e7"
 
           ARCH=$(uname -m)
           CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
